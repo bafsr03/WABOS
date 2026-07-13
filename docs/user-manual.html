@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Manual de Usuario</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}
+.topbar a:hover,.topbar a.active{color:#fff}
+.topbar .sp{flex:1}
+.hero{background:linear-gradient(135deg,#0f172a,#128c7e);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1080px;margin:0 auto}
+.hero h1{margin:0;font-size:32px}
+.hero p{margin:10px 0 0;color:#cbd5e1;max-width:720px}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:230px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0;border-left:2px solid transparent;padding-left:10px}
+nav.toc a:hover{color:var(--ink)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.pill{display:inline-block;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1080px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="user-manual.html" class="active">Usuario</a>
+  <a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a>
+  <a href="salesman-manual.html">Vendedor</a>
+  <a href="pricing.html">Precios</a>
+  <a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>📘 Manual de Usuario</h1>
+  <p>Para el dueño del negocio. WABOS convierte tu WhatsApp en tu empleado más inteligente: responde al instante con IA, organiza a tus clientes, maneja tu catálogo y envía campañas — sin cambiar la forma en que ya trabajas.</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <a href="#que-es">1. Qué es WABOS</a>
+  <a href="#instalar">2. Instalación y primer uso</a>
+  <a href="#conectar">3. Conectar WhatsApp</a>
+  <a href="#inbox">4. Inbox</a>
+  <a href="#ia">5. El Empleado IA</a>
+  <a href="#crm">6. Contactos (CRM)</a>
+  <a href="#catalogo">7. Catálogo</a>
+  <a href="#campanas">8. Campañas</a>
+  <a href="#deploy">9. Despliegue en servidor</a>
+  <a href="#problemas">10. Solución de problemas</a>
+  <a href="#riesgos">11. Riesgos importantes</a>
+  <a href="#ref">12. Referencia rápida</a>
+</nav>
+<main>
+
+<h2 id="que-es">1. Qué incluye WABOS V1</h2>
+<table>
+<tr><th>Módulo</th><th>Qué hace</th></tr>
+<tr><td><b>Conexión</b></td><td>Vincula el número de WhatsApp de tu negocio escaneando un código QR</td></tr>
+<tr><td><b>Inbox</b></td><td>Todas las conversaciones de clientes en un solo lugar, en tiempo real</td></tr>
+<tr><td><b>Empleado IA</b></td><td>Respuestas automáticas con Claude, entrenado con el perfil de tu negocio, tus FAQs y tu catálogo</td></tr>
+<tr><td><b>Contactos (CRM)</b></td><td>Clientes, etiquetas y notas</td></tr>
+<tr><td><b>Catálogo</b></td><td>Productos con precios que la IA usa para responder y recomendar</td></tr>
+<tr><td><b>Campañas</b></td><td>Difusiones segmentadas por etiqueta, con control anti-baneo</td></tr>
+<tr><td><b>Ajustes</b></td><td>Perfil del negocio, tono e instrucciones de la IA, FAQs, interruptor de IA</td></tr>
+</table>
+<p>WABOS tiene dos partes:</p>
+<ul>
+<li><b>Motor (engine)</b> — un servidor Node.js que mantiene viva la conexión de WhatsApp, guarda todo en una base de datos y ejecuta la IA. <i>Debe estar encendido 24/7 para que WABOS funcione.</i></li>
+<li><b>Panel (dashboard)</b> — la aplicación web que usas todos los días, en <code>http://localhost:3000</code>.</li>
+</ul>
+<div class="callout"><b>¿Auto-hospedado o gestionado?</b> Si contrataste WABOS como servicio, nosotros nos encargamos del motor y tú solo usas el panel — puedes saltarte las secciones 2 y 9. Si lo instalas tú mismo, sigue todo el manual.</div>
+
+<h2 id="instalar">2. Instalación y primer uso</h2>
+<p><b>Requisitos:</b> Node.js ≥ 20 (recomendado 22), pnpm ≥ 9, y un número de WhatsApp para el negocio (se recomienda un número secundario/de prueba mientras evalúas — ver §11).</p>
+<pre><code># 1. Instalar dependencias
+pnpm install
+
+# 2. Configurar el motor
+cp apps/engine/.env.example apps/engine/.env
+#   DASHBOARD_TOKEN   -> un secreto que elijas (es la contraseña del panel)
+#   ANTHROPIC_API_KEY -> tu clave de Claude (console.anthropic.com)
+#                        Sin ella, el Empleado IA queda desactivado.
+
+# 3. (Opcional) cargar datos de demostración (STAND 120)
+pnpm seed
+
+# 4. Iniciar todo (motor en :4000, panel en :3000)
+pnpm dev</code></pre>
+<p>Abre <b>http://localhost:3000</b>, ingresa tu <code>DASHBOARD_TOKEN</code> y entrarás al panel.</p>
+
+<h2 id="conectar">3. Conectar tu WhatsApp</h2>
+<ol>
+<li>Ve a <b>Conexión</b> en el panel (el QR también se imprime en la terminal del motor).</li>
+<li>En el teléfono del negocio: <b>WhatsApp → Ajustes → Dispositivos vinculados → Vincular un dispositivo</b>.</li>
+<li>Escanea el QR. En segundos el punto de estado se pone verde: <b>conectado</b>.</li>
+</ol>
+<ul>
+<li>WABOS usa el modo multidispositivo: <b>el teléfono no necesita estar encendido siempre</b> después de vincular, pero debe conectarse a internet al menos una vez cada ~14 días.</li>
+<li>La sesión se guarda en <code>apps/engine/auth/</code>. Reiniciar el motor <b>no</b> requiere volver a escanear. Borrar esa carpeta sí.</li>
+<li><b>Desvincular número</b> cierra la sesión y muestra un QR nuevo de inmediato.</li>
+</ul>
+
+<h2 id="inbox">4. Inbox</h2>
+<p>El Inbox muestra cada conversación 1 a 1 (los grupos, canales y estados se ignoran a propósito).</p>
+<p><b>Modo IA vs Humano — las reglas de traspaso (handoff):</b></p>
+<table>
+<tr><th>Acción</th><th>Efecto</th></tr>
+<tr><td>El cliente escribe, conversación en modo <code>IA</code></td><td>La IA responde automáticamente (tras una pausa de ~4 s para agrupar mensajes rápidos)</td></tr>
+<tr><td>Tú escribes una respuesta manual</td><td>La conversación pasa a <code>Humano</code> — la IA se hace a un lado</td></tr>
+<tr><td>Presionas el botón de modo</td><td>Alterna entre <code>IA</code> y <code>Humano</code> cuando quieras</td></tr>
+<tr><td>La IA decide que no puede ayudar (cliente molesto, reclamo, pide una persona)</td><td>Ella misma traspasa a <code>Humano</code> y le avisa al cliente que alguien lo atenderá</td></tr>
+</table>
+
+<h2 id="ia">5. El Empleado IA</h2>
+<p>El Empleado IA funciona con Claude y solo sabe lo que le enseñas. Se niega a inventar precios o stock — aliméntalo bien:</p>
+<ol>
+<li><b>Ajustes → Perfil del negocio</b>: nombre, descripción (qué vendes, dónde estás, delivery, métodos de pago), horario, tono e instrucciones extra.</li>
+<li><b>Ajustes → Preguntas frecuentes</b>: la IA las trata como verdad. Agrega tus 10 preguntas más comunes.</li>
+<li><b>Catálogo</b>: la IA ve nombres y precios de productos, y puede buscar en las descripciones.</li>
+</ol>
+<p>La IA también puede, por su cuenta: <b>buscar en el catálogo</b>, <b>etiquetar clientes</b> (ej. <code>interesado</code>) cuando detecta intención de compra, y <b>traspasar a un humano</b>.</p>
+<div class="callout warn"><b>Interruptor de emergencia:</b> Ajustes → Empleado IA apaga todas las respuestas de IA al instante. El control por conversación es el botón de modo en el Inbox.</div>
+
+<h2 id="crm">6. Contactos (CRM)</h2>
+<ul>
+<li>Los contactos se <b>crean automáticamente</b> cuando alguien te escribe.</li>
+<li>Agrega contactos manualmente con el teléfono en formato internacional sin <code>+</code> (Perú: <code>51987654321</code>).</li>
+<li><b>Etiquetas</b>: <code>vip</code>, <code>mayorista</code>, <code>interesado</code>. Las etiquetas alimentan los segmentos de campañas.</li>
+<li><b>Notas</b>: texto libre por cliente.</li>
+</ul>
+
+<h2 id="catalogo">7. Catálogo</h2>
+<p>Agrega productos con nombre, descripción y precio (S/ por defecto). Buenas descripciones (tallas, colores, materiales) hacen a la IA mucho mejor. <b>Desactivar</b> oculta un producto de la IA sin borrarlo (agotado).</p>
+
+<h2 id="campanas">8. Campañas (Difusiones)</h2>
+<ol>
+<li>Nombra la campaña, elige un segmento (<b>todos</b> o <b>una etiqueta</b>), escribe el mensaje.</li>
+<li>WABOS muestra el número de destinatarios, pide confirmación, y envía <b>un mensaje cada 6–12 segundos</b> (aleatorio). Este espaciado es deliberado (ver §11) y no se puede desactivar.</li>
+<li>Observa el progreso en vivo (enviados / fallidos).</li>
+</ol>
+<div class="callout"><b>Buenas prácticas que mantienen tu número vivo:</b> mensajea solo a gente que ya te escribió o te dio su número; segmenta con etiquetas; espacia las campañas; personaliza. Mensajes cortos y útiles reciben menos bloqueos — y los bloqueos son lo que hace que baneen números.</div>
+
+<h2 id="deploy">9. Despliegue en un servidor (VPS)</h2>
+<p>Cualquier VPS pequeño (1 GB RAM) corre WABOS. Con Ubuntu + pm2:</p>
+<pre><code>curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+npm i -g pnpm pm2
+git clone &lt;tu-repo&gt; wabos && cd wabos
+pnpm install
+cp apps/engine/.env.example apps/engine/.env && nano apps/engine/.env
+
+pm2 start "pnpm --filter @wabos/engine start" --name wabos-engine
+cd apps/dashboard && NEXT_PUBLIC_ENGINE_URL=https://engine.tudominio.com pnpm build && cd ../..
+pm2 start "pnpm --filter @wabos/dashboard start" --name wabos-dashboard
+pm2 save && pm2 startup</code></pre>
+<p>Pon nginx/Caddy con HTTPS delante de ambos puertos. El panel necesita <code>NEXT_PUBLIC_ENGINE_URL</code> <b>en el momento del build</b> apuntando a la URL pública del motor (que también debe proxear la ruta WebSocket <code>/ws</code>).</p>
+<p><b>Backups:</b> copia <code>apps/engine/data/</code> (todos los datos) y <code>apps/engine/auth/</code> (la sesión de WhatsApp) con regularidad.</p>
+
+<h2 id="problemas">10. Solución de problemas</h2>
+<table>
+<tr><th>Síntoma</th><th>Causa / Solución</th></tr>
+<tr><td>El panel dice "No se pudo conectar con el motor"</td><td>El motor no está corriendo o <code>NEXT_PUBLIC_ENGINE_URL</code> es incorrecta.</td></tr>
+<tr><td>"Token inválido" al ingresar</td><td>No coincide con <code>DASHBOARD_TOKEN</code>. Reinicia el motor tras cambiarlo.</td></tr>
+<tr><td>El QR nunca pasa a "conectado"</td><td>Los QR rotan cada ~30 s — escanea rápido. Revisa que el teléfono tenga internet.</td></tr>
+<tr><td>El motor dice "session logged out"</td><td>El número fue desvinculado del teléfono (o baneado). WABOS limpia la sesión y muestra un QR nuevo.</td></tr>
+<tr><td>La IA no responde</td><td>Revisa en orden: ¿<code>ANTHROPIC_API_KEY</code> configurada? ¿interruptor de IA encendido? ¿la conversación está en modo <code>IA</code>?</td></tr>
+<tr><td>Campaña atascada en "Enviando…"</td><td>Es el espaciado de 6–12 s por destinatario. 100 destinatarios ≈ 10–20 min.</td></tr>
+</table>
+
+<h2 id="riesgos">11. ⚠️ Importante: riesgos que debes entender</h2>
+<div class="callout danger">
+<p>WABOS se conecta a través de <b>Baileys</b>, una librería de código abierto que habla el protocolo de WhatsApp Web. <b>No es una API oficial de WhatsApp.</b></p>
+<ul>
+<li><b>WhatsApp puede banear números</b> que se comportan como spam — mensajes masivos no solicitados, muchos bloqueos, números nuevos haciendo difusiones. Los baneos pueden ser permanentes.</li>
+<li>WABOS trae salvaguardas (retrasos de escritura humanizados, espaciado aleatorio, límite estricto en difusiones, grupos ignorados), pero <b>ninguna salvaguarda hace seguro el abuso</b>.</li>
+<li><b>Recomendaciones:</b> prueba primero con un número secundario; "calienta" números nuevos con semanas de uso normal 1 a 1 antes de difundir; mantén las campañas pequeñas, segmentadas y realmente útiles.</li>
+<li>Para negocios a una escala donde un baneo sería fatal, la <b>WhatsApp Business Platform (Cloud API)</b> oficial es la alternativa autorizada — con costo por mensaje y plantillas aprobadas.</li>
+</ul>
+</div>
+
+<h2 id="ref">12. Referencia rápida</h2>
+<table>
+<tr><td>Panel</td><td><code>http://localhost:3000</code></td></tr>
+<tr><td>API del motor</td><td><code>http://localhost:4000</code> (Bearer <code>DASHBOARD_TOKEN</code>)</td></tr>
+<tr><td>Configuración del motor</td><td><code>apps/engine/.env</code></td></tr>
+<tr><td>Datos (SQLite)</td><td><code>apps/engine/data/wabos.db</code></td></tr>
+<tr><td>Sesión de WhatsApp</td><td><code>apps/engine/auth/</code></td></tr>
+<tr><td>Datos de demo</td><td><code>pnpm seed</code></td></tr>
+</table>
+
+</main>
+</div>
+<footer>WABOS · Manual de Usuario · La versión Markdown completa está en <code>docs/MANUAL.md</code>.</footer>
+</body>
+</html>

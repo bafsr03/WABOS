@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+*.log
+.DS_Store
+
+# WhatsApp session credentials — never commit
+apps/engine/auth/
+
+# Local data
+apps/engine/data/
+apps/engine/media/
+
+# Env
+.env
+.env.local
+.env.*.local

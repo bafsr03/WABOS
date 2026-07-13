@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Manual del Propietario</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#7c3aed);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1080px;margin:0 auto}.hero h1{margin:0;font-size:32px}.hero p{margin:10px 0 0;color:#e9d5ff;max-width:760px}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:240px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid transparent}nav.toc a:hover{color:var(--ink)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:13px}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.callout.key{border-color:#7c3aed;background:#faf5ff}
+ol.run{counter-reset:s;list-style:none;padding-left:0}
+ol.run li{position:relative;padding-left:38px;margin:10px 0}
+ol.run li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:26px;height:26px;background:var(--wa-dark);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1080px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a><a href="user-manual.html">Usuario</a><a href="owner-manual.html" class="active">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a><a href="salesman-manual.html">Vendedor</a><a href="pricing.html">Precios</a><a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🏢 Manual del Propietario</h1>
+  <p>Cómo operamos WABOS como servicio: modelo de negocio, alta de clientes, entrega, gestión del riesgo de baneo en toda la flota, costos y márgenes, soporte, cobranza, legal y las métricas que importan.</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <a href="#modelo">1. Modelo de negocio</a>
+  <a href="#entrega">2. Cómo se entrega</a>
+  <a href="#alta">3. Alta de un cliente</a>
+  <a href="#precios">4. Gestión de precios</a>
+  <a href="#costos">5. Costos y márgenes</a>
+  <a href="#baneo">6. Riesgo de baneo (flota)</a>
+  <a href="#monitoreo">7. Monitoreo y salud</a>
+  <a href="#cobranza">8. Cobranza</a>
+  <a href="#soporte">9. Soporte y SLA</a>
+  <a href="#legal">10. Legal y cumplimiento</a>
+  <a href="#metricas">11. Métricas clave</a>
+  <a href="#checklist">12. Checklist operativo</a>
+</nav>
+<main>
+
+<h2 id="modelo">1. Modelo de negocio</h2>
+<p>WABOS es un <b>SaaS de suscripción mensual</b> para PYMEs que viven en WhatsApp. Ingreso recurrente (MRR) por planes + add-ons + servicios únicos (onboarding, entrenamiento de IA). La propuesta no se vende como "otro chatbot" sino como <b>"un empleado digital que cuesta ~7% de un sueldo mínimo"</b>.</p>
+<p>Fuentes de ingreso, en orden de importancia:</p>
+<ol>
+<li><b>Suscripciones</b> (Básico/Avanzado/Pro/Empresarial) — el MRR base.</li>
+<li><b>Add-ons</b> (empleados IA extra, números, usuarios, mensajes excedentes) — expansión dentro de la cuenta.</li>
+<li><b>Servicios únicos</b> (onboarding S/250–1,500, entrenamiento IA desde S/500) — caja inicial y menor churn.</li>
+<li><b>Empresarial / white label</b> — contratos grandes con infraestructura dedicada.</li>
+</ol>
+
+<h2 id="entrega">2. Cómo se entrega el servicio</h2>
+<p>WABOS V1 es <b>single-tenant por despliegue</b>: un motor + una base de datos SQLite por número de WhatsApp. Hay dos modelos de entrega:</p>
+<table>
+<tr><th>Modelo</th><th>Cómo</th><th>Para quién</th></tr>
+<tr><td><b>Gestionado (recomendado)</b></td><td>Nosotros corremos el motor de cada cliente en nuestra infraestructura (VPS compartido para Básico/Avanzado, VPS dedicado para Pro/Empresarial). El cliente solo usa el panel.</td><td>La mayoría — es donde está el margen recurrente y el control del riesgo de baneo.</td></tr>
+<tr><td><b>Auto-hospedado / white label</b></td><td>El cliente (o un socio) corre su propio motor con su clave de Claude. Nosotros licenciamos y damos soporte.</td><td>Empresarial y socios revendedores.</td></tr>
+</table>
+<div class="callout warn"><b>Límite técnico de V1:</b> como es single-tenant, cada cliente es un proceso/despliegue separado. Escalar a decenas de clientes manualmente es tedioso — por eso la <b>multi-tenancy es la prioridad #1 de v2</b> (ver Roadmap). Mientras tanto, automatiza el alta con scripts/pm2 y un VPS por lote de clientes.</div>
+
+<h2 id="alta">3. Runbook: alta de un cliente nuevo</h2>
+<ol class="run">
+<li><b>Contrato y cobro inicial.</b> Firma/acepta plan + onboarding. Cobra el primer mes + onboarding por adelantado (Yape/transferencia/Culqi).</li>
+<li><b>Aprovisiona el motor.</b> En el VPS: clona el repo, crea la carpeta del cliente, genera un <code>DASHBOARD_TOKEN</code> único, coloca la <code>ANTHROPIC_API_KEY</code>, arranca con <code>pm2 start … --name wabos-&lt;cliente&gt;</code>. Publica el panel con su subdominio.</li>
+<li><b>Perfila el negocio.</b> Con el cliente, llena Ajustes: nombre, descripción, horario, tono, métodos de pago; carga 10–15 FAQs y el catálogo. (Esto es el entregable del onboarding — usa el demo de STAND 120 como plantilla.)</li>
+<li><b>Vincula el número.</b> Preferible un número dedicado/secundario. Escanea el QR. <b>Calienta el número</b> si es nuevo (ver §6).</li>
+<li><b>Prueba de extremo a extremo.</b> Desde otro teléfono, envía consultas típicas; verifica que la IA responde con catálogo correcto y que el traspaso a humano funciona.</li>
+<li><b>Capacita al equipo del cliente.</b> 30 min: Inbox, modo IA/Humano, kill-switch, campañas responsables. Entrégales el <a href="user-manual.html">Manual de Usuario</a>.</li>
+<li><b>Activa monitoreo.</b> Añade el motor a tu tablero de salud y a las alertas de baneo/caída.</li>
+</ol>
+
+<h2 id="precios">4. Gestión de precios</h2>
+<p>La lista completa está en <a href="pricing.html">Precios y Limitaciones</a>. Como operadores:</p>
+<ul>
+<li><b>Los topes de mensajes IA se aplican en la lógica</b>, no como sugerencia. Al superarlos se factura excedente (S/25 / 1,000) o se pausa la IA — nunca "comemos" el costo en silencio.</li>
+<li><b>Cambiar precios:</b> respeta a los clientes existentes (grandfathering) por 6–12 meses; aplica precios nuevos a altas nuevas. Comunica cambios con 30 días de anticipación.</li>
+<li><b>Descuentos:</b> anual con 2 meses gratis (fideliza y adelanta caja). Evita descuentos que dejen el costo de IA por encima del 30% del precio efectivo.</li>
+<li><b>Upsell natural:</b> cuando un cliente choca su tope de mensajes o pide más usuarios/números, es señal de subir de plan — no de regalar capacidad.</li>
+</ul>
+
+<h2 id="costos">5. Costos y márgenes</h2>
+<p>Detalle completo en <a href="pricing.html#costos">Precios §5–6</a>. Lo esencial para operar:</p>
+<div class="callout key"><b>Regla de oro:</b> el costo de Claude por cliente debe mantenerse <b>≤ 30% del precio de su plan</b>. Las cuatro palancas que lo garantizan: <b>(1)</b> caché de prompts (el prompt de sistema — perfil + FAQs + catálogo — se cachea), <b>(2)</b> Haiku 4.5 por defecto y Sonnet 5 solo en el Empleado de Ventas, <b>(3)</b> el debounce de 4 s que agrupa mensajes, <b>(4)</b> topes con excedente facturable.</div>
+<p>Costos variables por cliente/mes: Claude (~S/6–45 típico), infraestructura (~S/12–30 prorrateado). Costos fijos del negocio: dominios, tu tiempo de soporte, herramientas. Objetivo de margen bruto por suscripción: <b>50–65%</b>.</p>
+
+<h2 id="baneo">6. Gestión del riesgo de baneo (nuestro riesgo #1)</h2>
+<p>Baileys no es API oficial. Un número baneado = un cliente furioso y posible churn. Esto se gestiona a nivel de <b>flota</b>, no solo por cliente.</p>
+<ul>
+<li><b>Calentamiento de números.</b> Números nuevos: 1–2 semanas de uso 1 a 1 normal antes de cualquier difusión. Nada de campañas el día 1.</li>
+<li><b>Espaciado estricto.</b> El motor ya limita difusiones a 1 mensaje / 6–12 s con jitter y humaniza tiempos de escritura. No lo desactives ni lo "aceleres" por pedido de un cliente.</li>
+<li><b>Solo a contactos conocidos.</b> Educamos al cliente: difundir solo a quienes escribieron o dieron su número. El opt-in reduce bloqueos, y los bloqueos son lo que dispara baneos.</li>
+<li><b>Monitorea la tasa de bloqueo/reporte.</b> Un salto de "session logged out" o de reconexiones repetidas es señal temprana. Ver §7.</li>
+<li><b>Plan de contingencia por baneo:</b> ten un procedimiento — número de respaldo del cliente, restauración de datos (los datos viven en <code>data/</code>, sobreviven al baneo del número), y para clientes grandes ofrece migración a la <b>WhatsApp Cloud API oficial</b> (la arquitectura aísla la capa de WhatsApp en <code>apps/engine/src/wa/</code>, ver Manual del Desarrollador).</li>
+<li><b>Clientes de rubros sensibles</b> (ej. STAND 120, smokeshop): añade puerta de edad 18+ en las instrucciones de la IA y evita lenguaje/promos que activen filtros. Ya está en el seed de STAND 120.</li>
+</ul>
+
+<h2 id="monitoreo">7. Monitoreo y salud de la flota</h2>
+<ul>
+<li><b>Estado de conexión</b> por cliente: <code>GET /api/status</code> con su token → <code>connected</code> / <code>qr</code> / <code>disconnected</code>. Alerta si un cliente lleva &gt;10 min fuera de <code>connected</code>.</li>
+<li><b>Procesos:</b> <code>pm2 list</code> / <code>pm2 monit</code>; reinicios automáticos con <code>pm2 save</code>.</li>
+<li><b>Logs:</b> <code>pm2 logs wabos-&lt;cliente&gt;</code>; busca <code>session logged out</code> (baneo/desvinculación) y bucles de reconexión.</li>
+<li><b>Costo de IA:</b> revisa el consumo en el panel de Anthropic por clave/cliente vs. el tope del plan. Si un cliente se dispara, aplica excedente o investiga abuso.</li>
+<li><b>Backups automáticos</b> de <code>data/</code> y <code>auth/</code> por cliente (diarios). Los datos sobreviven a un baneo; la sesión no.</li>
+</ul>
+
+<h2 id="cobranza">8. Cobranza</h2>
+<ul>
+<li><b>Ciclo mensual</b> por adelantado. Métodos en Perú: Yape/Plin (para montos chicos), transferencia BCP/Interbank, Culqi/Izipay para tarjeta recurrente.</li>
+<li><b>Automatiza recordatorios</b> — irónicamente, WABOS mismo (el Empleado de Cobranzas) puede recordarle a tus propios clientes.</li>
+<li><b>Morosidad:</b> gracia de 5 días → pausa de la IA (no del inbox, para no romper la relación del cliente con SUS clientes) → suspensión a los 15 días. Los datos se conservan 30 días por si regularizan.</li>
+<li><b>Excedentes de mensajes IA</b> se facturan al cierre del ciclo o por auto-recarga.</li>
+</ul>
+
+<h2 id="soporte">9. Soporte y SLA</h2>
+<table>
+<tr><th>Plan</th><th>Canal</th><th>Tiempo de respuesta objetivo</th></tr>
+<tr><td>Básico / Avanzado</td><td>WhatsApp / correo, horario hábil</td><td>&lt; 24 h hábiles</td></tr>
+<tr><td>Pro</td><td>WhatsApp prioritario</td><td>&lt; 4 h hábiles</td></tr>
+<tr><td>Empresarial</td><td>Soporte dedicado + SLA por contrato</td><td>Según SLA (ej. 99.5% uptime, &lt; 1 h crítico)</td></tr>
+</table>
+
+<h2 id="legal">10. Legal y cumplimiento</h2>
+<ul>
+<li><b>Transparencia sobre Baileys.</b> El contrato debe declarar que WABOS usa un método no oficial y que existe riesgo de baneo — igual que el <a href="user-manual.html#riesgos">§11 del Manual de Usuario</a>. No prometas "cero riesgo".</li>
+<li><b>Protección de datos.</b> Guardamos conversaciones y contactos del cliente. Ten una política de privacidad, minimiza datos, y define retención (ver límites por plan). Cumple con la Ley de Protección de Datos Personales (Perú, Ley 29733).</li>
+<li><b>Datos enviados a Claude.</b> Los mensajes pasan por la API de Anthropic para generar respuestas. Decláralo. Anthropic no entrena con datos de la API por defecto.</li>
+<li><b>Rubros sensibles.</b> Para clientes con restricción de edad o productos regulados, deja la puerta de edad y evita facilitar contenido prohibido.</li>
+</ul>
+
+<h2 id="metricas">11. Métricas clave que seguir</h2>
+<table>
+<tr><th>Métrica</th><th>Meta / señal</th></tr>
+<tr><td>MRR y crecimiento MoM</td><td>Crecer; el add-on/expansión debe aportar &gt;20% del nuevo MRR</td></tr>
+<tr><td>Costo de IA / precio del plan (por cliente)</td><td><b>≤ 30%</b> — si sube, revisa caché/tiering/abuso</td></tr>
+<tr><td>Margen bruto por suscripción</td><td>50–65%</td></tr>
+<tr><td>Churn mensual</td><td>&lt; 5%; el onboarding pagado y el uso diario lo reducen</td></tr>
+<tr><td>Uptime de conexión por cliente</td><td>&gt; 99%; alertar &lt; 99%</td></tr>
+<tr><td>Números baneados / mes</td><td>Cercano a 0; cada uno se investiga como incidente</td></tr>
+<tr><td>Utilización de mensajes IA vs tope</td><td>30–50% típico; &gt;80% sostenido = candidato a upsell</td></tr>
+</table>
+
+<h2 id="checklist">12. Checklist operativo</h2>
+<ul>
+<li>☐ Cada cliente tiene <code>DASHBOARD_TOKEN</code> único y <code>auth/</code> aislado.</li>
+<li>☐ Backups diarios de <code>data/</code> y <code>auth/</code> por cliente.</li>
+<li>☐ Alertas de conexión (&gt;10 min caído) y de "session logged out".</li>
+<li>☐ Revisión semanal de costo de IA vs topes.</li>
+<li>☐ Caché de prompts activa y tiering de modelos (Ventas=Sonnet, resto=Haiku) — <i>ver mejora pendiente en el Manual del Desarrollador</i>.</li>
+<li>☐ Contrato con cláusula de riesgo de baneo firmada.</li>
+<li>☐ Procedimiento de contingencia por baneo documentado por cliente.</li>
+</ul>
+
+</main>
+</div>
+<footer>WABOS · Manual del Propietario · Documento interno — no compartir con clientes finales.</footer>
+</body>
+</html>

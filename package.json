@@ -1,0 +1,16 @@
+{
+  "name": "wabos",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:engine": "pnpm --filter @wabos/engine dev",
+    "dev:dashboard": "pnpm --filter @wabos/dashboard dev",
+    "build": "pnpm --filter \"./apps/*\" build",
+    "seed": "pnpm --filter @wabos/engine seed",
+    "typecheck": "pnpm --filter \"./apps/*\" typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

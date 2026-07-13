@@ -1,0 +1,95 @@
+import { downloadMediaMessage, type WAMessage, type proto } from '@whiskeysockets/baileys';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { config } from '../config.js';
+import { logger } from '../logger.js';
+import { db } from '../db/index.js';
+import { bus } from '../events.js';
+import type { Contact, Conversation, Message } from '../modules/store.js';
+import { createReceipt, getPaymentSettings, listPendingCharges, type MediaRow } from '../modules/charges.js';
+import { enqueueJob, pokePoller } from '../jobs/queue.js';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+const EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
+function unwrapImage(message: proto.IMessage | null | undefined): proto.Message.IImageMessage | null {
+  if (!message) return null;
+  if (message.imageMessage) return message.imageMessage;
+  if (message.ephemeralMessage) return unwrapImage(message.ephemeralMessage.message);
+  if (message.viewOnceMessage) return unwrapImage(message.viewOnceMessage.message);
+  return null;
+}
+
+// Downloads and stores an inbound image, then queues it for receipt
+// verification. Returns true when the image was claimed: the receipt worker
+// now owns the conversation's reply, so the caller must skip the AI debounce.
+export async function handleInboundImage(
+  msg: WAMessage,
+  stored: Message,
+  contact: Contact,
+  conversation: Conversation,
+): Promise<boolean> {
+  const image = unwrapImage(msg.message);
+  if (!image) return false;
+
+  const settings = getPaymentSettings();
+  if (settings.downloadPolicy === 'pending_charge' && listPendingCharges(contact.id).length === 0) {
+    return false;
+  }
+
+  const declaredSize = Number(image.fileLength ?? 0);
+  if (declaredSize > MAX_IMAGE_BYTES) {
+    logger.warn({ messageId: stored.id, declaredSize }, 'inbound image too large, skipping download');
+    return false;
+  }
+
+  const buffer = await downloadMediaMessage(msg, 'buffer', {});
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    logger.warn({ messageId: stored.id, size: buffer.length }, 'inbound image too large after download');
+    return false;
+  }
+
+  const mime = image.mimetype ?? 'image/jpeg';
+  const sha256 = createHash('sha256').update(buffer).digest('hex');
+  const now = new Date();
+  const relDir = path.join(String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
+  const relPath = path.join(relDir, `${sha256}.${EXT_BY_MIME[mime] ?? 'jpg'}`);
+  const absPath = path.join(config.mediaDir, relPath);
+  fs.mkdirSync(path.dirname(absPath), { recursive: true });
+  if (!fs.existsSync(absPath)) fs.writeFileSync(absPath, buffer);
+
+  const info = db.prepare(`
+    INSERT INTO media (message_id, mime, path, size_bytes, sha256) VALUES (?, ?, ?, ?, ?)
+  `).run(stored.id, mime, relPath, buffer.length, sha256);
+  const mediaId = Number(info.lastInsertRowid);
+
+  const receipt = createReceipt({
+    mediaId,
+    messageId: stored.id,
+    contactId: contact.id,
+    conversationId: conversation.id,
+  });
+
+  enqueueJob('receipt.process', { receiptId: receipt.id });
+  bus.emitInternal({
+    type: 'media.received',
+    mediaId,
+    messageId: stored.id,
+    conversationId: conversation.id,
+    contactId: contact.id,
+  });
+  pokePoller();
+  logger.info({ mediaId, receiptId: receipt.id, contactId: contact.id }, 'inbound image queued for receipt verification');
+  return true;
+}
+
+export function mediaAbsolutePath(media: MediaRow): string {
+  return path.join(config.mediaDir, media.path);
+}

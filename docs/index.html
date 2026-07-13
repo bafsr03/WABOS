@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Centro de Documentación</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}
+a{color:var(--wa-dark);text-decoration:none}
+a:hover{text-decoration:underline}
+.hero{background:linear-gradient(135deg,#0f172a 0%,#128c7e 100%);color:#fff;padding:72px 24px 64px;text-align:center}
+.hero .logo{font-size:44px;font-weight:800;letter-spacing:-1px}
+.hero .logo span{color:var(--wa)}
+.hero p{max-width:640px;margin:16px auto 0;font-size:18px;color:#cbd5e1}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin:-40px auto 48px;position:relative}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;box-shadow:0 4px 20px rgba(15,23,42,.06);display:flex;flex-direction:column}
+.card .ic{font-size:30px}
+.card h3{margin:12px 0 6px;font-size:19px}
+.card p{margin:0 0 16px;color:var(--muted);font-size:14.5px;flex:1}
+.card .go{font-weight:600;font-size:14px}
+.tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:999px;background:#ecfdf5;color:#047857;margin-bottom:8px;width:max-content}
+.tag.dev{background:#eff6ff;color:#1d4ed8}
+.tag.sell{background:#fef3c7;color:#b45309}
+.tag.own{background:#f3e8ff;color:#7c3aed}
+.tag.plan{background:#fee2e2;color:#b91c1c}
+h2.sec{margin:8px 0 4px;font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+footer{border-top:1px solid var(--line);padding:32px 24px;text-align:center;color:var(--muted);font-size:13px;margin-top:24px}
+.meta{color:#94a3b8;font-size:13px;text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="logo">WAB<span>OS</span></div>
+  <p>WhatsApp Business Operating System — Centro de documentación. Elige tu manual según tu rol.</p>
+</div>
+<div class="wrap">
+  <div class="grid">
+    <a class="card" href="user-manual.html">
+      <span class="ic">📘</span>
+      <span class="tag">Para el negocio</span>
+      <h3>Manual de Usuario</h3>
+      <p>Para el dueño del negocio que usa WABOS día a día: conectar WhatsApp, el Inbox, el Empleado IA, CRM, catálogo y campañas.</p>
+      <span class="go">Abrir manual →</span>
+    </a>
+    <a class="card" href="owner-manual.html">
+      <span class="ic">🏢</span>
+      <span class="tag own">Para el operador</span>
+      <h3>Manual del Propietario</h3>
+      <p>Para nosotros, los operadores del servicio: modelo de negocio, alta de clientes, precios, costos y márgenes, gestión de riesgo de baneo, soporte y métricas.</p>
+      <span class="go">Abrir manual →</span>
+    </a>
+    <a class="card" href="developer-manual.html">
+      <span class="ic">🛠️</span>
+      <span class="tag dev">Para desarrolladores</span>
+      <h3>Manual del Desarrollador</h3>
+      <p>Arquitectura, modelo de datos, el pipeline de mensajes, la capa de IA, referencia de la API y cómo extender el sistema correctamente.</p>
+      <span class="go">Abrir manual →</span>
+    </a>
+    <a class="card" href="salesman-manual.html">
+      <span class="ic">💼</span>
+      <span class="tag sell">Para ventas</span>
+      <h3>Manual del Vendedor</h3>
+      <p>Posicionamiento, planes y precios, guion de demo con STAND 120, manejo de objeciones (incluido el riesgo de baneo) y cierre.</p>
+      <span class="go">Abrir manual →</span>
+    </a>
+    <a class="card" href="pricing.html">
+      <span class="ic">💵</span>
+      <span class="tag plan">Precios y límites</span>
+      <h3>Precios y Limitaciones</h3>
+      <p>Planes establecidos con límites concretos, add-ons, la estructura de costos real (Claude API + infraestructura) y los márgenes por plan.</p>
+      <span class="go">Ver precios →</span>
+    </a>
+    <a class="card" href="v2-roadmap.html">
+      <span class="ic">🚀</span>
+      <span class="tag dev">Futuro</span>
+      <h3>WABOS v2 — Roadmap</h3>
+      <p>Qué construir después y cómo hacerlo bien: multi-tenancy, pagos (Yape/Plin), inventario, analíticas, app móvil y la evolución de arquitectura.</p>
+      <span class="go">Ver roadmap →</span>
+    </a>
+    <a class="card" href="testing-guide.html">
+      <span class="ic">🧪</span>
+      <span class="tag dev">Pruebas</span>
+      <h3>Guía de Pruebas E2E</h3>
+      <p>Checklist paso a paso de cada función — desde conectar WhatsApp hasta la verificación inteligente de pagos Yape/Plin, con resultado esperado y casillas para marcar.</p>
+      <span class="go">Abrir guía →</span>
+    </a>
+  </div>
+  <p class="meta">Generado el 8 de julio de 2026 · WABOS V1 · Demo perfilado sobre STAND 120 (smokeshop, Surco, Lima)</p>
+</div>
+<footer>
+  WABOS — Your Business. Powered by WhatsApp. · El manual técnico completo también está en <code>docs/MANUAL.md</code>.
+</footer>
+</body>
+</html>

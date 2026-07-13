@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Manual del Vendedor</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#b45309);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1000px;margin:0 auto}.hero h1{margin:0;font-size:32px}.hero p{margin:10px 0 0;color:#fde68a;max-width:760px}
+.layout{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:230px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid transparent}nav.toc a:hover{color:var(--ink)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.gold{border-color:#b45309;background:#fffbeb}
+.chat{background:#e5ddd5;border-radius:14px;padding:14px;margin:14px 0;max-width:460px}
+.b{max-width:80%;padding:8px 12px;border-radius:12px;margin:6px 0;font-size:14px;line-height:1.5;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.b.in{background:#fff}
+.b.out{background:#dcf8c6;margin-left:auto}
+.obj{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0;background:var(--card)}
+.obj .q{font-weight:700;color:#b45309}
+.obj .a{margin-top:4px}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1000px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a><a href="user-manual.html">Usuario</a><a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a><a href="salesman-manual.html" class="active">Vendedor</a><a href="pricing.html">Precios</a><a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>💼 Manual del Vendedor</h1>
+  <p>Cómo vender WABOS: posicionamiento, cliente ideal, planes, el guion de demo con STAND 120, manejo de objeciones (incluido el riesgo de baneo) y cierre. No vendes un chatbot — vendes un empleado.</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <a href="#pitch">1. El pitch en una frase</a>
+  <a href="#icp">2. Cliente ideal</a>
+  <a href="#roi">3. El argumento de ROI</a>
+  <a href="#planes">4. Planes (hoja de venta)</a>
+  <a href="#descubrimiento">5. Preguntas de descubrimiento</a>
+  <a href="#demo">6. Guion de demo (STAND 120)</a>
+  <a href="#objeciones">7. Manejo de objeciones</a>
+  <a href="#cierre">8. Cierre y handoff</a>
+  <a href="#nodos">9. Qué NO prometer</a>
+</nav>
+<main>
+
+<h2 id="pitch">1. El pitch en una frase</h2>
+<div class="callout gold"><b>"WABOS convierte tu WhatsApp en tu empleado más inteligente: responde a tus clientes al instante, día y noche, por menos del 10% de lo que cuesta contratar a alguien."</b></div>
+<p>No te posiciones contra un CRM ni contra WhatsApp Business. Posiciónate contra <b>contratar otra persona</b>. Ese es el marco que hace que S/89/mes parezca barato.</p>
+
+<h2 id="icp">2. Cliente ideal (ICP)</h2>
+<p>Negocios que <b>viven en WhatsApp</b> y reciben más mensajes de los que pueden responder:</p>
+<p>🛍 Tiendas · 🍔 Restaurantes · 💇 Salones · 🏥 Clínicas · 🌐 Proveedores de internet · 🏠 Inmobiliarias · 🎓 Academias · 🚚 Delivery · 🔧 Servicios · 🏋️ Gimnasios · ⚙️ Talleres · 💨 Smokeshops (ej. STAND 120)</p>
+<p><b>Señales de compra:</b> "se me escapan clientes", "no me doy abasto", "respondo lo mismo 50 veces al día", "atiendo hasta la madrugada", "perdí una venta por no responder a tiempo".</p>
+
+<h2 id="roi">3. El argumento de ROI</h2>
+<table>
+<tr><th>Opción</th><th>Costo mensual</th></tr>
+<tr><td>Contratar un asistente (sueldo mínimo Perú + cargas)</td><td>~S/1,130 + beneficios ≈ <b>S/1,500+</b></td></tr>
+<tr><td>WABOS Avanzado</td><td><b>S/89</b></td></tr>
+</table>
+<p>Frase de cierre de valor: <b>"Con lo que pagarías un día de sueldo a un asistente, tienes a WABOS todo el mes — y no duerme, no se enferma, y responde en 3 segundos."</b></p>
+<p>El otro ángulo: <b>ventas recuperadas</b>. "Si WABOS te salva una sola venta al mes que hoy se te escapa, ya se pagó solo."</p>
+
+<h2 id="planes">4. Planes — hoja de venta rápida</h2>
+<table>
+<tr><th>Plan</th><th>Precio</th><th>Véndelo a…</th><th>Gancho</th></tr>
+<tr><td>Básico</td><td>S/49</td><td>Emprendedor solo</td><td>"Deja de perder clientes por no responder"</td></tr>
+<tr><td><b>Avanzado ★</b></td><td>S/89</td><td>Negocio en crecimiento</td><td>"Catálogo + IA que vende + citas. El más popular."</td></tr>
+<tr><td>Pro</td><td>S/159</td><td>Operación con equipo</td><td>"Automatiza casi todo, 10 usuarios, los 5 empleados IA"</td></tr>
+<tr><td>Empresarial</td><td>Desde S/399</td><td>Cadenas / multi-sucursal</td><td>"Infra dedicada, white label, integraciones"</td></tr>
+</table>
+<p>Detalle completo de límites y add-ons: <a href="pricing.html">Precios y Limitaciones</a>. <b>Ancla en Avanzado</b> (el del medio) — la mayoría termina ahí.</p>
+
+<h2 id="descubrimiento">5. Preguntas de descubrimiento</h2>
+<ul>
+<li>"¿Cuántos mensajes de WhatsApp reciben al día, más o menos?"</li>
+<li>"¿Quién los responde hoy? ¿Hasta qué hora?"</li>
+<li>"¿Cuántas veces al día responden lo mismo — precios, horario, delivery?"</li>
+<li>"¿Alguna vez perdieron una venta porque no respondieron a tiempo?"</li>
+<li>"¿Tienen catálogo? ¿Cómo lo comparten hoy?"</li>
+<li>"¿Hacen promociones? ¿Cómo avisan a sus clientes?"</li>
+</ul>
+<p>Cada "sí" es una función de WABOS que puedes conectar directamente en la demo.</p>
+
+<h2 id="demo">6. Guion de demo — en vivo con STAND 120</h2>
+<p>Usa el negocio demo ya perfilado (STAND 120, smokeshop en Surco). Ten el motor conectado a un número de prueba y el panel abierto.</p>
+<ol>
+<li><b>Muestra el Inbox vacío/real.</b> "Así se ve todo tu WhatsApp en un solo lugar."</li>
+<li><b>Desde otro teléfono, escribe como cliente.</b> Manda: <i>"Hola, ¿tienen bongs? ¿cuánto cuestan?"</i></li>
+</ol>
+<div class="chat">
+  <div class="b in">Hola, ¿tienen bongs? ¿cuánto cuestan? 👀</div>
+  <div class="b out">¡Hola! 🙌 Claro que sí. Tenemos el Bong Beaker Mandala Phoenix Star Azul a S/119 (antes S/135) y packs desde S/35 como el Pack Mini Bong. ¿Buscas algo compacto o para casa?</div>
+  <div class="b in">Para casa. ¿Hacen delivery a Surco?</div>
+  <div class="b out">Sí 🚀 Delivery local por Indrive de lunes a sábado de 12 a 8pm. Estamos en Av. Aviación 5024, Polvos de Higuereta. ¿Te reservo el Beaker Mandala? 😃</div>
+</div>
+<ol start="3">
+<li><b>Señala lo que acaba de pasar:</b> "Respondió sola, con el precio correcto de tu catálogo, en 3 segundos, y ya está intentando cerrar la venta. Nadie del negocio movió un dedo."</li>
+<li><b>Muestra el traspaso.</b> Escribe algo que la IA deba escalar: <i>"Quiero hablar con una persona para un reclamo"</i> → la conversación pasa a modo Humano y aparece en el inbox. "Lo importante llega a ti; lo repetitivo lo maneja la IA."</li>
+<li><b>Muestra Contactos y etiquetas.</b> "Cada cliente que escribe queda guardado, etiquetado, listo para una promo."</li>
+<li><b>Muestra una Campaña.</b> "Selecciona 'clientes VIP', escribe una promo, y sale a todos — con espaciado seguro para proteger tu número."</li>
+<li><b>Cierra la demo con el interruptor:</b> "Y si algún día quieres responder todo tú, apagas la IA con un botón."</li>
+</ol>
+<div class="callout"><b>Regla de oro de la demo:</b> deja que el cliente <b>escriba él mismo</b> desde su teléfono. El momento en que ve a la IA responderle a <i>él</i> con datos reales de su rubro es lo que cierra la venta.</div>
+
+<h2 id="objeciones">7. Manejo de objeciones</h2>
+<div class="obj"><div class="q">"Ya uso WhatsApp Business, ¿para qué esto?"</div><div class="a">"WhatsApp Business es tu bandeja. WABOS es el <b>empleado</b> que la atiende por ti: responde solo, con tu catálogo, guarda a tus clientes y hace campañas. WhatsApp Business no hace nada de eso — sigue esperando que <i>tú</i> respondas."</div></div>
+<div class="obj"><div class="q">"¿La IA no suena robótica? Mis clientes se van a dar cuenta."</div><div class="a">Muéstralo en la demo — el tono se configura para tu negocio (peruano, cercano). "La entrenas con tu forma de hablar. Y cuando algo se pone serio, te la pasa a ti al toque."</div></div>
+<div class="obj"><div class="q">"¿Es seguro? ¿Me pueden banear el número?" (objeción crítica — sé honesto)</div><div class="a">"Buena pregunta y te soy franco: WABOS usa una conexión no oficial de WhatsApp, así que existe un riesgo si se abusa — mandar spam masivo. Por eso el sistema trae frenos automáticos: espacia los envíos, humaniza los tiempos, e ignora grupos. La recomendación es usar un número dedicado y no hacer spam. Si tu negocio es enorme, existe la vía oficial (Cloud API) que también integramos. Nunca te voy a decir 'cero riesgo' — te voy a decir cómo se maneja."</div></div>
+<div class="obj"><div class="q">"Está caro."</div><div class="a">"¿Comparado con qué? Contratar a alguien te cuesta S/1,500 al mes. WABOS Avanzado, S/89. Y si te salva una sola venta al mes, ya se pagó. Empecemos con Básico y subes cuando lo veas funcionar."</div></div>
+<div class="obj"><div class="q">"¿Y mis datos / los de mis clientes?"</div><div class="a">"Tus conversaciones son tuyas y se guardan en tu instancia. Los mensajes pasan por Claude (Anthropic) solo para generar la respuesta; no se usan para entrenar. Tenemos política de privacidad y cumplimos la Ley 29733."</div></div>
+<div class="obj"><div class="q">"Déjame pensarlo."</div><div class="a">"Perfecto. Te dejo el número de prueba activo 48 horas para que tú mismo le escribas cuando quieras. ¿Te parece si el jueves lo vemos juntos y decides?" (Baja el compromiso, mantén el impulso.)</div></div>
+
+<h2 id="cierre">8. Cierre y handoff a onboarding</h2>
+<ol>
+<li><b>Cierre asumido:</b> "Te dejo en Avanzado que es el que mejor te queda, ¿arrancamos con el onboarding esta semana?"</li>
+<li><b>Cobra onboarding + primer mes</b> por adelantado (Yape/transferencia/tarjeta).</li>
+<li><b>Recolecta lo del perfilado:</b> nombre, descripción, horario, delivery, métodos de pago, top 10 FAQs, catálogo, y un número de WhatsApp (idealmente dedicado).</li>
+<li><b>Pasa al equipo técnico</b> el runbook de alta (ver <a href="owner-manual.html#alta">Manual del Propietario §3</a>).</li>
+<li><b>Agenda la capacitación de 30 min</b> con el equipo del cliente.</li>
+</ol>
+
+<h2 id="nodos">9. Qué NO prometer</h2>
+<div class="callout warn">
+<ul style="margin:0">
+<li>❌ "Cero riesgo de baneo." → Nunca. Siempre menciona el riesgo y cómo se maneja.</li>
+<li>❌ "La IA nunca se equivoca." → Se equivoca si el catálogo/FAQs están mal; por eso el traspaso a humano existe.</li>
+<li>❌ "Envíos masivos instantáneos a miles." → El espaciado anti-baneo es obligatorio; véndelo como una <i>ventaja</i> (protege tu número), no como una limitación.</li>
+<li>❌ "Integración con X mañana." → Pagos, inventario y marketplace son v2. No vendas lo que aún no existe.</li>
+</ul>
+</div>
+
+</main>
+</div>
+<footer>WABOS · Manual del Vendedor · Vende el empleado, no el chatbot. Sé honesto sobre el riesgo de baneo — genera confianza y evita churn.</footer>
+</body>
+</html>

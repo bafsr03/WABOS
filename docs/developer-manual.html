@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Developer Manual</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#1d4ed8);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1100px;margin:0 auto}.hero h1{margin:0;font-size:32px}.hero p{margin:10px 0 0;color:#bfdbfe;max-width:780px}
+.layout{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:240px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid transparent}nav.toc a:hover{color:var(--ink)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:12.5px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1100px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a><a href="user-manual.html">Usuario</a><a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html" class="active">Desarrollador</a><a href="salesman-manual.html">Vendedor</a><a href="pricing.html">Precios</a><a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🛠️ Developer Manual</h1>
+  <p>Architecture, data model, the message pipeline, the AI layer, the REST/WebSocket API, and how to extend WABOS correctly. Written against the actual V1 codebase.</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <a href="#arch">1. Architecture</a>
+  <a href="#stack">2. Stack & layout</a>
+  <a href="#data">3. Data model</a>
+  <a href="#pipeline">4. Message pipeline</a>
+  <a href="#wa">5. WhatsApp layer</a>
+  <a href="#ai">6. AI layer</a>
+  <a href="#api">7. API reference</a>
+  <a href="#realtime">8. Realtime (WS)</a>
+  <a href="#dev">9. Local dev</a>
+  <a href="#extend">10. Adding a module</a>
+  <a href="#improve">11. Known gaps</a>
+  <a href="#conv">12. Conventions</a>
+</nav>
+<main>
+
+<h2 id="arch">1. Architecture</h2>
+<p>WABOS is two apps because <b>Baileys holds a persistent WebSocket to WhatsApp</b> — it needs a long-running process and <b>cannot run on serverless</b> (Vercel, Lambda, etc.).</p>
+<pre><code>Customer ─▶ WhatsApp ─▶  Engine (Node, always-on)            Dashboard (Next.js)
+                        ├─ Baileys WebSocket      ◀─REST+WS──┤  Inbox · CRM · Catalog
+                        ├─ SQLite (better-sqlite3)           │  Broadcasts · Settings
+                        ├─ Fastify API + /ws                 └  Connect (QR)
+                        └─ AI Employee (Claude + tools)</code></pre>
+<ul>
+<li><b>Engine</b> (<code>apps/engine</code>) — owns the WhatsApp connection, the database, the API, and the AI. Runs locally now, on a VPS/pm2 in production.</li>
+<li><b>Dashboard</b> (<code>apps/dashboard</code>) — Next.js app; talks to the engine over REST + WebSocket with a bearer token. Can deploy anywhere (incl. Vercel) as long as it can reach the engine.</li>
+</ul>
+<div class="callout warn"><b>Do not try to move the engine to serverless.</b> The whole point of the split is that the engine is stateful and long-lived. Serverless would drop the WhatsApp socket on every cold start.</div>
+
+<h2 id="stack">2. Stack &amp; repo layout</h2>
+<p>pnpm workspace monorepo. Node ≥ 20 (built on 22). Baileys pinned to <b>6.7.23</b> (the stable <code>legacy</code> tag; 7.x is RC — do not use).</p>
+<pre><code>WABOS/
+├── apps/
+│   ├── engine/          # Fastify + Baileys + better-sqlite3 + @anthropic-ai/sdk
+│   │   └── src/
+│   │       ├── index.ts            # boot: db → api → wa
+│   │       ├── config.ts           # env (PORT, DASHBOARD_TOKEN, ANTHROPIC_API_KEY, AI_MODEL)
+│   │       ├── logger.ts           # pino
+│   │       ├── events.ts           # in-process event bus (→ WS)
+│   │       ├── db/
+│   │       │   ├── index.ts        # schema + settings helpers
+│   │       │   └── seed.ts         # demo data (STAND 120)
+│   │       ├── wa/
+│   │       │   ├── connection.ts   # makeWASocket, QR, reconnect
+│   │       │   ├── inbound.ts      # messages.upsert → persist → pipeline
+│   │       │   └── outbound.ts     # serialized send queue + jitter
+│   │       ├── ai/
+│   │       │   ├── employee.ts     # Claude call + tool loop
+│   │       │   └── tools.ts        # search_catalog, handoff_to_human, tag_customer
+│   │       ├── modules/
+│   │       │   ├── store.ts        # contacts/conversations/messages data access
+│   │       │   └── broadcasts.ts   # throttled broadcast runner
+│   │       └── api/server.ts       # all REST routes + /ws + auth
+│   └── dashboard/       # Next.js 15 App Router + Tailwind v4
+│       ├── lib/{api,ws}.ts         # bearer fetch + reconnecting WS client
+│       ├── components/Shell.tsx    # sidebar + auth guard
+│       └── app/{connect,inbox,contacts,catalog,broadcasts,settings,login}/
+└── docs/                # these manuals</code></pre>
+
+<h2 id="data">3. Data model (SQLite, WAL)</h2>
+<p>Defined in <code>apps/engine/src/db/index.ts</code>. Foreign keys on, WAL journal mode. Schema is created idempotently on boot (<code>CREATE TABLE IF NOT EXISTS</code>).</p>
+<table>
+<tr><th>Table</th><th>Purpose / key columns</th></tr>
+<tr><td><code>settings</code></td><td>key/value: business profile, <code>ai_enabled</code>, tone, instructions</td></tr>
+<tr><td><code>contacts</code></td><td><code>jid</code> (unique), phone, name, notes</td></tr>
+<tr><td><code>tags</code>, <code>contact_tags</code></td><td>CRM tags (many-to-many)</td></tr>
+<tr><td><code>conversations</code></td><td>one per contact; <code>mode</code> (<code>ai</code>|<code>human</code>), <code>unread_count</code>, <code>last_message_at</code></td></tr>
+<tr><td><code>messages</code></td><td><code>wa_message_id</code> (unique, dedupe), direction, type, text, <code>from_ai</code>, timestamp</td></tr>
+<tr><td><code>products</code></td><td>name, description, price, currency, active</td></tr>
+<tr><td><code>faqs</code></td><td>question, answer — fed into the AI system prompt</td></tr>
+<tr><td><code>broadcasts</code>, <code>broadcast_recipients</code></td><td>campaign + per-contact status/counters</td></tr>
+</table>
+<div class="callout"><b>Multi-tenant-ready:</b> the schema is single-tenant but designed so a nullable <code>business_id</code> can be added to every table later without a rewrite. See <a href="v2-roadmap.html">v2 Roadmap</a> for the migration path.</div>
+
+<h2 id="pipeline">4. The message pipeline (the heart)</h2>
+<p>Inbound flow, in <code>wa/inbound.ts</code>:</p>
+<ol>
+<li><code>messages.upsert</code> fires → ignore groups / status / newsletters / channels; both incoming and own (<code>fromMe</code>) messages are persisted, but only incoming ones trigger the AI.</li>
+<li>Upsert contact + conversation (<code>modules/store.ts</code>), persist the message. <code>wa_message_id</code> has a unique index → duplicates are silently dropped.</li>
+<li>Every persisted message emits <code>message.new</code> + <code>conversation.updated</code> on the event bus → forwarded to the dashboard over WS.</li>
+<li>If conversation <code>mode = 'ai'</code> and global <code>ai_enabled = '1'</code>: a <b>4 s debounce</b> batches rapid messages, then re-checks mode (owner may have taken over) and calls <code>runAiEmployee()</code>.</li>
+<li>The reply goes out through the <b>outbound queue</b> (<code>wa/outbound.ts</code>): <code>sendPresenceUpdate('composing')</code>, 2–5 s humanized jitter, send, persist as outbound <code>from_ai</code>.</li>
+</ol>
+<p>Any manual reply from the dashboard flips the conversation to <code>human</code> (in the API route); a "Resume AI" toggle flips it back. Global kill-switch: the <code>ai_enabled</code> setting.</p>
+
+<h2 id="wa">5. WhatsApp layer (Baileys)</h2>
+<p><code>wa/connection.ts</code> is the <b>only</b> place that imports Baileys. This is a deliberate boundary — a future WhatsApp Cloud API adapter can replace it without touching the rest.</p>
+<ul>
+<li><code>useMultiFileAuthState(config.authDir)</code> persists credentials to <code>auth/</code>. Restart ⇒ no re-scan.</li>
+<li>Connection state machine: <code>connecting → qr → connected</code>, with exponential backoff reconnect on close. On <code>DisconnectReason.loggedOut</code> it wipes <code>auth/</code> and re-issues a QR.</li>
+<li>QR is printed to the terminal (<code>qrcode-terminal</code>) <i>and</i> emitted as <code>wa.status</code> for the dashboard, which renders it as a data-URL (<code>qrcode</code>).</li>
+<li><code>getSock()</code> throws unless connected — outbound code must handle that.</li>
+</ul>
+<div class="callout danger"><b>Anti-ban guardrails live here and in <code>outbound.ts</code>/<code>broadcasts.ts</code>:</b> serialized global send queue, 2–5 s typing jitter on AI replies, 6–12 s randomized spacing on broadcasts, groups/status ignored. Never remove or "speed up" these.</div>
+
+<h2 id="ai">6. AI layer (Claude)</h2>
+<p><code>ai/employee.ts</code> builds the system prompt from <code>settings</code> + <code>faqs</code> + <code>products</code>, collapses message history into alternating turns, and runs a tool loop (max 5 iterations) with <code>@anthropic-ai/sdk</code>.</p>
+<p>Tools (<code>ai/tools.ts</code>):</p>
+<table>
+<tr><th>Tool</th><th>Effect</th></tr>
+<tr><td><code>search_catalog(query)</code></td><td>LIKE query over active products</td></tr>
+<tr><td><code>handoff_to_human(reason)</code></td><td>flips conversation to <code>human</code>, notifies dashboard</td></tr>
+<tr><td><code>tag_customer(tag)</code></td><td>adds a CRM tag (buying intent)</td></tr>
+</table>
+<div class="callout warn"><b>Cost-critical improvements not yet wired (do these before scaling):</b>
+<ul style="margin:6px 0 0">
+<li><b>Prompt caching:</b> the system prompt (profile + FAQs + catalog) is rebuilt every call and <i>not cached</i>. Add <code>cache_control: {type:'ephemeral'}</code> to the system block — the prefix is stable per business, so cache reads bill at ~0.1×. This is the single biggest margin lever.</li>
+<li><b>Model tiering:</b> V1 uses one <code>AI_MODEL</code> (default <code>claude-sonnet-5</code>) for everything. Run the Support/Receptionist/Collections employees on <code>claude-haiku-4-5</code> and reserve <code>claude-sonnet-5</code> for Sales. See <a href="pricing.html#empleados">Pricing §4</a>.</li>
+</ul>
+Current pricing (per MTok): Sonnet 5 $3/$15, Haiku 4.5 $1/$5; cache reads ~0.1× input.</div>
+<p>Model IDs are current as of this build: <code>claude-sonnet-5</code>, <code>claude-haiku-4-5</code>, <code>claude-opus-4-8</code>. Do not append date suffixes to these aliases. Thinking is adaptive-only on the 5-series — never pass <code>budget_tokens</code>.</p>
+
+<h2 id="api">7. REST API reference</h2>
+<p>All routes under <code>/api/*</code> require <code>Authorization: Bearer &lt;DASHBOARD_TOKEN&gt;</code> (enforced in an <code>onRequest</code> hook). Base: <code>http://localhost:4000</code>.</p>
+<table>
+<tr><th>Method &amp; path</th><th>Purpose</th></tr>
+<tr><td class="mono">GET /api/status</td><td>connection state + QR data-URL + <code>aiAvailable</code></td></tr>
+<tr><td class="mono">POST /api/logout</td><td>unlink WhatsApp, re-issue QR</td></tr>
+<tr><td class="mono">GET /api/conversations</td><td>list with last message + unread</td></tr>
+<tr><td class="mono">GET /api/conversations/:id/messages</td><td>thread (last 200)</td></tr>
+<tr><td class="mono">POST /api/conversations/:id/messages</td><td>manual reply (flips to human)</td></tr>
+<tr><td class="mono">POST /api/conversations/:id/mode</td><td><code>{mode:'ai'|'human'}</code></td></tr>
+<tr><td class="mono">GET/POST/PATCH/DELETE /api/contacts…</td><td>CRM CRUD + tags</td></tr>
+<tr><td class="mono">GET/POST/PATCH/DELETE /api/products…</td><td>catalog CRUD</td></tr>
+<tr><td class="mono">GET/POST/DELETE /api/faqs…</td><td>FAQs</td></tr>
+<tr><td class="mono">GET/PUT /api/settings</td><td>business profile, tone, <code>ai_enabled</code></td></tr>
+<tr><td class="mono">GET/POST /api/broadcasts…</td><td>campaigns (409 if WhatsApp not connected)</td></tr>
+</table>
+<pre><code># smoke test
+curl -s -H "Authorization: Bearer $DASHBOARD_TOKEN" localhost:4000/api/status</code></pre>
+
+<h2 id="realtime">8. Realtime (WebSocket)</h2>
+<p><code>events.ts</code> is a single in-process <code>EventEmitter</code>. The API's <code>/ws</code> route (token via query string) subscribes each client and forwards every <code>WabosEvent</code>. Event types: <code>wa.status</code>, <code>message.new</code>, <code>conversation.updated</code>, <code>broadcast.progress</code>. The dashboard's <code>lib/ws.ts</code> auto-reconnects.</p>
+
+<h2 id="dev">9. Local development</h2>
+<pre><code>pnpm install
+cp apps/engine/.env.example apps/engine/.env   # set DASHBOARD_TOKEN + ANTHROPIC_API_KEY
+pnpm seed            # demo data (STAND 120)
+pnpm dev             # engine :4000 + dashboard :3000 (parallel)
+# or: pnpm dev:engine / pnpm dev:dashboard in separate terminals
+pnpm typecheck       # tsc --noEmit on both apps</code></pre>
+<p>The engine hot-reloads via <code>tsx watch</code>. If you delete <code>data/wabos.db</code> while the engine runs, stop it first — an open handle keeps a stale view.</p>
+
+<h2 id="extend">10. Adding a module (the pattern)</h2>
+<p>Every module follows: <b>data access in <code>modules/</code> → routes in <code>api/server.ts</code> → emit bus events → dashboard page under <code>app/</code>.</p>
+<ol>
+<li>Add tables to the schema in <code>db/index.ts</code> (idempotent).</li>
+<li>Write typed data-access functions in a new <code>modules/&lt;thing&gt;.ts</code> (mirror <code>store.ts</code> — prepared statements, return typed rows).</li>
+<li>Register Fastify routes in <code>api/server.ts</code> with <code>zod</code> validation.</li>
+<li>Emit <code>bus.emitEvent(...)</code> for anything the dashboard shows live.</li>
+<li>Add a Next.js page using <code>lib/api.ts</code> + <code>connectWs</code>, wrapped in <code>&lt;Shell&gt;</code>.</li>
+</ol>
+
+<h2 id="improve">11. Known gaps / tech debt (V1)</h2>
+<ul>
+<li>No prompt caching or model tiering yet (see §6) — do before scaling clients.</li>
+<li>Single-tenant: one engine per WhatsApp number. Multi-tenancy is the v2 headline.</li>
+<li>SQLite is fine per-tenant but caps concurrency — Postgres in v2 for multi-tenant.</li>
+<li>Broadcasts run in-process; an engine restart mid-campaign leaves recipients <code>pending</code> (no resume). A durable queue (BullMQ / Vercel Queues) is a v2 item.</li>
+<li>Media (images/audio) is stored as a placeholder label, not downloaded. Media handling is v2.</li>
+<li>Smoke-tested via curl; no automated test suite yet.</li>
+</ul>
+
+<h2 id="conv">12. Conventions</h2>
+<ul>
+<li>TypeScript strict, ESM (<code>"type":"module"</code>, NodeNext resolution) in the engine.</li>
+<li>Validate all request bodies with <code>zod</code>; never trust client input.</li>
+<li>Keep the Baileys import confined to <code>wa/connection.ts</code>.</li>
+<li>All outbound WhatsApp traffic goes through the queue in <code>outbound.ts</code> / <code>broadcasts.ts</code> — never call <code>sock.sendMessage</code> directly from a route.</li>
+<li>Secrets (<code>ANTHROPIC_API_KEY</code>, <code>DASHBOARD_TOKEN</code>) only in <code>.env</code>; <code>auth/</code> and <code>data/</code> are gitignored.</li>
+</ul>
+
+</main>
+</div>
+<footer>WABOS · Developer Manual · Pair with <code>docs/MANUAL.md</code> and the source under <code>apps/</code>.</footer>
+</body>
+</html>

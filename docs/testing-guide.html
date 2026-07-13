@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Guía de Pruebas End-to-End</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}
+.topbar a:hover,.topbar a.active{color:#fff}
+.topbar .sp{flex:1}
+.hero{background:linear-gradient(135deg,#0f172a,#128c7e);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1080px;margin:0 auto}
+.hero h1{margin:0;font-size:32px}
+.hero p{margin:10px 0 0;color:#cbd5e1;max-width:760px}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:250px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0;border-left:2px solid transparent;padding-left:10px}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.sub{padding-left:22px;font-size:12.5px}
+nav.toc .grp{font-weight:700;color:var(--ink);margin-top:12px;padding-left:10px;text-transform:uppercase;font-size:11px;letter-spacing:.04em}
+main{min-width:0}
+main h2{font-size:23px;margin:40px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:24px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.callout.tip{border-color:#3b82f6;background:#eff6ff}
+.pill{display:inline-block;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.pill.new{background:#eef2ff;color:#4338ca}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1080px;margin:0 auto}
+/* test cards */
+.test{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:6px 18px 14px;margin:16px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.test > summary{cursor:pointer;font-weight:700;font-size:15.5px;padding:10px 0;list-style:none;display:flex;align-items:center;gap:10px}
+.test > summary::-webkit-details-marker{display:none}
+.test > summary::before{content:'▸';color:var(--wa-dark);font-size:13px;transition:transform .15s}
+.test[open] > summary::before{transform:rotate(90deg)}
+.test .id{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#0f172a;color:#fff;padding:2px 8px;border-radius:6px}
+.steps{margin:6px 0 0;padding-left:20px}
+.steps li{margin:5px 0}
+.expect{border-left:4px solid var(--wa);background:#f0fdf4;padding:10px 14px;border-radius:8px;margin:12px 0 4px;font-size:14px}
+.expect b{color:#047857}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13.5px;color:var(--muted)}
+.chk input{width:16px;height:16px}
+.route{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:8px 0 0}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}.test{break-inside:avoid}.test>summary::before{display:none}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="user-manual.html">Usuario</a>
+  <a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a>
+  <a href="testing-guide.html" class="active">Pruebas</a>
+  <a href="pricing.html">Precios</a>
+  <a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🧪 Guía de Pruebas End-to-End</h1>
+  <p>Recorre cada función de WABOS en orden, desde conectar WhatsApp hasta la verificación inteligente de pagos Yape/Plin. Cada prueba tiene pasos, resultado esperado y una casilla para marcar. Imprime esta página para usarla como checklist (Cmd/Ctrl+P).</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <div class="grp">Preparación</div>
+  <a href="#setup">0 · Setup y arranque</a>
+  <a href="#connect">1 · Conectar WhatsApp</a>
+  <div class="grp">Núcleo</div>
+  <a href="#inbox">2 · Inbox y Empleado IA</a>
+  <a href="#contacts">3 · Contactos (CRM)</a>
+  <a href="#catalog">4 · Catálogo</a>
+  <a href="#settings">5 · Ajustes y FAQs</a>
+  <a href="#broadcasts">6 · Campañas</a>
+  <div class="grp">Pagos <span class="pill new" style="font-size:9px">NUEVO</span></div>
+  <a href="#pay-setup">7 · Configurar identidad de pago</a>
+  <a href="#pay-charge">8 · Crear un cobro</a>
+  <a href="#pay-review">9 · Revisión manual</a>
+  <a href="#pay-auto">10 · Verificación automática</a>
+  <a href="#pay-fraud">11 · Anti-fraude y casos borde</a>
+  <div class="grp">Producción</div>
+  <a href="#bank-verify">12 · Verificación bancaria</a>
+  <div class="grp">Robustez</div>
+  <a href="#durability">13 · Durabilidad (jobs/reinicio)</a>
+  <a href="#troubleshooting">13 · Solución de problemas</a>
+  <a href="#matrix">Matriz de cobertura</a>
+</nav>
+<main>
+
+<div class="callout tip">
+  <b>Cómo usar esta guía.</b> Necesitas <b>dos teléfonos</b>: el <b>Negocio</b> (el número que enlazas a WABOS) y el <b>Cliente</b> (otro WhatsApp que envía mensajes de prueba). Usa un número de negocio <b>secundario</b>, nunca tu principal — Baileys es una API no oficial. La leyenda de pasos:
+  <div class="legend">
+    <span>📱 <b>Negocio</b> = teléfono enlazado</span>
+    <span>🙋 <b>Cliente</b> = teléfono que envía</span>
+    <span>🖥️ <b>Dashboard</b> = http://localhost:3000</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="setup">0 · Setup y arranque</h2>
+<p>Ya configuraste <code>apps/engine/.env</code> con tus llaves. Confirma que están las dos variables clave y arranca el sistema.</p>
+<pre><code># apps/engine/.env  — debe contener:
+ANTHROPIC_API_KEY=sk-ant-...      # tu llave de Claude (habilita IA + lectura de comprobantes)
+DASHBOARD_TOKEN=<un-secreto-tuyo> # con esto inicias sesión en el dashboard
+
+# desde la raíz del proyecto:
+pnpm install        # si no lo has hecho
+pnpm dev            # motor :4000 + dashboard :3000</code></pre>
+
+<details class="test" open>
+  <summary><span class="id">T0.1</span> El sistema arranca sin errores</summary>
+  <ol class="steps">
+    <li>Ejecuta <code>pnpm dev</code> en la raíz del proyecto.</li>
+    <li>Observa la consola del motor.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> ves <code>API listening on http://localhost:4000</code> y <code>WABOS engine is running</code>. El dashboard compila y queda en <code>http://localhost:3000</code>. Sin errores rojos de Anthropic ni de SQLite.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T0.2</span> Login al dashboard</summary>
+  <ol class="steps">
+    <li>🖥️ Abre <code>http://localhost:3000</code>.</li>
+    <li>Ingresa tu <code>DASHBOARD_TOKEN</code>.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> entras al panel. Un token incorrecto te rechaza (401) y te mantiene en <code>/login</code>.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<div class="callout"><b>Verificación de IA.</b> En 🖥️ <b>Ajustes</b>, la tarjeta "Empleado IA" debe decir que responde automáticamente. Si dice <i>"⚠️ Sin ANTHROPIC_API_KEY…"</i>, el motor no leyó tu llave: revisa el <code>.env</code> y reinicia <code>pnpm dev</code>.</div>
+
+<!-- ============================================================ -->
+<h2 id="connect">1 · Conectar WhatsApp</h2>
+
+<details class="test" open>
+  <summary><span class="id">T1.1</span> Enlazar el número por QR</summary>
+  <ol class="steps">
+    <li>🖥️ Ve a <b>Conexión</b>. <span class="route">GET /api/status</span></li>
+    <li>En el 📱 Negocio: WhatsApp → <b>Dispositivos vinculados</b> → <b>Vincular dispositivo</b>.</li>
+    <li>Escanea el QR que muestra el dashboard.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> el indicador de la barra lateral pasa de rojo a <b>verde</b> (<code>connected</code>) en segundos. El estado se actualiza solo, sin recargar (WebSocket).</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T1.2</span> Reconexión / cierre de sesión</summary>
+  <ol class="steps">
+    <li>🖥️ En <b>Conexión</b>, usa <b>Cerrar sesión de WhatsApp</b>. <span class="route">POST /api/logout</span></li>
+    <li>Espera a que vuelva a mostrar un QR.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> el estado vuelve a <code>qr</code> (ámbar) y aparece un QR nuevo. Volver a escanear reconecta.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="inbox">2 · Inbox y Empleado IA</h2>
+
+<details class="test" open>
+  <summary><span class="id">T2.1</span> Mensaje entrante aparece en el Inbox</summary>
+  <ol class="steps">
+    <li>🙋 Desde el Cliente, envía <i>"Hola, ¿qué venden?"</i> al número del Negocio.</li>
+    <li>🖥️ Abre <b>Inbox</b>. <span class="route">GET /api/conversations</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la conversación aparece en tiempo real con contador de no leídos. Al abrirla, se marca como leída. <span class="route">POST /api/conversations/:id/read</span></div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T2.2</span> El Empleado IA responde solo</summary>
+  <ol class="steps">
+    <li>Con la conversación en modo <b>IA</b> (por defecto), espera unos segundos tras el mensaje del Cliente.</li>
+    <li>Envía 2–3 mensajes rápidos seguidos para probar el <i>debounce</i> de 4s.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> 🙋 el Cliente recibe <b>una</b> respuesta coherente (no una por mensaje), con el tono configurado y en español. La respuesta usa el perfil del negocio, catálogo y FAQs.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T2.3</span> Herramienta de catálogo (search_catalog)</summary>
+  <ol class="steps">
+    <li>Asegúrate de tener productos (ver sección 4).</li>
+    <li>🙋 Pregunta por un producto: <i>"¿Tienen [nombre de producto]? ¿A cuánto?"</i></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la IA responde con el precio real del catálogo, sin inventar. Si no existe, ofrece pasar a un humano en vez de inventar stock.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T2.4</span> Handoff a humano y modo manual</summary>
+  <ol class="steps">
+    <li>🙋 Escribe algo como <i>"Quiero hablar con una persona"</i> o una queja fuerte.</li>
+    <li>🖥️ Observa el modo de la conversación.</li>
+    <li>Responde tú manualmente desde el Inbox. <span class="route">POST /api/conversations/:id/messages</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la IA usa <code>handoff_to_human</code> y la conversación pasa a modo <b>Humano</b>. Al responder tú manualmente, también cambia a Humano y la IA deja de contestar en ese hilo.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T2.5</span> Alternar modo IA / Humano</summary>
+  <ol class="steps">
+    <li>🖥️ En la conversación, cambia el modo de vuelta a <b>IA</b>. <span class="route">POST /api/conversations/:id/mode</span></li>
+    <li>🙋 Envía otro mensaje.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la IA vuelve a responder automáticamente. El <i>kill-switch</i> global de Ajustes (T5.3) tiene prioridad sobre esto.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="contacts">3 · Contactos (CRM)</h2>
+
+<details class="test" open>
+  <summary><span class="id">T3.1</span> Contacto se crea solo al escribir</summary>
+  <div class="expect"><b>Esperado:</b> 🖥️ en <b>Contactos</b> aparece el Cliente que te escribió, con su número y nombre de WhatsApp. <span class="route">GET /api/contacts</span></div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T3.2</span> Crear, editar nombre y notas</summary>
+  <ol class="steps">
+    <li>🖥️ Crea un contacto manual con número (solo dígitos, ej. <code>51987654321</code>). <span class="route">POST /api/contacts</span></li>
+    <li>Edita su nombre y agrega una nota. <span class="route">PATCH /api/contacts/:id</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> los cambios persisten al recargar. El nombre manual no se sobrescribe con el <i>pushName</i> de WhatsApp.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T3.3</span> Etiquetas (tags)</summary>
+  <ol class="steps">
+    <li>🖥️ Agrega una etiqueta al contacto, ej. <code>cliente-frecuente</code>. <span class="route">POST /api/contacts/:id/tags</span></li>
+    <li>Quita la etiqueta. <span class="route">DELETE /api/contacts/:id/tags/:tagId</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la etiqueta se crea si no existía y queda asociada. Se usará para segmentar campañas (sección 6).</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="catalog">4 · Catálogo</h2>
+
+<details class="test" open>
+  <summary><span class="id">T4.1</span> Crear, editar y desactivar productos</summary>
+  <ol class="steps">
+    <li>🖥️ En <b>Catálogo</b>, crea 2–3 productos con nombre, descripción y precio. <span class="route">POST /api/products</span></li>
+    <li>Edita el precio de uno. <span class="route">PATCH /api/products/:id</span></li>
+    <li>Desactiva (o elimina) uno. <span class="route">DELETE /api/products/:id</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> los productos activos alimentan al Empleado IA (T2.3). Un producto inactivo no debe ofrecerse.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="settings">5 · Ajustes y FAQs</h2>
+
+<details class="test" open>
+  <summary><span class="id">T5.1</span> Perfil del negocio afecta a la IA</summary>
+  <ol class="steps">
+    <li>🖥️ En <b>Ajustes</b>, completa nombre, descripción, horario, tono e instrucciones extra. Guarda. <span class="route">PUT /api/settings</span></li>
+    <li>🙋 Pregunta al Cliente por el horario.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la IA responde con los datos que configuraste, en el tono elegido.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T5.2</span> FAQs como fuente de verdad</summary>
+  <ol class="steps">
+    <li>🖥️ Agrega una FAQ, ej. <i>"¿Hacen delivery? → Sí, en todo Lima."</i> <span class="route">POST /api/faqs</span></li>
+    <li>🙋 Pregunta exactamente eso.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la IA responde según tu FAQ, sin inventar.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T5.3</span> Kill-switch global de IA</summary>
+  <ol class="steps">
+    <li>🖥️ En <b>Ajustes</b>, desactiva el toggle <b>Empleado IA</b>.</li>
+    <li>🙋 Envía un mensaje.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la IA <b>no</b> responde en ninguna conversación (aunque estén en modo IA). Reactívalo para continuar.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="broadcasts">6 · Campañas (Broadcasts)</h2>
+
+<div class="callout warn"><b>Cuidado con el ban.</b> Prueba con pocos contactos. WABOS espacia los envíos 6–12s por mensaje a propósito; no lo fuerces con números reales masivos.</div>
+
+<details class="test" open>
+  <summary><span class="id">T6.1</span> Enviar una campaña segmentada</summary>
+  <ol class="steps">
+    <li>🖥️ En <b>Campañas</b>, crea una con nombre, mensaje y una etiqueta (o "todos"). <span class="route">POST /api/broadcasts</span></li>
+    <li>Confirma el diálogo de destinatarios.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> la barra de progreso avanza en tiempo real (WebSocket <code>broadcast.progress</code>), mostrando enviados/fallidos/total. 🙋 los contactos objetivo reciben el mensaje con pausas entre cada uno.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T6.2</span> Bloqueo si WhatsApp está desconectado</summary>
+  <ol class="steps">
+    <li>🖥️ Con WhatsApp desconectado (T1.2), intenta crear una campaña.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> error <code>409 WhatsApp is not connected</code>; no se crea la campaña.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="pay-setup">7 · Pagos — Configurar identidad <span class="pill new">NUEVO</span></h2>
+
+<div class="callout danger"><b>Sin esto, todo comprobante se marca "destinatario no coincide".</b> El motor compara el nombre y número del destinatario del comprobante contra estos datos. Complétalos primero.</div>
+
+<details class="test" open>
+  <summary><span class="id">T7.1</span> Configurar Yape/Plin y confirmación manual</summary>
+  <ol class="steps">
+    <li>🖥️ <b>Ajustes → Pagos (Yape/Plin)</b>.</li>
+    <li>Escribe tu <b>Nombre en Yape</b> exactamente como aparece cuando alguien te yapea (ej. <code>Maria F. Quispe A.</code>) y tu <b>número Yape</b>.</li>
+    <li>Deja <b>Confirmación automática</b> <b>desactivada</b> para las primeras pruebas. Guarda. <span class="route">PUT /api/settings</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> los datos persisten. La advertencia <i>"la IA lee el comprobante pero no confirma que el dinero llegó"</i> es visible y esperada.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="pay-charge">8 · Pagos — Crear un cobro</h2>
+
+<details class="test" open>
+  <summary><span class="id">T8.1</span> Crear un cobro para un cliente</summary>
+  <ol class="steps">
+    <li>🙋 Que el Cliente te haya escrito al menos una vez (para que exista el contacto).</li>
+    <li>🖥️ <b>Cobros → Nuevo cobro</b>: elige el contacto, pon un <b>monto</b> (idealmente el de un comprobante Yape real que tengas) y un concepto. <span class="route">POST /api/charges</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> el cobro aparece en la lista con estado <b>Pendiente</b>. <span class="route">GET /api/charges</span></div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<div class="callout warn"><b>Orden importante.</b> Las imágenes solo se descargan si el contacto tiene un cobro <b>pendiente</b> (política por defecto <code>pending_charge</code>). Crea el cobro <b>antes</b> de enviar el comprobante, o la imagen se ignora.</div>
+
+<!-- ============================================================ -->
+<h2 id="pay-review">9 · Pagos — Revisión manual</h2>
+
+<details class="test" open>
+  <summary><span class="id">T9.1</span> Enviar comprobante → cola de revisión</summary>
+  <ol class="steps">
+    <li>Con confirmación automática <b>desactivada</b> (T7.1) y un cobro pendiente (T8.1):</li>
+    <li>🙋 El Cliente envía una <b>captura de un comprobante Yape/Plin</b> al Negocio.</li>
+    <li>🖥️ Abre <b>Cobros</b>.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> 🙋 el Cliente recibe <i>"Recibimos tu comprobante, lo estamos validando ✅"</i>. 🖥️ el comprobante aparece en <b>Comprobantes por revisar</b> con la imagen, los campos leídos (monto, N° operación, fecha, destinatario, % de confianza) y "chips" de razones. <span class="route">GET /api/receipts?outcome=review</span></div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T9.2</span> Aprobar un pago manualmente</summary>
+  <ol class="steps">
+    <li>🖥️ En el comprobante en revisión, pulsa <b>✓ Aprobar pago</b>. <span class="route">POST /api/receipts/:id/approve</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> el cobro pasa a <b>Pagado</b> y 🙋 el Cliente recibe el mensaje de confirmación (<i>"¡Pago de S/ … confirmado! ✅"</i>). El comprobante sale de la cola de revisión.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T9.3</span> Rechazar un comprobante</summary>
+  <ol class="steps">
+    <li>Repite T8.1 + T9.1 con otro comprobante.</li>
+    <li>🖥️ Pulsa <b>✗ Rechazar</b>. <span class="route">POST /api/receipts/:id/reject</span></li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> 🙋 el Cliente recibe un mensaje pidiéndole verificar el pago. El cobro vuelve a <b>Pendiente</b> (queda esperando un pago válido).</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T9.4</span> Imagen protegida por token</summary>
+  <ol class="steps">
+    <li>🖥️ En el navegador, abre <code>http://localhost:4000/api/media/1</code> directamente (sin token).</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> responde <code>401 Unauthorized</code>. En el dashboard sí se ve, porque la imagen se pide con el <i>bearer token</i>. <span class="route">GET /api/media/:id</span></div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="pay-auto">10 · Pagos — Verificación automática</h2>
+
+<details class="test" open>
+  <summary><span class="id">T10.1</span> Auto-confirmación de un pago consistente</summary>
+  <ol class="steps">
+    <li>🖥️ <b>Ajustes → Pagos</b>: activa <b>Confirmación automática</b>. Guarda.</li>
+    <li>🖥️ Crea un cobro con el monto <b>exacto</b> de un comprobante real (T8.1).</li>
+    <li>🙋 Envía ese comprobante, cuyo destinatario coincide con tu identidad Yape (T7.1).</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> sin que toques nada, el cobro pasa a <b>Pagado</b> y 🙋 el Cliente recibe la confirmación en segundos. No entra a la cola de revisión.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T10.2</span> Monto que no coincide → revisión</summary>
+  <ol class="steps">
+    <li>Con auto-confirmación activada, crea un cobro por un monto <b>distinto</b> al del comprobante.</li>
+    <li>🙋 Envía el comprobante.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> <b>no</b> se auto-confirma. Va a revisión con el chip <b>"Monto no coincide"</b>. (Nada se auto-rechaza nunca.)</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<div class="callout tip"><b>Probar la lectura sin WhatsApp.</b> Desde <code>apps/engine</code>: <code>npx tsx scripts/extract-fixture.ts ruta/al/comprobante.jpg</code> imprime el JSON que Claude extrajo (monto, N° operación, destinatario, confianza). Útil para afinar antes de enviar por WhatsApp.</div>
+
+<!-- ============================================================ -->
+<h2 id="pay-fraud">11 · Pagos — Anti-fraude y casos borde</h2>
+
+<details class="test" open>
+  <summary><span class="id">T11.1</span> Comprobante reutilizado (captura repetida)</summary>
+  <ol class="steps">
+    <li>Aprueba o auto-confirma un comprobante (T9.2 o T10.1).</li>
+    <li>Crea otro cobro y 🙋 reenvía <b>la misma captura</b>.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> el segundo va a revisión con el chip <b>"⚠️ N° de operación ya usado"</b>. Es la barrera contra capturas reutilizadas.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T11.2</span> Destinatario incorrecto</summary>
+  <ol class="steps">
+    <li>🙋 Envía un comprobante cuyo destinatario <b>no</b> es tu Yape/Plin.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> revisión con chip <b>"Destinatario no coincide"</b>.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T11.3</span> Comprobante antiguo</summary>
+  <ol class="steps">
+    <li>🙋 Envía un comprobante con fecha de hace más de 48 horas.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> revisión con chip <b>"Comprobante antiguo"</b> (ventana configurable con <code>payments_date_window_hours</code>).</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T11.4</span> Imagen que no es un comprobante</summary>
+  <ol class="steps">
+    <li>🙋 Con un cobro pendiente, envía una foto cualquiera (un producto, un meme) con una pregunta de texto.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> el motor la clasifica como <code>not_receipt</code> y <b>el Empleado IA responde normalmente</b> a la pregunta. No hay doble respuesta ni cobro afectado.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T11.5</span> Sin cobro pendiente = imagen ignorada</summary>
+  <ol class="steps">
+    <li>Con un contacto <b>sin</b> cobros pendientes, 🙋 envía una imagen.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> no se descarga ni se procesa como comprobante (política <code>pending_charge</code>); la IA la trata como mensaje normal. Ahorra costo y almacenamiento.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="bank-verify">12 · Verificación bancaria <span class="pill new">PRODUCCIÓN</span></h2>
+
+<div class="callout danger">
+  <b>Esto cierra el hueco de las capturas falsas.</b> Una captura Yape/Plin se falsifica en segundos. Con la verificación bancaria activa, WABOS solo auto-confirma un pago si la captura <b>coincide con la notificación real</b> del banco (monto + N° de operación). Sin coincidencia → revisión humana. Se configura en <b>Ajustes → Verificación bancaria</b>: deja <b>"Exigir cruce con notificación real"</b> activado (es el default de producción).
+</div>
+
+<details class="test" open>
+  <summary><span class="id">T12.1</span> Webhook: probar el motor de cruce sin teléfono (curl)</summary>
+  <ol class="steps">
+    <li>🖥️ <b>Ajustes → Verificación bancaria</b>: fuente = <b>Webhook</b>, pon un <b>secreto</b> (ej. <code>test-secret-123</code>). Guarda.</li>
+    <li>Crea un cobro (T8.1) por, ej., <b>S/ 50.00</b>.</li>
+    <li>🙋 Envía una captura Yape real por ese monto. El bot responde "validando…" y el cobro queda esperando el cruce.</li>
+    <li>Simula la notificación del banco con curl (usa el <b>mismo N° de operación</b> que muestra la captura):</li>
+  </ol>
+  <pre><code>curl -X POST http://localhost:4000/api/webhooks/payment \
+  -H 'Content-Type: application/json' \
+  -H 'x-wabos-secret: test-secret-123' \
+  -d '{"provider":"yape","amount":50.00,"operation_number":"01234567","external_id":"test-001"}'</code></pre>
+  <div class="expect"><b>Esperado:</b> en segundos el cobro pasa a <b>Pagado</b> con la insignia <b>✅ Confirmado por banco</b>, y 🙋 el Cliente recibe la confirmación. La notificación aparece en el panel <b>🔔 Notificaciones de pago</b> marcada como "usada".</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T12.2</span> Prueba de forja: captura sin notificación real</summary>
+  <ol class="steps">
+    <li>Con el cruce bancario <b>activado</b>, crea un cobro y 🙋 envía una captura (real o falsa) <b>sin</b> postear el webhook correspondiente.</li>
+    <li>Espera la ventana de reintento (~3 min por defecto: 4 intentos × 45s).</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> como no hay notificación real que coincida, el pago <b>nunca</b> se auto-confirma. Termina en la cola de <b>revisión</b> con la razón <b>"no_bank_match"</b> y la conversación pasa a modo Humano para que tú decidas. <b>Esta es la prueba central anti-fraude.</b></div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T12.3</span> Reintento diferido (la notificación llega después)</summary>
+  <ol class="steps">
+    <li>🙋 Envía la captura <b>primero</b> (el cobro queda "validando…").</li>
+    <li>Espera ~1 minuto y <b>luego</b> postea el webhook (T12.1).</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> el cobro se auto-confirma en cuanto llega la notificación (WABOS reintenta el cruce automáticamente y también reacciona al webhook al instante). Refleja el caso real: el cliente manda la captura segundos antes de que al comerciante le llegue el aviso.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T12.4</span> Correo (sin instalar nada) — la fuente recomendada</summary>
+  <ol class="steps">
+    <li>Provisiona una bandeja para el comercio (ej. Gmail dedicado con <b>contraseña de aplicación</b>).</li>
+    <li>En Yape: menú → Configuración → <b>Notificaciones por Yapeo</b> → activar aviso por correo (mínimo S/10) hacia esa bandeja.</li>
+    <li>🖥️ <b>Ajustes → Verificación bancaria</b>: fuente = <b>Correo</b>, completa IMAP (host, puerto 993, usuario, contraseña de aplicación). Guarda.</li>
+    <li>Crea un cobro ≥ S/10 y 🙋 envía la captura de ese yapeo real.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> WABOS lee el correo del banco (sondea cada ~60s), lo agrega al ledger y auto-confirma con <b>✅ Confirmado por banco</b>. <b>Nota:</b> pagos menores a S/10 no generan correo → caen a revisión manual (limitación de Yape, no un error).</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="durability">13 · Durabilidad (jobs y reinicio)</h2>
+
+<details class="test" open>
+  <summary><span class="id">T13.1</span> Un trabajo sobrevive al reinicio</summary>
+  <ol class="steps">
+    <li>🙋 Envía un comprobante e inmediatamente detén el motor (<code>Ctrl+C</code>) antes de que termine.</li>
+    <li>Reinicia con <code>pnpm dev</code>.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> al reiniciar, los trabajos que quedaron <code>running</code> vuelven a <code>queued</code> y se procesan. El comprobante termina en Pagado o en revisión; nunca se pierde silenciosamente.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<details class="test">
+  <summary><span class="id">T13.2</span> Sin llave de Claude, degrada a revisión</summary>
+  <ol class="steps">
+    <li>(Opcional) Quita temporalmente <code>ANTHROPIC_API_KEY</code> del <code>.env</code> y reinicia.</li>
+    <li>🙋 Envía un comprobante con un cobro pendiente.</li>
+  </ol>
+  <div class="expect"><b>Esperado:</b> sin IA, el comprobante va directo a la cola de revisión (chip <b>"Lectura AI no disponible"</b>) con su imagen, para revisión 100% manual. Restaura la llave al terminar.</div>
+  <label class="chk"><input type="checkbox"> Pasó</label>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="troubleshooting">14 · Solución de problemas</h2>
+<table>
+<tr><th>Síntoma</th><th>Causa probable</th><th>Solución</th></tr>
+<tr><td>Ajustes muestra "Sin ANTHROPIC_API_KEY"</td><td>El motor no leyó la llave</td><td>Revisa <code>apps/engine/.env</code>, sin comillas en el valor, y reinicia <code>pnpm dev</code>.</td></tr>
+<tr><td>El comprobante enviado no aparece</td><td>No hay cobro pendiente para ese contacto</td><td>Crea el cobro <b>antes</b> de enviar la imagen (T8.1), o cambia <code>payments_download_policy</code> a <code>always</code>.</td></tr>
+<tr><td>Todo cae en revisión con "Destinatario no coincide"</td><td>Identidad Yape/Plin vacía o distinta</td><td>Completa Ajustes → Pagos con el nombre <b>tal cual</b> aparece en Yape (T7.1).</td></tr>
+<tr><td>Nunca se auto-confirma</td><td>Confirmación automática desactivada</td><td>Actívala en Ajustes → Pagos. Recuerda: es opt-in a propósito.</td></tr>
+<tr><td>La IA no responde</td><td>Kill-switch global, modo Humano, o WhatsApp desconectado</td><td>Revisa el toggle de Ajustes (T5.3), el modo de la conversación (T2.5) y el estado de conexión.</td></tr>
+<tr><td>Monto leído equivocado</td><td>Foto borrosa / captura de baja calidad</td><td>Esperado: baja confianza → revisión. Pide una captura nítida; nunca se auto-rechaza.</td></tr>
+<tr><td>Con cruce bancario activo nada se auto-confirma</td><td>No llegan notificaciones al ledger</td><td>Revisa el panel 🔔 Notificaciones de pago. Prueba el webhook con curl (T12.1); si usas correo, verifica IMAP y que el aviso de Yape esté activado (mínimo S/10).</td></tr>
+<tr><td>Webhook responde 401/503</td><td>Secreto incorrecto o fuente no configurada</td><td>Fuente = Webhook y el header <code>x-wabos-secret</code> debe igualar el secreto de Ajustes.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="matrix">Matriz de cobertura</h2>
+<p>Verificación cruzada de que cada función tiene al menos una prueba.</p>
+<table>
+<tr><th>Función</th><th>Pruebas</th><th>Rutas / eventos</th></tr>
+<tr><td>Conexión WhatsApp</td><td>T1.1, T1.2</td><td class="route">/api/status, /api/logout, wa.status</td></tr>
+<tr><td>Inbox + Empleado IA</td><td>T2.1–T2.5</td><td class="route">/api/conversations*, message.new</td></tr>
+<tr><td>Herramientas IA</td><td>T2.3, T2.4</td><td class="route">search_catalog, handoff_to_human</td></tr>
+<tr><td>Contactos / CRM</td><td>T3.1–T3.3</td><td class="route">/api/contacts*, /api/tags*</td></tr>
+<tr><td>Catálogo</td><td>T4.1</td><td class="route">/api/products*</td></tr>
+<tr><td>Ajustes / FAQs / kill-switch</td><td>T5.1–T5.3</td><td class="route">/api/settings, /api/faqs*</td></tr>
+<tr><td>Campañas</td><td>T6.1, T6.2</td><td class="route">/api/broadcasts*, broadcast.progress</td></tr>
+<tr><td>Identidad de pago</td><td>T7.1</td><td class="route">/api/settings</td></tr>
+<tr><td>Cobros</td><td>T8.1, T9.2, T9.3</td><td class="route">/api/charges*, charge.updated</td></tr>
+<tr><td>Verificación de comprobantes</td><td>T9.1, T10.1, T10.2</td><td class="route">/api/receipts*, receipt.review_needed</td></tr>
+<tr><td>Anti-fraude / casos borde</td><td>T11.1–T11.5</td><td class="route">idx_receipts_opnum, política de descarga</td></tr>
+<tr><td>Verificación bancaria (ground truth)</td><td>T12.1–T12.4</td><td class="route">/api/webhooks/payment, payment_notifications, payment.email_poll</td></tr>
+<tr><td>Media protegida</td><td>T9.4</td><td class="route">/api/media/:id</td></tr>
+<tr><td>Durabilidad (jobs)</td><td>T12.1, T12.2</td><td class="route">tabla jobs, poller</td></tr>
+</table>
+
+<div class="callout"><b>Pruebas automatizadas.</b> El motor de reglas de verificación tiene 20 pruebas unitarias. Ejecútalas con <code>pnpm --filter @wabos/engine test</code> — deben pasar las 20 antes de confiar en la lógica de montos, fechas y anti-fraude.</div>
+
+</main>
+</div>
+<footer>
+  WABOS — Guía de Pruebas End-to-End · Fases 1–2 de Pagos Inteligentes · Genera comprobantes de prueba responsablemente y usa un número de WhatsApp secundario.
+</footer>
+</body>
+</html>

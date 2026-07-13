@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Precios y Limitaciones</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#7c3aed);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1080px;margin:0 auto}.hero h1{margin:0;font-size:32px}.hero p{margin:10px 0 0;color:#e9d5ff;max-width:760px}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:230px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+th{background:#f1f5f9}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin:18px 0}
+.plan{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--card)}
+.plan.pop{border:2px solid var(--wa);box-shadow:0 6px 24px rgba(37,211,102,.15)}
+.plan h4{margin:0;font-size:16px}
+.plan .price{font-size:28px;font-weight:800;margin:6px 0}
+.plan .price small{font-size:13px;font-weight:500;color:var(--muted)}
+.plan ul{padding-left:18px;margin:10px 0 0;font-size:13px;color:#334155}
+.badge{display:inline-block;background:var(--wa);color:#063;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-bottom:6px}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.key{border-color:#7c3aed;background:#faf5ff}
+.num{font-variant-numeric:tabular-nums}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1080px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a><a href="user-manual.html">Usuario</a><a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a><a href="salesman-manual.html">Vendedor</a>
+  <a href="pricing.html" class="active">Precios</a><a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>💵 Precios y Limitaciones</h1>
+  <p>Planes establecidos con límites concretos, add-ons, la estructura de costos real (Claude API + infraestructura) y los márgenes por plan. Este documento es la fuente de verdad para lo que incluye cada plan y por qué cuesta lo que cuesta.</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <a href="#planes">1. Los planes</a>
+  <a href="#limites">2. Límites por plan</a>
+  <a href="#addons">3. Add-ons</a>
+  <a href="#empleados">4. Empleados IA por plan</a>
+  <a href="#costos">5. Estructura de costos</a>
+  <a href="#margenes">6. Márgenes por plan</a>
+  <a href="#overage">7. Excedentes y uso justo</a>
+  <a href="#principios">8. Principios de precio</a>
+</nav>
+<main>
+
+<h2 id="planes">1. Los planes</h2>
+<p>Precios en soles peruanos (S/), por mes, IGV incluido. La barrera psicológica está en S/200: el primer plan "serio" (Pro) queda por debajo.</p>
+<div class="plans">
+  <div class="plan">
+    <h4>Básico</h4>
+    <div class="price">S/49<small> /mes</small></div>
+    <ul><li>1 número WhatsApp</li><li>1 usuario</li><li>Empleado IA: Soporte</li><li>Inbox + CRM + FAQ bot</li><li>Captura de leads</li></ul>
+  </div>
+  <div class="plan pop">
+    <span class="badge">★ MÁS POPULAR</span>
+    <h4>Avanzado</h4>
+    <div class="price">S/89<small> /mes</small></div>
+    <ul><li>3 usuarios</li><li>Catálogo + recomendaciones IA</li><li>Empleados: Ventas, Soporte, Recepcionista</li><li>Citas + campañas</li><li>Etiquetas + historial</li></ul>
+  </div>
+  <div class="plan">
+    <h4>Pro</h4>
+    <div class="price">S/159<small> /mes</small></div>
+    <ul><li>10 usuarios</li><li>Inbox multi-agente + CRM avanzado</li><li>Los 5 Empleados IA</li><li>Pipelines + reportes</li><li>Difusiones ilimitadas*</li></ul>
+  </div>
+  <div class="plan">
+    <h4>Empresarial</h4>
+    <div class="price">Desde S/399<small> /mes</small></div>
+    <ul><li>Usuarios y números ilimitados</li><li>Múltiples sucursales</li><li>IA personalizada + integraciones</li><li>Infraestructura dedicada + SLA</li><li>White label</li></ul>
+  </div>
+</div>
+
+<h2 id="limites">2. Límites por plan (establecidos)</h2>
+<p>Estos límites protegen nuestros márgenes y reducen el riesgo de baneo. Los mensajes de IA son el principal generador de costo, por eso tienen tope con excedente facturable (ver §7).</p>
+<table>
+<tr><th>Límite</th><th>Básico</th><th>Avanzado</th><th>Pro</th><th>Empresarial</th></tr>
+<tr><td>Precio / mes</td><td>S/49</td><td>S/89</td><td>S/159</td><td>Desde S/399</td></tr>
+<tr><td>Números de WhatsApp</td><td>1</td><td>1</td><td>1 (+ add-on)</td><td>Ilimitado</td></tr>
+<tr><td>Usuarios / agentes</td><td>1</td><td>3</td><td>10</td><td>Ilimitado</td></tr>
+<tr><td>Mensajes IA incluidos / mes</td><td class="num">1,000</td><td class="num">3,000</td><td class="num">10,000</td><td>Uso justo</td></tr>
+<tr><td>Difusiones / mes</td><td class="num">500</td><td class="num">3,000</td><td>Ilimitadas*</td><td>Ilimitadas</td></tr>
+<tr><td>Contactos (CRM)</td><td class="num">1,000</td><td class="num">5,000</td><td class="num">25,000</td><td>Ilimitado</td></tr>
+<tr><td>Productos en catálogo</td><td>50</td><td>500</td><td>Ilimitado</td><td>Ilimitado</td></tr>
+<tr><td>FAQs</td><td>20</td><td>100</td><td>Ilimitadas</td><td>Ilimitadas</td></tr>
+<tr><td>Historial de conversaciones</td><td>30 días</td><td>1 año</td><td>Ilimitado</td><td>Ilimitado</td></tr>
+<tr><td>Empleados IA</td><td>1</td><td>3</td><td>5</td><td>Personalizados</td></tr>
+</table>
+<p style="font-size:13px;color:var(--muted)">* "Ilimitadas" siempre está sujeto a uso justo y al espaciado anti-baneo de 6–12 s por mensaje (§7).</p>
+
+<h2 id="addons">3. Add-ons</h2>
+<table>
+<tr><th>Add-on</th><th>Precio</th><th>Qué hace</th></tr>
+<tr><td>Recepcionista IA por voz</td><td>S/39 /mes</td><td>Responde notas de voz con IA</td></tr>
+<tr><td>Agente de Ventas IA</td><td>S/59 /mes</td><td>IA entrenada que vende automáticamente (corre en Sonnet)</td></tr>
+<tr><td>Soporte al Cliente IA</td><td>S/69 /mes</td><td>Atiende soporte antes de escalar a una persona</td></tr>
+<tr><td>Número WhatsApp adicional</td><td>S/25 /mes</td><td>Otro número vinculado (otro motor)</td></tr>
+<tr><td>Usuario adicional</td><td>S/10 /mes</td><td>Un agente más en el inbox</td></tr>
+<tr><td>1,000 mensajes IA extra</td><td>S/25 (excedente)</td><td>Bloque adicional al superar el tope del plan (§7)</td></tr>
+<tr><td>Entrenamiento IA personalizado</td><td>Desde S/500 (única vez)</td><td>Afinado del Empleado IA al negocio</td></tr>
+<tr><td>Onboarding y configuración</td><td>S/250–1,500</td><td>Según tamaño del negocio</td></tr>
+</table>
+
+<h2 id="empleados">4. Empleados IA por plan</h2>
+<p>Cada plan desbloquea más "Empleados". Cada Empleado corre en el modelo de Claude adecuado a su costo/valor:</p>
+<table>
+<tr><th>Empleado IA</th><th>Modelo</th><th>Desde el plan</th></tr>
+<tr><td>🎧 Soporte (FAQs, pedidos, tickets)</td><td>Haiku 4.5</td><td>Básico</td></tr>
+<tr><td>💼 Ventas (recomienda, recupera conversaciones)</td><td>Sonnet 5</td><td>Avanzado</td></tr>
+<tr><td>📅 Recepcionista (agenda, reprograma, recuerda)</td><td>Haiku 4.5</td><td>Avanzado</td></tr>
+<tr><td>💰 Cobranzas (recordatorios, verifica recibos)</td><td>Haiku 4.5</td><td>Pro</td></tr>
+<tr><td>📣 Marketing (campañas, promociones, segmentos)</td><td>Haiku 4.5</td><td>Pro</td></tr>
+</table>
+<div class="callout key"><b>Palanca clave de margen:</b> el Empleado de Ventas usa <b>Sonnet 5</b> (más caro, pero vende — se paga solo). Los demás usan <b>Haiku 4.5</b>, que es suficiente para FAQs, agenda y cobranzas a ~⅓ del costo. Así el costo por mensaje se mantiene bajo sin sacrificar la experiencia donde importa.</div>
+
+<h2 id="costos">5. Estructura de costos real</h2>
+<p>Referencia cambiaria usada: <b>US$1 ≈ S/3.75</b>. Precios de Claude (por millón de tokens): Sonnet 5 = US$3 entrada / US$15 salida; Haiku 4.5 = US$1 / US$5. La caché de prompts abarata la entrada repetida a ~0.1× (el prompt del sistema — perfil + FAQs + catálogo — se cachea).</p>
+<h3>Costo por respuesta de IA</h3>
+<p>Una respuesta típica: ~1,500 tokens de prompt de sistema (cacheado) + ~800 tokens de historial + ~150 tokens de salida.</p>
+<table>
+<tr><th>Escenario</th><th>Costo por respuesta</th></tr>
+<tr><td>Sonnet 5, sin caché</td><td>~US$0.009 ≈ <b>S/0.034</b></td></tr>
+<tr><td>Sonnet 5, con caché de prompt</td><td>~US$0.005 ≈ <b>S/0.019</b></td></tr>
+<tr><td>Haiku 4.5, con caché</td><td>~US$0.003 ≈ <b>S/0.011</b></td></tr>
+<tr><td><b>Mezcla de planeamiento</b> (Ventas en Sonnet + resto en Haiku, con caché)</td><td><b>~S/0.015 / mensaje</b></td></tr>
+</table>
+<h3>Costo de infraestructura por cliente</h3>
+<ul>
+<li>El motor es un proceso Node de larga duración con SQLite. Un VPS pequeño (1–2 GB RAM) aloja varios clientes; costo prorrateado <b>~US$3–8 (~S/12–30) por cliente/mes</b>, o menor si se comparte.</li>
+<li>Empresarial y clientes de alto volumen justifican <b>infraestructura dedicada</b> (un motor por cliente), reflejado en el precio desde S/399.</li>
+<li>WhatsApp (vía Baileys) no tiene costo por mensaje — el costo real es el <b>riesgo de baneo</b> (ver Manual del Propietario).</li>
+</ul>
+
+<h2 id="margenes">6. Márgenes por plan</h2>
+<p>Con la mezcla de planeamiento (~S/0.015/mensaje) e infraestructura compartida. La utilización típica de mensajes IA es 30–50% del tope incluido.</p>
+<table>
+<tr><th>Plan</th><th>Precio</th><th>Costo IA (uso típico)</th><th>Costo IA (tope lleno)</th><th>Infra</th><th>Margen bruto típico</th></tr>
+<tr><td>Básico</td><td>S/49</td><td>~S/6 (400 msgs, Haiku)</td><td>~S/11 (1,000)</td><td>~S/15</td><td><b>~57%</b> (S/28)</td></tr>
+<tr><td>Avanzado</td><td>S/89</td><td>~S/20 (1,300 msgs)</td><td>~S/45 (3,000)</td><td>~S/15</td><td><b>~61%</b> (S/54)</td></tr>
+<tr><td>Pro</td><td>S/159</td><td>~S/45 (3,000 msgs)</td><td>~S/150 (10,000)</td><td>~S/25</td><td><b>~56%</b> (S/89)</td></tr>
+<tr><td>Empresarial</td><td>Desde S/399</td><td>Facturado por uso</td><td>—</td><td>Dedicada</td><td>Se fija por contrato</td></tr>
+</table>
+<div class="callout warn"><b>El riesgo está en el "tope lleno".</b> Un cliente Pro que consuma sus 10,000 mensajes en Sonnet sin caché costaría ~S/340 — más que el plan. Por eso son <b>obligatorios</b>: (1) caché de prompts, (2) Haiku por defecto (Sonnet solo en Ventas), (3) el debounce de 4 s que agrupa mensajes, y (4) el excedente facturable del §7. Sin estas cuatro palancas, el margen de Pro colapsa. La <b>meta operativa: costo de IA ≤ 30% del precio del plan</b> por cliente.</div>
+
+<h2 id="overage">7. Excedentes y uso justo</h2>
+<ul>
+<li>Al superar los <b>mensajes IA incluidos</b>, se factura <b>S/25 por cada 1,000 mensajes adicionales</b> (≈ S/0.025 c/u, con margen sobre el costo ~S/0.015). El cliente elige entre auto-recarga o pausar la IA hasta el siguiente ciclo.</li>
+<li>Las difusiones respetan siempre el <b>espaciado anti-baneo de 6–12 s por mensaje</b>, sin importar el plan. "Ilimitadas" nunca significa "instantáneas".</li>
+<li>"Uso justo" en Empresarial: se acuerda un volumen base en el contrato; el exceso sostenido se renegocia, no se corta abruptamente.</li>
+</ul>
+
+<h2 id="principios">8. Principios de precio</h2>
+<ol>
+<li><b>No competir contra CRMs ni contra WhatsApp Business.</b> Competir contra <i>contratar otro empleado</i>. El sueldo mínimo en Perú (RMV) ronda S/1,130/mes; WABOS Avanzado a S/89 es ~7% de eso.</li>
+<li><b>Crecer gradualmente con add-ons</b> en vez de forzar planes caros. El cliente sube de plan cuando el negocio crece.</li>
+<li><b>Quedar bajo S/200</b> en el primer plan premium (Pro a S/159).</li>
+<li><b>El costo variable (IA) siempre por debajo del 30%</b> del precio del plan — garantizado por el diseño técnico (caché + tiering de modelos + topes).</li>
+</ol>
+
+</main>
+</div>
+<footer>WABOS · Precios y Limitaciones · Los números de costo se recalculan cuando cambian los precios de Claude o el tipo de cambio.</footer>
+</body>
+</html>

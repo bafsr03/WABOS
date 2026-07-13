@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS v2 — Roadmap</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#1d4ed8);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1040px;margin:0 auto}.hero h1{margin:0;font-size:32px}.hero p{margin:10px 0 0;color:#bfdbfe;max-width:780px}
+.layout{max-width:1040px;margin:0 auto;display:grid;grid-template-columns:230px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid transparent}nav.toc a:hover{color:var(--ink)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:12.5px}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.phase{border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;background:var(--card)}
+.phase h3{margin-top:0}
+.tagv{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#eff6ff;color:#1d4ed8;margin-left:8px}
+.pri{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.pri.now{color:#b91c1c}.pri.next{color:#b45309}.pri.later{color:#047857}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1040px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a><a href="user-manual.html">Usuario</a><a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a><a href="salesman-manual.html">Vendedor</a><a href="pricing.html">Precios</a><a href="v2-roadmap.html" class="active">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🚀 WABOS v2 — Roadmap</h1>
+  <p>Where V1 stands, what to build next, and — just as important — <b>how to build it properly</b> so the system stays reliable as it grows from one business to hundreds.</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <a href="#v1">Where V1 stands</a>
+  <a href="#debt">0. Pay down V1 debt first</a>
+  <a href="#multitenant">1. Multi-tenancy</a>
+  <a href="#payments">2. Payments (Yape/Plin)</a>
+  <a href="#more">3. Inventory · analytics · mobile</a>
+  <a href="#foundations">4. Build-it-right foundations</a>
+  <a href="#official">5. Official WhatsApp API</a>
+  <a href="#sequence">6. Suggested sequence</a>
+  <a href="#beyond">7. v3 / v4 vision</a>
+</nav>
+<main>
+
+<h2 id="v1">Where V1 stands</h2>
+<p>V1 is a real, working end-to-end system: QR connect, realtime inbox, Claude-powered AI Employee with tools, CRM, catalog, and throttled broadcasts — single-tenant, SQLite, one engine per WhatsApp number. It's enough to onboard real clients (the STAND 120 demo proves the flow). But it was built to be <i>correct</i>, not yet to be <i>operated at scale</i>. v2 closes that gap.</p>
+
+<h2 id="debt">0. Pay down V1 debt first <span class="pri now">do first</span></h2>
+<p>Two of these are cheap and directly protect margin — ship them before chasing new features:</p>
+<ul>
+<li><b>Prompt caching</b> in <code>ai/employee.ts</code>: mark the system block (profile + FAQs + catalog) with <code>cache_control</code>. Cache reads bill at ~0.1× input — the single biggest cost lever. (See <a href="developer-manual.html#ai">Dev §6</a>.)</li>
+<li><b>Per-employee model tiering</b>: Sales → <code>claude-sonnet-5</code>, everyone else → <code>claude-haiku-4-5</code>. Roughly halves blended cost.</li>
+<li><b>A minimal test suite</b> around the message pipeline and API before refactors begin.</li>
+<li><b>Durable broadcast queue</b> so an engine restart resumes instead of stranding recipients as <code>pending</code>.</li>
+</ul>
+
+<h2 id="multitenant">1. Multi-tenancy — the headline of v2 <span class="pri now">priority #1</span></h2>
+<p>V1 is one engine per business. To run hundreds of clients you need one system serving many tenants. This is the biggest architectural change and everything else depends on it.</p>
+<h3>The plan</h3>
+<ol>
+<li><b>Add <code>business_id</code></b> (nullable → then required) to every table. The V1 schema was designed for exactly this — no rewrite, just a migration and a scoping layer.</li>
+<li><b>Move from SQLite to Postgres</b> (Neon on the Vercel Marketplace, or managed PG). SQLite is great per-tenant but caps concurrency for a shared multi-tenant DB.</li>
+<li><b>Auth &amp; orgs:</b> replace the single <code>DASHBOARD_TOKEN</code> with real users, orgs, and roles (Clerk via the Vercel Marketplace is the fast path). Row-level scoping by <code>business_id</code> on every query.</li>
+<li><b>Plan gating:</b> enforce the <a href="pricing.html#limites">plan limits</a> in code — AI-message caps with overage, user/number/contact limits, feature flags per plan.</li>
+<li><b>The WhatsApp connection problem:</b> each tenant still needs its own long-lived Baileys socket. Two viable shapes:
+  <ul>
+    <li><b>Connection manager</b>: one engine process holds many sockets (a map of <code>business_id → WASocket</code>), sharing the DB and API. Simpler ops, but one crash affects many tenants.</li>
+    <li><b>Worker-per-tenant</b>: an orchestrator spawns/monitors an isolated worker per number (Docker/systemd/pm2 fleet). Better isolation and ban-blast-radius control; more moving parts.</li>
+  </ul>
+  Recommendation: start with the connection manager (batched, e.g. 50–100 numbers per process), evolve to workers for Pro/Empresarial where isolation matters.</li>
+</ol>
+<div class="callout warn"><b>Ban isolation is a multi-tenancy requirement, not just an ops nicety.</b> One tenant's banned number must never take down another's. Keep each tenant's <code>auth/</code> and send-queue fully separated regardless of which shape you pick.</div>
+
+<h2 id="payments">2. Payments — Yape / Plin / cards <span class="pri next">v2 core</span></h2>
+<p>Peru-first. Two layers:</p>
+<ul>
+<li><b>Collections for the client's customers:</b> the AI verifies Yape/Plin receipts (image → confirmation), sends payment reminders, tracks overdue. Ties into the existing Collections employee.</li>
+<li><b>Billing for us (the operator):</b> recurring card via Culqi/Izipay, plus Yape/Plin for smaller plans. Automate the subscription lifecycle described in <a href="owner-manual.html#cobranza">Owner §8</a>.</li>
+</ul>
+<p>Add-on integrations to sequence: Culqi, Izipay, Mercado Pago; later Stripe for cross-border.</p>
+
+<h2 id="more">3. Inventory · analytics · mobile <span class="pri next">v2</span></h2>
+<ul>
+<li><b>Inventory sync</b> — stock counts feeding the catalog; the AI stops offering out-of-stock items automatically.</li>
+<li><b>Analytics dashboards</b> — sales, response times, conversion rates, popular products, retention, revenue (the WABOS Analytics module from the vision). Instrument events now so the data exists later.</li>
+<li><b>Mobile app</b> — the inbox is where owners live; a native/PWA app for replies + notifications drives daily engagement and cuts churn.</li>
+<li><b>Media handling</b> — download and store images/audio (V1 only labels them). Needed for receipt verification and richer catalog.</li>
+</ul>
+
+<h2 id="foundations">4. Build-it-right foundations (apply throughout)</h2>
+<table>
+<tr><th>Practice</th><th>Why it matters for WABOS</th></tr>
+<tr><td><b>Migrations</b> (Drizzle/Prisma or SQL migration files)</td><td>Once multi-tenant, schema changes touch live client data — no more idempotent <code>CREATE IF NOT EXISTS</code>.</td></tr>
+<tr><td><b>Automated tests</b> (pipeline, API, AI tool loop)</td><td>The message pipeline is the product; regressions there lose messages. Add before big refactors.</td></tr>
+<tr><td><b>Durable queue</b> (BullMQ / Vercel Queues) for sends &amp; broadcasts</td><td>Survives restarts, enables retries and rate-limit backpressure across tenants.</td></tr>
+<tr><td><b>Observability</b> (structured logs, per-tenant metrics, alerts)</td><td>You can't run a fleet you can't see. Connection uptime, AI cost/tenant, ban signals — see <a href="owner-manual.html#monitoreo">Owner §7</a>.</td></tr>
+<tr><td><b>Feature flags &amp; staged rollout</b></td><td>Ship risky changes (new model, new pipeline) to a few tenants first.</td></tr>
+<tr><td><b>CI</b> (typecheck + tests on every PR)</td><td>Keeps the monorepo honest as contributors grow.</td></tr>
+<tr><td><b>Config over code</b> for AI</td><td>Per-tenant model choice, tone, and prompt cached separately — don't hardcode.</td></tr>
+</table>
+<div class="callout"><b>Keep the WhatsApp boundary sacred.</b> Baileys stays confined to the <code>wa/</code> layer (V1 already does this). Every foundation above should preserve that seam so the official-API adapter in §5 drops in cleanly.</div>
+
+<h2 id="official">5. Official WhatsApp API adapter <span class="pri later">strategic</span></h2>
+<p>Baileys (unofficial) is right for SMB acquisition — free, instant QR onboarding. But for large clients where a ban is existential, offer the <b>WhatsApp Business Platform (Cloud API)</b> as a premium option. Because V1 isolates the WhatsApp layer in <code>apps/engine/src/wa/</code>, this is an <i>adapter</i>, not a rewrite: implement the same inbound/outbound interface against the Cloud API webhooks + send endpoints, and let the plan decide which transport a tenant uses. This becomes an Empresarial upsell and a real answer to the ban objection.</p>
+
+<h2 id="sequence">6. Suggested build sequence</h2>
+<pre><code>Sprint 0  Pay down V1 debt: prompt caching, model tiering, tests, durable send queue
+Sprint 1  Postgres migration + business_id scoping (still single UI)
+Sprint 2  Auth/orgs/roles + plan gating + limit enforcement
+Sprint 3  Multi-socket connection manager (many numbers, one engine) + per-tenant isolation
+Sprint 4  Billing (Culqi/Izipay) + subscription lifecycle automation
+Sprint 5  Payments for clients (Yape/Plin receipt verification) + media handling
+Sprint 6  Analytics module + inventory sync
+Sprint 7  Mobile/PWA app
+Later     Official WhatsApp Cloud API adapter (Empresarial) · marketplace/integrations</code></pre>
+
+<h2 id="beyond">7. Beyond v2 — the v3/v4 vision</h2>
+<ul>
+<li><b>v3 — Voice:</b> AI voice receptionist (speech-to-speech), WhatsApp calling integration when available. The voice-note AI add-on is the on-ramp.</li>
+<li><b>v4 — Marketplace &amp; platform:</b> installable apps (Delivery, SUNAT/facturación electrónica, Shopify, WooCommerce, Mercado Libre, Google Calendar), developer APIs, webhooks, and full white label. This is where WABOS stops being an app and becomes the <b>operating system for businesses that run on WhatsApp</b>.</li>
+</ul>
+
+</main>
+</div>
+<footer>WABOS v2 Roadmap · Build for reliability first — a WhatsApp OS that drops messages loses trust faster than one missing a feature.</footer>
+</body>
+</html>

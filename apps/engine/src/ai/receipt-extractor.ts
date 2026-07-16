@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import type { ReceiptExtraction } from '../modules/verification.js';
 
-const client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey }) : null;
+// maxRetries 4 (SDK default 2): absorb transient 529 overloaded_error transparently.
+const client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, maxRetries: 4 }) : null;
 
 export function isExtractorAvailable(): boolean {
   return client !== null;

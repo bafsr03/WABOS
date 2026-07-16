@@ -1,4 +1,5 @@
-import { db } from '../db/index.js';
+import { one, many, none } from '../db/index.js';
+import { currentBusinessId } from '../context.js';
 import { bus } from '../events.js';
 
 // The ground-truth ledger. Real Yape/Plin/bank alerts land here from any
@@ -20,7 +21,7 @@ export interface PaymentNotification {
   external_id: string;
 }
 
-export function insertNotification(input: {
+export async function insertNotification(input: {
   source: 'email' | 'webhook' | 'manual';
   provider?: string | null;
   amount?: number | null;
@@ -30,12 +31,15 @@ export function insertNotification(input: {
   rawText?: string | null;
   receivedAt?: number | null;
   externalId: string;
-}): PaymentNotification | null {
-  const info = db.prepare(`
-    INSERT OR IGNORE INTO payment_notifications
-      (source, provider, amount, currency, operation_number, sender_name, raw_text, received_at, external_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+}): Promise<PaymentNotification | null> {
+  const row = await one<PaymentNotification>(`
+    INSERT INTO payment_notifications
+      (business_id, source, provider, amount, currency, operation_number, sender_name, raw_text, received_at, external_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ON CONFLICT (source, external_id) DO NOTHING
+    RETURNING *
+  `, [
+    currentBusinessId(),
     input.source,
     input.provider ?? null,
     input.amount ?? null,
@@ -45,10 +49,8 @@ export function insertNotification(input: {
     input.rawText ?? null,
     input.receivedAt ?? Math.floor(Date.now() / 1000),
     input.externalId,
-  );
-  if (info.changes === 0) return null; // duplicate (source, external_id)
-  const row = db.prepare('SELECT * FROM payment_notifications WHERE id = ?')
-    .get(info.lastInsertRowid) as PaymentNotification;
+  ]);
+  if (!row) return null; // duplicate (source, external_id)
   bus.emitEvent({ type: 'payment.notification', notification: row });
   return row;
 }
@@ -60,18 +62,18 @@ function normOp(op: string): string {
 // Find an unconsumed real notification that corresponds to this screenshot.
 // Primary key is the operation number (strongest); when the notification has
 // no op number, fall back to amount + time window (+ optional provider).
-export function findMatchingNotification(input: {
+export async function findMatchingNotification(input: {
   provider?: string | null;
   operationNumber?: string | null;
   amount: number | null;
   tolerance: number;
   windowStart: number;
-}): PaymentNotification | null {
-  const candidates = db.prepare(`
+}): Promise<PaymentNotification | null> {
+  const candidates = await many<PaymentNotification>(`
     SELECT * FROM payment_notifications
-    WHERE consumed_by_receipt_id IS NULL AND received_at >= ?
+    WHERE business_id = $1 AND consumed_by_receipt_id IS NULL AND received_at >= $2
     ORDER BY received_at DESC
-  `).all(input.windowStart) as PaymentNotification[];
+  `, [currentBusinessId(), input.windowStart]);
 
   const op = input.operationNumber ? normOp(input.operationNumber) : '';
 
@@ -97,20 +99,21 @@ export function findMatchingNotification(input: {
 }
 
 // Consume atomically: only succeeds if still unconsumed. Returns true on claim.
-export function consumeNotification(notificationId: number, receiptId: number): boolean {
-  const info = db.prepare(`
-    UPDATE payment_notifications SET consumed_by_receipt_id = ?
-    WHERE id = ? AND consumed_by_receipt_id IS NULL
-  `).run(receiptId, notificationId);
-  return info.changes > 0;
+export async function consumeNotification(notificationId: number, receiptId: number): Promise<boolean> {
+  const row = await one(`
+    UPDATE payment_notifications SET consumed_by_receipt_id = $1
+    WHERE id = $2 AND consumed_by_receipt_id IS NULL
+    RETURNING id
+  `, [receiptId, notificationId]);
+  return row !== undefined;
 }
 
-export function listNotifications(limit = 50): PaymentNotification[] {
-  return db.prepare('SELECT * FROM payment_notifications ORDER BY received_at DESC LIMIT ?')
-    .all(limit) as PaymentNotification[];
+export async function listNotifications(limit = 50): Promise<PaymentNotification[]> {
+  return many<PaymentNotification>('SELECT * FROM payment_notifications WHERE business_id = $1 ORDER BY received_at DESC LIMIT $2',
+    [currentBusinessId(), limit]);
 }
 
-export function lastNotificationAt(): number | null {
-  const row = db.prepare('SELECT MAX(received_at) AS t FROM payment_notifications').get() as { t: number | null };
-  return row.t ?? null;
+export async function lastNotificationAt(): Promise<number | null> {
+  const row = await one<{ t: number | null }>('SELECT MAX(received_at) AS t FROM payment_notifications WHERE business_id = $1', [currentBusinessId()]);
+  return row?.t ?? null;
 }

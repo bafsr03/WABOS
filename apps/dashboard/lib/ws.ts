@@ -2,7 +2,7 @@ import { ENGINE_URL, getToken } from './api';
 
 export type EngineEvent = {
   type: 'wa.status' | 'message.new' | 'conversation.updated' | 'broadcast.progress'
-    | 'charge.updated' | 'receipt.review_needed' | 'payment.notification';
+    | 'charge.updated' | 'receipt.review_needed' | 'payment.notification' | 'style.progress' | 'history.progress' | 'account.number_changed';
   [key: string]: any;
 };
 

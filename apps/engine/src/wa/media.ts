@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
-import { db } from '../db/index.js';
+import { one } from '../db/index.js';
 import { bus } from '../events.js';
 import type { Contact, Conversation, Message } from '../modules/store.js';
 import { createReceipt, getPaymentSettings, listPendingCharges, type MediaRow } from '../modules/charges.js';
@@ -39,8 +39,8 @@ export async function handleInboundImage(
   const image = unwrapImage(msg.message);
   if (!image) return false;
 
-  const settings = getPaymentSettings();
-  if (settings.downloadPolicy === 'pending_charge' && listPendingCharges(contact.id).length === 0) {
+  const settings = await getPaymentSettings();
+  if (settings.downloadPolicy === 'pending_charge' && (await listPendingCharges(contact.id)).length === 0) {
     return false;
   }
 
@@ -65,19 +65,18 @@ export async function handleInboundImage(
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   if (!fs.existsSync(absPath)) fs.writeFileSync(absPath, buffer);
 
-  const info = db.prepare(`
-    INSERT INTO media (message_id, mime, path, size_bytes, sha256) VALUES (?, ?, ?, ?, ?)
-  `).run(stored.id, mime, relPath, buffer.length, sha256);
-  const mediaId = Number(info.lastInsertRowid);
+  const { id: mediaId } = (await one<{ id: number }>(`
+    INSERT INTO media (message_id, mime, path, size_bytes, sha256) VALUES ($1, $2, $3, $4, $5) RETURNING id
+  `, [stored.id, mime, relPath, buffer.length, sha256]))!;
 
-  const receipt = createReceipt({
+  const receipt = await createReceipt({
     mediaId,
     messageId: stored.id,
     contactId: contact.id,
     conversationId: conversation.id,
   });
 
-  enqueueJob('receipt.process', { receiptId: receipt.id });
+  await enqueueJob('receipt.process', { receiptId: receipt.id });
   bus.emitInternal({
     type: 'media.received',
     mediaId,

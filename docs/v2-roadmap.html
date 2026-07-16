@@ -33,6 +33,9 @@ th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-ali
 .tagv{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#eff6ff;color:#1d4ed8;margin-left:8px}
 .pri{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 .pri.now{color:#b91c1c}.pri.next{color:#b45309}.pri.later{color:#047857}
+.badge-done{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#dcfce7;color:#166534;margin-left:8px;text-transform:none;letter-spacing:0}
+.st-done{color:#166534;font-weight:700}.st-def{color:#b45309;font-weight:700}
+table.status td:first-child{white-space:nowrap;font-weight:600}
 footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1040px;margin:0 auto}
 @media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
 @media print{.topbar,nav.toc{display:none}.layout{display:block}}
@@ -50,6 +53,7 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
 </div></div>
 <div class="layout">
 <nav class="toc">
+  <a href="#status">✅ v2 build status</a>
   <a href="#v1">Where V1 stands</a>
   <a href="#debt">0. Pay down V1 debt first</a>
   <a href="#multitenant">1. Multi-tenancy</a>
@@ -62,11 +66,55 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
 </nav>
 <main>
 
+<h2 id="status">✅ v2 build status <span class="badge-done">updated 2026-07-16</span></h2>
+<div class="callout"><b>Multi-tenancy is live.</b> WABOS now runs on <b>Postgres</b>, with real user accounts, self-serve registration, <b>per-business WhatsApp connections</b>, and plan-tier limits. STAND 120 (the original tenant) runs on the new stack unchanged; a second business can register, get fully-isolated data, and link its own number. The whole v2 headline (§0 and §1 below) shipped.</div>
+
+<table class="status">
+<thead><tr><th>Area</th><th>Status</th><th>What shipped</th></tr></thead>
+<tbody>
+<tr><td>Pre-v2 debt (§0)</td><td><span class="st-done">Done</span></td><td>Prompt caching confirmed; <b>tag-driven model tiering</b> (Haiku default → Sonnet once a chat is tagged <code>interesado</code>); a <b>68-test</b> Vitest suite; durable self-rescheduling <b>broadcast queue</b>.</td></tr>
+<tr><td>A · Tenant-shaping</td><td><span class="st-done">Done</span></td><td><code>business_id</code> on every aggregate table; request-scoped <b>AsyncLocalStorage</b> tenant context (<code>currentBusinessId()</code>); per-business <code>settings</code>.</td></tr>
+<tr><td>B · Multi-agent</td><td><span class="st-done">Done</span></td><td><code>agents</code> table + <code>conversations.agent_id</code>; agent-aware prompt/model; self-describing <code>route_to_agent</code> tool (no classifier); per-agent Voice DNA; dashboard <b>Agentes IA</b> page.</td></tr>
+<tr><td>C · Knowledge base</td><td><span class="st-done">Done</span></td><td><code>knowledge_collections</code> + <code>knowledge_documents</code>; pinned summaries in the cached prompt + <code>search_knowledge</code> tool; dashboard <b>Conocimiento</b> page. (FAQs kept as-is — additive, not migrated.)</td></tr>
+<tr><td>D1 · Postgres</td><td><span class="st-done">Done</span></td><td>Full <b>sync→async</b> migration off SQLite to <code>pg</code> (pool + <code>one/many/none/tx</code> helpers, SQL migrations, <code>FOR UPDATE SKIP LOCKED</code> job queue). Local dev uses <b>embedded-postgres</b> (no Docker) via <code>pnpm pg:dev</code>. STAND 120's data copied over intact.</td></tr>
+<tr><td>D2 · Auth &amp; registration</td><td><span class="st-done">Done</span></td><td>Built-in <b>email/password + JWT</b> (argon2 + jose): <code>/api/auth/register|login|me</code>, register/login pages. Auth hook resolves the business from the JWT and binds it via <code>runWithBusiness(…, done)</code>. Legacy <code>DASHBOARD_TOKEN</code> still maps to STAND 120.</td></tr>
+<tr><td>D3 · Connection manager</td><td><span class="st-done">Done</span></td><td><code>Map&lt;business_id → WASocket&gt;</code>; per-business creds at <code>auth/business_&lt;id&gt;/</code>; per-tenant QR with events stamped &amp; WS-filtered by business; <code>resumeConnections()</code> on boot; per-business send queues.</td></tr>
+<tr><td>D4 · Plan gating</td><td><span class="st-done">Done</span></td><td>Per-tier caps (free = 1 number / 500 contacts / 2 agents) enforced on create → <code>402</code>; CORS lockable via <code>ALLOWED_ORIGIN</code>; per-business webhook resolution by secret.</td></tr>
+<tr><td>Sign in with Google</td><td><span class="st-done">Done</span></td><td>Google Identity Services button + server-side ID-token verification (jose JWKS) → find-or-create user/business. Needs a <code>GOOGLE_CLIENT_ID</code>.</td></tr>
+<tr><td>Account &amp; data deletion</td><td><span class="st-done">Done</span></td><td><code>DELETE /api/account</code> purges the user + all owned businesses (data, agents, settings, socket + creds); dashboard danger zone. Privacy/GDPR-style requirement.</td></tr>
+</tbody>
+</table>
+
+<h3>Deliberate divergences from the original plan</h3>
+<ul>
+<li><b>Auth: built-in JWT, not Clerk</b> — no external dependency or per-MAU cost; drops straight into the existing bearer/localStorage model. (Clerk remains an easy later swap.)</li>
+<li><b>Dev Postgres: embedded-postgres</b> (a real PG binary in <code>node_modules</code>, no Docker/system install) instead of Neon-for-dev. Production still points <code>DATABASE_URL</code> at managed PG (Neon/Supabase/RDS).</li>
+<li><b>Model tiering is tag-driven</b> (Haiku→Sonnet on buying-intent tag) rather than per-employee roles.</li>
+<li><b>FAQs kept separate</b> from the new knowledge base (different shape; avoided migrating live data).</li>
+</ul>
+
+<h3>Still deferred (post-v2)</h3>
+<ul>
+<li><b>Stripe billing</b> + AI-message metering/overage (caps exist; hard-metering needs billing design).</li>
+<li><b>Multi-workspace switcher UI</b> — the model supports one account owning many businesses (via <code>X-Business-Id</code>); the dashboard picker isn't built yet.</li>
+<li><b>Worker-per-tenant fleet</b> + DB-backed Baileys creds — needed only at large scale; the single-process connection manager covers the first tens of tenants.</li>
+<li><b>Apple sign-in</b> — needs a paid Apple Developer account + an HTTPS domain (can't run on localhost).</li>
+<li><b>Official WhatsApp Cloud API adapter</b> (§5).</li>
+</ul>
+
+<div class="callout"><b>Verification:</b> 68 tests green on Postgres (per-suite schema isolation), both apps typecheck clean; STAND 120 live (WhatsApp connected, <b>pro</b> tier); a throwaway tenant verified end-to-end: register → its own QR in ~1s → account deletion purges it while other tenants stay intact.</div>
+
+<h3>Run it (dev)</h3>
+<p>Start the embedded Postgres, then the apps:</p>
+<pre><code>pnpm --filter engine pg:dev        # embedded Postgres on :5433 (data in apps/engine/.pgdata)
+pnpm dev                           # engine (:4000) + dashboard (:3000)</code></pre>
+<p>New engine env: <code>DATABASE_URL</code>, <code>JWT_SECRET</code>, <code>ALLOWED_ORIGIN</code>, <code>GOOGLE_CLIENT_ID</code>. Dashboard env: <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>, <code>NEXT_PUBLIC_ENGINE_URL</code>. One-off scripts: <code>pnpm --filter engine migrate</code> · <code>seed</code> · <code>sqlite-to-pg</code> · <code>create-user &lt;email&gt; &lt;pw&gt;</code>.</p>
+
 <h2 id="v1">Where V1 stands</h2>
 <p>V1 is a real, working end-to-end system: QR connect, realtime inbox, Claude-powered AI Employee with tools, CRM, catalog, and throttled broadcasts — single-tenant, SQLite, one engine per WhatsApp number. It's enough to onboard real clients (the STAND 120 demo proves the flow). But it was built to be <i>correct</i>, not yet to be <i>operated at scale</i>. v2 closes that gap.</p>
 
-<h2 id="debt">0. Pay down V1 debt first <span class="pri now">do first</span></h2>
-<p>Two of these are cheap and directly protect margin — ship them before chasing new features:</p>
+<h2 id="debt">0. Pay down V1 debt first <span class="badge-done">✅ shipped</span></h2>
+<p>All four shipped (see <a href="#status">build status</a>). Original rationale kept for reference:</p>
 <ul>
 <li><b>Prompt caching</b> in <code>ai/employee.ts</code>: mark the system block (profile + FAQs + catalog) with <code>cache_control</code>. Cache reads bill at ~0.1× input — the single biggest cost lever. (See <a href="developer-manual.html#ai">Dev §6</a>.)</li>
 <li><b>Per-employee model tiering</b>: Sales → <code>claude-sonnet-5</code>, everyone else → <code>claude-haiku-4-5</code>. Roughly halves blended cost.</li>
@@ -74,9 +122,9 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
 <li><b>Durable broadcast queue</b> so an engine restart resumes instead of stranding recipients as <code>pending</code>.</li>
 </ul>
 
-<h2 id="multitenant">1. Multi-tenancy — the headline of v2 <span class="pri now">priority #1</span></h2>
-<p>V1 is one engine per business. To run hundreds of clients you need one system serving many tenants. This is the biggest architectural change and everything else depends on it.</p>
-<h3>The plan</h3>
+<h2 id="multitenant">1. Multi-tenancy — the headline of v2 <span class="badge-done">✅ shipped</span></h2>
+<p>V1 is one engine per business. To run hundreds of clients you need one system serving many tenants. This is the biggest architectural change and everything else depends on it. <b>Built as Phases A–D</b> (see <a href="#status">build status</a>) — with two deliberate changes from the plan below: auth is built-in JWT (not Clerk), and dev Postgres is embedded-postgres (managed PG in prod).</p>
+<h3>The plan (as executed)</h3>
 <ol>
 <li><b>Add <code>business_id</code></b> (nullable → then required) to every table. The V1 schema was designed for exactly this — no rewrite, just a migration and a scoping layer.</li>
 <li><b>Move from SQLite to Postgres</b> (Neon on the Vercel Marketplace, or managed PG). SQLite is great per-tenant but caps concurrency for a shared multi-tenant DB.</li>

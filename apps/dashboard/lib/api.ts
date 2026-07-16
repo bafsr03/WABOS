@@ -13,6 +13,40 @@ export function clearToken() {
   localStorage.removeItem('wabos_token');
 }
 
+async function authRequest(path: string, payload: object): Promise<void> {
+  const res = await fetch(`${ENGINE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? 'No se pudo completar la solicitud');
+  }
+  const { token } = await res.json();
+  setToken(token);
+}
+
+// Auth: exchange credentials for a JWT and store it (see authRequest).
+export function login(email: string, password: string): Promise<void> {
+  return authRequest('/api/auth/login', { email, password });
+}
+
+export function register(email: string, password: string, businessName: string): Promise<void> {
+  return authRequest('/api/auth/register', { email, password, business_name: businessName });
+}
+
+// Exchange a Google ID token (from the Google Identity Services button) for a JWT.
+export function googleLogin(credential: string): Promise<void> {
+  return authRequest('/api/auth/google', { credential });
+}
+
+// Permanently delete the account + all its data, then clear the local session.
+export async function deleteAccount(): Promise<void> {
+  await api('/api/account', { method: 'DELETE' });
+  clearToken();
+}
+
 export async function api<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${ENGINE_URL}${path}`, {
     ...options,

@@ -1,4 +1,4 @@
-import { db, getSetting } from '../db/index.js';
+import { one, many, none, getAllSettings } from '../db/index.js';
 import { bus } from '../events.js';
 
 export interface Charge {
@@ -61,7 +61,6 @@ export interface PaymentSettings {
   confidenceThreshold: number;
   downloadPolicy: 'pending_charge' | 'always';
   confirmationTemplate: string;
-  // Bank-notification ground truth (production)
   requireBankMatch: boolean;
   groundTruthSource: 'email' | 'webhook' | 'off';
   matchWindowMinutes: number;
@@ -71,72 +70,71 @@ export interface PaymentSettings {
   handoffOnReview: boolean;
 }
 
-export function getPaymentSettings(): PaymentSettings {
+export async function getPaymentSettings(): Promise<PaymentSettings> {
+  const s = await getAllSettings();
+  const g = (k: string, fb = '') => s[k] ?? fb;
   return {
-    yapeName: getSetting('payments_yape_name'),
-    yapePhone: getSetting('payments_yape_phone'),
-    plinName: getSetting('payments_plin_name'),
-    plinPhone: getSetting('payments_plin_phone'),
-    autoConfirm: getSetting('payments_auto_confirm', '0') === '1',
-    amountTolerance: Number(getSetting('payments_amount_tolerance', '0.10')) || 0.1,
-    dateWindowHours: Number(getSetting('payments_date_window_hours', '48')) || 48,
-    confidenceThreshold: Number(getSetting('payments_confidence_threshold', '0.85')) || 0.85,
-    downloadPolicy: getSetting('payments_download_policy', 'pending_charge') === 'always' ? 'always' : 'pending_charge',
-    confirmationTemplate: getSetting(
-      'payments_confirmation_template',
-      '¡Pago de {{currency}} {{amount}} confirmado! ✅ Gracias por tu compra.',
-    ),
-    requireBankMatch: getSetting('payments_require_bank_match', '1') === '1',
+    yapeName: g('payments_yape_name'),
+    yapePhone: g('payments_yape_phone'),
+    plinName: g('payments_plin_name'),
+    plinPhone: g('payments_plin_phone'),
+    autoConfirm: g('payments_auto_confirm', '0') === '1',
+    amountTolerance: Number(g('payments_amount_tolerance', '0.10')) || 0.1,
+    dateWindowHours: Number(g('payments_date_window_hours', '48')) || 48,
+    confidenceThreshold: Number(g('payments_confidence_threshold', '0.85')) || 0.85,
+    downloadPolicy: g('payments_download_policy', 'pending_charge') === 'always' ? 'always' : 'pending_charge',
+    confirmationTemplate: g('payments_confirmation_template', '¡Pago de {{currency}} {{amount}} confirmado! ✅ Gracias por tu compra.'),
+    requireBankMatch: g('payments_require_bank_match', '1') === '1',
     groundTruthSource: (() => {
-      const v = getSetting('payments_ground_truth_source', 'off');
+      const v = g('payments_ground_truth_source', 'off');
       return v === 'email' || v === 'webhook' ? v : 'off';
     })(),
-    matchWindowMinutes: Number(getSetting('payments_match_window_minutes', '180')) || 180,
-    recheckIntervalSeconds: Number(getSetting('payments_recheck_interval_seconds', '45')) || 45,
-    recheckMaxTries: Number(getSetting('payments_recheck_max_tries', '4')) || 4,
-    webhookSecret: getSetting('payments_webhook_secret', ''),
-    handoffOnReview: getSetting('payments_handoff_on_review', '1') === '1',
+    matchWindowMinutes: Number(g('payments_match_window_minutes', '180')) || 180,
+    recheckIntervalSeconds: Number(g('payments_recheck_interval_seconds', '45')) || 45,
+    recheckMaxTries: Number(g('payments_recheck_max_tries', '4')) || 4,
+    webhookSecret: g('payments_webhook_secret', ''),
+    handoffOnReview: g('payments_handoff_on_review', '1') === '1',
   };
 }
 
 // ---- charges ---------------------------------------------------------------
 
-function chargeWithContact(id: number) {
-  return db.prepare(`
+async function chargeWithContact(id: number) {
+  return one(`
     SELECT ch.*, ct.name AS contact_name, ct.phone AS contact_phone
     FROM charges ch JOIN contacts ct ON ct.id = ch.contact_id
-    WHERE ch.id = ?
-  `).get(id) as (Charge & { contact_name: string; contact_phone: string }) | undefined;
+    WHERE ch.id = $1
+  `, [id]) as Promise<(Charge & { contact_name: string; contact_phone: string }) | undefined>;
 }
 
-export function emitChargeUpdated(id: number) {
-  bus.emitEvent({ type: 'charge.updated', charge: chargeWithContact(id) });
+export async function emitChargeUpdated(id: number) {
+  bus.emitEvent({ type: 'charge.updated', charge: await chargeWithContact(id) });
 }
 
-export function createCharge(input: {
+export async function createCharge(input: {
   contactId: number;
   amount: number;
   currency?: string;
   concept?: string;
   dueAt?: number | null;
   createdBy?: 'dashboard' | 'ai';
-}): Charge {
-  const info = db.prepare(`
-    INSERT INTO charges (contact_id, amount, currency, concept, due_at, created_by)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(input.contactId, input.amount, input.currency ?? 'PEN', input.concept ?? '', input.dueAt ?? null, input.createdBy ?? 'dashboard');
-  const charge = getCharge(Number(info.lastInsertRowid))!;
-  emitChargeUpdated(charge.id);
+}): Promise<Charge> {
+  const charge = (await one<Charge>(`
+    INSERT INTO charges (business_id, contact_id, amount, currency, concept, due_at, created_by)
+    VALUES ((SELECT business_id FROM contacts WHERE id = $1), $1, $2, $3, $4, $5, $6)
+    RETURNING *
+  `, [input.contactId, input.amount, input.currency ?? 'PEN', input.concept ?? '', input.dueAt ?? null, input.createdBy ?? 'dashboard']))!;
+  await emitChargeUpdated(charge.id);
   return charge;
 }
 
-export function getCharge(id: number): Charge | undefined {
-  return db.prepare('SELECT * FROM charges WHERE id = ?').get(id) as Charge | undefined;
+export async function getCharge(id: number): Promise<Charge | undefined> {
+  return one<Charge>('SELECT * FROM charges WHERE id = $1', [id]);
 }
 
-export function listCharges(status?: string) {
-  const where = status ? 'WHERE ch.status = ?' : '';
-  return db.prepare(`
+export async function listCharges(status?: string) {
+  const where = status ? 'WHERE ch.status = $1' : '';
+  return many(`
     SELECT ch.*, ct.name AS contact_name, ct.phone AS contact_phone,
            r.verification_method AS method
     FROM charges ch
@@ -144,59 +142,59 @@ export function listCharges(status?: string) {
     LEFT JOIN receipts r ON r.id = ch.receipt_id
     ${where}
     ORDER BY ch.created_at DESC
-  `).all(...(status ? [status] : []));
+  `, status ? [status] : []);
 }
 
-export function listPendingCharges(contactId: number): Charge[] {
-  return db.prepare(`
-    SELECT * FROM charges WHERE contact_id = ? AND status IN ('pending','review') ORDER BY created_at DESC
-  `).all(contactId) as Charge[];
+export async function listPendingCharges(contactId: number): Promise<Charge[]> {
+  return many<Charge>(`
+    SELECT * FROM charges WHERE contact_id = $1 AND status IN ('pending','review') ORDER BY created_at DESC
+  `, [contactId]);
 }
 
-export function setChargeStatus(id: number, status: Charge['status']) {
-  db.prepare('UPDATE charges SET status = ? WHERE id = ?').run(status, id);
-  emitChargeUpdated(id);
+export async function setChargeStatus(id: number, status: Charge['status']) {
+  await none('UPDATE charges SET status = $1 WHERE id = $2', [status, id]);
+  await emitChargeUpdated(id);
 }
 
-export function markChargePaid(chargeId: number, receiptId: number) {
-  db.prepare(`UPDATE charges SET status = 'paid', paid_at = unixepoch(), receipt_id = ? WHERE id = ?`)
-    .run(receiptId, chargeId);
-  emitChargeUpdated(chargeId);
+export async function markChargePaid(chargeId: number, receiptId: number) {
+  await none(`UPDATE charges SET status = 'paid', paid_at = (extract(epoch from now())::bigint), receipt_id = $1 WHERE id = $2`,
+    [receiptId, chargeId]);
+  await emitChargeUpdated(chargeId);
 }
 
 // ---- receipts ----------------------------------------------------------------
 
-export function createReceipt(input: {
+export async function createReceipt(input: {
   mediaId: number;
   messageId: number;
   contactId: number;
   conversationId: number;
-}): Receipt {
-  const info = db.prepare(`
-    INSERT INTO receipts (media_id, message_id, contact_id, conversation_id)
-    VALUES (?, ?, ?, ?)
-  `).run(input.mediaId, input.messageId, input.contactId, input.conversationId);
-  return getReceipt(Number(info.lastInsertRowid))!;
+}): Promise<Receipt> {
+  return (await one<Receipt>(`
+    INSERT INTO receipts (business_id, media_id, message_id, contact_id, conversation_id)
+    VALUES ((SELECT business_id FROM contacts WHERE id = $3), $1, $2, $3, $4)
+    RETURNING *
+  `, [input.mediaId, input.messageId, input.contactId, input.conversationId]))!;
 }
 
-export function getReceipt(id: number): Receipt | undefined {
-  return db.prepare('SELECT * FROM receipts WHERE id = ?').get(id) as Receipt | undefined;
+export async function getReceipt(id: number): Promise<Receipt | undefined> {
+  return one<Receipt>('SELECT * FROM receipts WHERE id = $1', [id]);
 }
 
-export function getReceiptDetailed(id: number) {
-  return db.prepare(`
+export async function getReceiptDetailed(id: number) {
+  return one(`
     SELECT r.*, ct.name AS contact_name, ct.phone AS contact_phone,
            ch.amount AS charge_amount, ch.currency AS charge_currency, ch.concept AS charge_concept
     FROM receipts r
     JOIN contacts ct ON ct.id = r.contact_id
     LEFT JOIN charges ch ON ch.id = r.charge_id
-    WHERE r.id = ?
-  `).get(id) as any;
+    WHERE r.id = $1
+  `, [id]);
 }
 
-export function listReceipts(outcome?: string) {
-  const where = outcome ? 'WHERE r.outcome = ?' : '';
-  return db.prepare(`
+export async function listReceipts(outcome?: string) {
+  const where = outcome ? 'WHERE r.outcome = $1' : '';
+  return many(`
     SELECT r.*, ct.name AS contact_name, ct.phone AS contact_phone,
            ch.amount AS charge_amount, ch.currency AS charge_currency, ch.concept AS charge_concept
     FROM receipts r
@@ -204,10 +202,10 @@ export function listReceipts(outcome?: string) {
     LEFT JOIN charges ch ON ch.id = r.charge_id
     ${where}
     ORDER BY r.created_at DESC
-  `).all(...(outcome ? [outcome] : []));
+  `, outcome ? [outcome] : []);
 }
 
-export function saveReceiptExtraction(id: number, ex: {
+export async function saveReceiptExtraction(id: number, ex: {
   is_receipt: boolean;
   provider: string | null;
   amount: number | null;
@@ -219,20 +217,20 @@ export function saveReceiptExtraction(id: number, ex: {
   recipient_phone_suffix: string | null;
   confidence: number;
 }) {
-  db.prepare(`
+  await none(`
     UPDATE receipts SET
-      is_receipt = ?, provider = ?, amount = ?, currency = ?, date = ?,
-      operation_number = ?, sender_name = ?, recipient_name = ?, recipient_phone_suffix = ?,
-      confidence = ?, raw_extraction = ?
-    WHERE id = ?
-  `).run(
+      is_receipt = $1, provider = $2, amount = $3, currency = $4, date = $5,
+      operation_number = $6, sender_name = $7, recipient_name = $8, recipient_phone_suffix = $9,
+      confidence = $10, raw_extraction = $11
+    WHERE id = $12
+  `, [
     ex.is_receipt ? 1 : 0, ex.provider, ex.amount, ex.currency, ex.date,
     ex.operation_number, ex.sender_name, ex.recipient_name, ex.recipient_phone_suffix,
     ex.confidence, JSON.stringify(ex), id,
-  );
+  ]);
 }
 
-export function setReceiptOutcome(
+export async function setReceiptOutcome(
   id: number,
   outcome: Receipt['outcome'],
   reasons: string[] = [],
@@ -240,29 +238,29 @@ export function setReceiptOutcome(
   method?: string,
 ) {
   if (chargeId !== undefined) {
-    db.prepare('UPDATE receipts SET outcome = ?, reasons = ?, charge_id = ?, verification_method = COALESCE(?, verification_method) WHERE id = ?')
-      .run(outcome, JSON.stringify(reasons), chargeId, method ?? null, id);
+    await none('UPDATE receipts SET outcome = $1, reasons = $2, charge_id = $3, verification_method = COALESCE($4, verification_method) WHERE id = $5',
+      [outcome, JSON.stringify(reasons), chargeId, method ?? null, id]);
   } else {
-    db.prepare('UPDATE receipts SET outcome = ?, reasons = ?, verification_method = COALESCE(?, verification_method) WHERE id = ?')
-      .run(outcome, JSON.stringify(reasons), method ?? null, id);
+    await none('UPDATE receipts SET outcome = $1, reasons = $2, verification_method = COALESCE($3, verification_method) WHERE id = $4',
+      [outcome, JSON.stringify(reasons), method ?? null, id]);
   }
 }
 
-export function setReceiptNotification(id: number, notificationId: number) {
-  db.prepare('UPDATE receipts SET notification_id = ? WHERE id = ?').run(notificationId, id);
+export async function setReceiptNotification(id: number, notificationId: number) {
+  await none('UPDATE receipts SET notification_id = $1 WHERE id = $2', [notificationId, id]);
 }
 
-export function isOperationNumberUsed(provider: string, operationNumber: string, excludeReceiptId?: number): boolean {
-  const row = db.prepare(`
+export async function isOperationNumberUsed(provider: string, operationNumber: string, excludeReceiptId?: number): Promise<boolean> {
+  const row = await one(`
     SELECT id FROM receipts
-    WHERE provider = ? AND operation_number = ?
+    WHERE provider = $1 AND operation_number = $2
       AND outcome IN ('auto_verified','manual_verified')
-      AND id != ?
+      AND id <> $3
     LIMIT 1
-  `).get(provider, operationNumber, excludeReceiptId ?? -1);
+  `, [provider, operationNumber, excludeReceiptId ?? -1]);
   return row !== undefined;
 }
 
-export function getMedia(id: number): MediaRow | undefined {
-  return db.prepare('SELECT * FROM media WHERE id = ?').get(id) as MediaRow | undefined;
+export async function getMedia(id: number): Promise<MediaRow | undefined> {
+  return one<MediaRow>('SELECT * FROM media WHERE id = $1', [id]);
 }

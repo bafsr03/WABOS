@@ -1,6 +1,7 @@
 import type { proto, WAMessage } from '@whiskeysockets/baileys';
 import { logger } from '../logger.js';
 import { getSetting } from '../db/index.js';
+import { currentBusinessId, runWithBusiness } from '../context.js';
 import {
   getConversation,
   getOrCreateConversation,
@@ -13,7 +14,7 @@ import { handleInboundImage } from './media.js';
 const AI_DEBOUNCE_MS = 4000;
 const pendingAi = new Map<number, NodeJS.Timeout>();
 
-function extractText(message: proto.IMessage | null | undefined): { text: string; type: string } | null {
+export function extractText(message: proto.IMessage | null | undefined): { text: string; type: string } | null {
   if (!message) return null;
   if (message.conversation) return { text: message.conversation, type: 'text' };
   if (message.extendedTextMessage?.text) return { text: message.extendedTextMessage.text, type: 'text' };
@@ -29,7 +30,7 @@ function extractText(message: proto.IMessage | null | undefined): { text: string
   return null;
 }
 
-function isIgnorableJid(jid: string): boolean {
+export function isIgnorableJid(jid: string): boolean {
   return (
     jid.endsWith('@g.us') ||          // groups
     jid.endsWith('@broadcast') ||     // status / broadcast lists
@@ -38,9 +39,10 @@ function isIgnorableJid(jid: string): boolean {
   );
 }
 
+// The caller (the per-business socket in connection.ts) already runs this inside
+// runWithBusiness(businessId), so every query/emit here scopes to that tenant.
 export async function handleInbound(upsert: { messages: WAMessage[]; type: string }): Promise<void> {
   if (upsert.type !== 'notify' && upsert.type !== 'append') return;
-
   for (const msg of upsert.messages) {
     const jid = msg.key.remoteJid;
     if (!jid || isIgnorableJid(jid)) continue;
@@ -49,10 +51,10 @@ export async function handleInbound(upsert: { messages: WAMessage[]; type: strin
     if (!extracted) continue;
 
     const fromMe = Boolean(msg.key.fromMe);
-    const contact = upsertContactByJid(jid, fromMe ? undefined : msg.pushName ?? undefined);
-    const conversation = getOrCreateConversation(contact.id);
+    const contact = await upsertContactByJid(jid, fromMe ? undefined : msg.pushName ?? undefined);
+    const conversation = await getOrCreateConversation(contact.id);
 
-    const stored = insertMessage({
+    const stored = await insertMessage({
       waMessageId: msg.key.id,
       conversationId: conversation.id,
       direction: fromMe ? 'out' : 'in',
@@ -70,25 +72,28 @@ export async function handleInbound(upsert: { messages: WAMessage[]; type: strin
       if (claimed) continue; // the receipt worker owns the reply — skip the AI debounce
     }
 
-    scheduleAiReply(conversation.id);
+    await scheduleAiReply(conversation.id);
   }
 }
 
 // Debounce so someone typing 3 quick messages gets one coherent reply, not three.
 // Exported so the receipt worker can hand non-receipt images back to the AI.
-export function scheduleAiReply(conversationId: number) {
-  if (getSetting('ai_enabled', '1') !== '1') return;
-  const conversation = getConversation(conversationId);
+export async function scheduleAiReply(conversationId: number): Promise<void> {
+  if (await getSetting('ai_enabled', '1') !== '1') return;
+  const conversation = await getConversation(conversationId);
   if (!conversation || conversation.mode !== 'ai') return;
 
   const existing = pendingAi.get(conversationId);
   if (existing) clearTimeout(existing);
 
-  pendingAi.set(conversationId, setTimeout(() => {
+  // The debounce timer fires outside the current async context, so capture the
+  // business now and re-enter it when the deferred reply runs.
+  const businessId = currentBusinessId();
+  pendingAi.set(conversationId, setTimeout(() => runWithBusiness(businessId, async () => {
     pendingAi.delete(conversationId);
     // Re-check right before running: the owner may have taken over meanwhile
-    const fresh = getConversation(conversationId);
-    if (!fresh || fresh.mode !== 'ai' || getSetting('ai_enabled', '1') !== '1') return;
+    const fresh = await getConversation(conversationId);
+    if (!fresh || fresh.mode !== 'ai' || (await getSetting('ai_enabled', '1')) !== '1') return;
     runAiEmployee(conversationId).catch((err) => logger.error({ err, conversationId }, 'AI employee failed'));
-  }, AI_DEBOUNCE_MS));
+  }), AI_DEBOUNCE_MS));
 }

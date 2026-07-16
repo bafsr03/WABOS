@@ -6,8 +6,10 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { bus, type WabosEvent } from '../events.js';
-import { db, getAllSettings, setSetting } from '../db/index.js';
-import { getWaState, logoutWhatsApp } from '../wa/connection.js';
+import { one, many, none, getAllSettings, getSetting, setSetting } from '../db/index.js';
+import { DEFAULT_BUSINESS_ID, runWithBusiness, currentBusinessId } from '../context.js';
+import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses } from '../modules/auth.js';
+import { getWaState, logoutWhatsApp, changeNumber, pauseWhatsApp, reconnectWhatsApp, purgeConnection } from '../wa/connection.js';
 import { sendText } from '../wa/outbound.js';
 import { isAiAvailable } from '../ai/employee.js';
 import {
@@ -15,6 +17,11 @@ import {
   setConversationMode, markConversationRead, upsertContactByJid,
 } from '../modules/store.js';
 import { createBroadcast, getBroadcast, listBroadcasts } from '../modules/broadcasts.js';
+import { listAgents, getAgent, createAgent, updateAgent, deleteAgent, setConversationAgent } from '../modules/agents.js';
+import {
+  listCollections, createCollection, updateCollection, deleteCollection,
+  listDocuments, createDocument, updateDocument, deleteDocument,
+} from '../modules/knowledge.js';
 import {
   createCharge, getCharge, listCharges, setChargeStatus,
   listReceipts, getMedia,
@@ -22,41 +29,141 @@ import {
 import { approveReceipt, rejectReceipt, rekickPendingReceipts } from '../workers/receipt-verifier.js';
 import { insertNotification, listNotifications } from '../modules/payment-notifications.js';
 import { getPaymentSettings } from '../modules/charges.js';
+import { featureFlags, getPlanTier, isFeatureEnabled, assertWithinLimit } from '../modules/entitlements.js';
+import {
+  createStyleAnalysis, getStyleAnalysis, getLatestStyleAnalysis,
+  hasActiveStyleAnalysis, applyStyleProfile,
+} from '../modules/style.js';
+import { isAnalyzerAvailable } from '../ai/style-analyzer.js';
+import {
+  createImport, getLatestImport, getActiveImport, stopImport, startOnDemandBackfill,
+} from '../modules/history-import.js';
 import { mediaAbsolutePath } from '../wa/media.js';
 import fs from 'node:fs';
 
-export async function startApi() {
+// Builds the fully-wired Fastify instance WITHOUT binding a port, so tests can
+// drive it via app.inject(). startApi() below is the production entrypoint.
+export async function buildApi() {
   const app = Fastify({ logger: false });
-  await app.register(cors, { origin: true });
+  // Production locks the origin to the dashboard URL; dev leaves it permissive.
+  await app.register(cors, { origin: config.allowedOrigin || true });
   await app.register(websocket);
 
   // ---- auth ----------------------------------------------------------------
-  app.addHook('onRequest', async (req, reply) => {
-    if (!req.url.startsWith('/api/')) return;
-    // Webhooks authenticate with their own per-business secret, not the
-    // dashboard token (the merchant's phone/app posts to them).
-    if (req.url.startsWith('/api/webhooks/')) return;
+  // Callback-style hook so we can bind the tenant with als.run(store, done):
+  // calling Fastify's `done` INSIDE runWithBusiness makes the whole downstream
+  // request (all route handlers) inherit the AsyncLocalStorage context. (enterWith
+  // from an async hook does NOT propagate to the handler.)
+  app.addHook('onRequest', (req, reply, done) => {
+    const url = req.url;
+    if (!url.startsWith('/api/')) return done();
+    // Webhooks authenticate with their own per-business secret; register/login
+    // are the unauthenticated entry points.
+    if (url.startsWith('/api/webhooks/')) return done();
+    if (url.startsWith('/api/auth/register') || url.startsWith('/api/auth/login') || url.startsWith('/api/auth/google')) return done();
+
     const header = req.headers.authorization ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-    if (token !== config.dashboardToken) {
-      return reply.code(401).send({ error: 'Unauthorized' });
+
+    // Legacy bypass: the static dashboard token maps to the original business
+    // (STAND 120), so its existing session keeps working post-cutover.
+    if (token && token === config.dashboardToken) {
+      return runWithBusiness(DEFAULT_BUSINESS_ID, done);
+    }
+
+    // Otherwise it's a user JWT → resolve the acting business from membership.
+    (async () => {
+      const uid = token ? await verifyToken(token) : null;
+      if (!uid) { reply.code(401).send({ error: 'Unauthorized' }); return; }
+      const requested = req.headers['x-business-id'] ? Number(req.headers['x-business-id']) : undefined;
+      const businessId = await resolveBusinessForUser(uid, requested);
+      if (!businessId) { reply.code(403).send({ error: 'No business access' }); return; }
+      (req as any).uid = uid;
+      runWithBusiness(businessId, done);
+    })().catch(done);
+  });
+
+  // ---- auth routes ----------------------------------------------------------
+  app.post('/api/auth/register', async (req, reply) => {
+    const body = z.object({
+      email: z.string().email(),
+      password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+      business_name: z.string().min(1),
+    }).parse(req.body);
+    try {
+      const result = await registerUser(body.email, body.password, body.business_name);
+      return reply.code(201).send(result);
+    } catch (err: any) {
+      if (err.code === 'EMAIL_TAKEN') return reply.code(409).send({ error: err.message });
+      throw err;
     }
   });
 
-  // ---- realtime ------------------------------------------------------------
-  app.get('/ws', { websocket: true }, (socket, req) => {
-    const url = new URL(req.url, 'http://localhost');
-    if (url.searchParams.get('token') !== config.dashboardToken) {
-      socket.close(4001, 'Unauthorized');
-      return;
+  app.post('/api/auth/login', async (req, reply) => {
+    const body = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body);
+    try {
+      return await loginUser(body.email, body.password);
+    } catch (err: any) {
+      if (err.code === 'INVALID_CREDENTIALS') return reply.code(401).send({ error: err.message });
+      throw err;
     }
+  });
+
+  app.post('/api/auth/google', async (req, reply) => {
+    const body = z.object({ credential: z.string().min(1) }).parse(req.body);
+    try {
+      return await loginWithGoogle(body.credential);
+    } catch (err: any) {
+      if (err.code === 'INVALID_CREDENTIALS') return reply.code(401).send({ error: err.message });
+      if (err.code === 'GOOGLE_NOT_CONFIGURED') return reply.code(503).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get('/api/auth/me', async (req) => {
+    const uid = (req as any).uid as number | undefined;
+    if (!uid) {
+      // Legacy-token session: no user row, just the bound business.
+      const b = await one('SELECT id, name, plan_tier FROM businesses WHERE id = $1', [currentBusinessId()]);
+      return { user: null, businesses: b ? [{ ...b, role: 'owner' }] : [] };
+    }
+    return { user: await getUser(uid), businesses: await listUserBusinesses(uid) };
+  });
+
+  // Permanently delete the account + all owned businesses and their data. Only
+  // available to real user sessions (not the legacy dashboard token).
+  app.delete('/api/account', async (req, reply) => {
+    const uid = (req as any).uid as number | undefined;
+    if (!uid) return reply.code(400).send({ error: 'Esta sesión no puede eliminar la cuenta' });
+    const businesses = await listUserBusinesses(uid);
+    for (const b of businesses) await purgeConnection(b.id); // stop socket + delete creds
+    await deleteAccount(uid);
+    return { ok: true };
+  });
+
+  // ---- realtime ------------------------------------------------------------
+  app.get('/ws', { websocket: true }, async (socket, req) => {
+    const token = new URL(req.url, 'http://localhost').searchParams.get('token') ?? '';
+    // Resolve the socket's business: legacy token → STAND 120, else a user JWT.
+    let businessId: number | null = null;
+    if (token === config.dashboardToken) businessId = DEFAULT_BUSINESS_ID;
+    else {
+      const uid = token ? await verifyToken(token) : null;
+      if (uid) businessId = await resolveBusinessForUser(uid);
+    }
+    if (!businessId) { socket.close(4001, 'Unauthorized'); return; }
+
+    // Only forward events belonging to this socket's business. Events are stamped
+    // with businessId at emit time (see events.ts); untenanted events pass through.
     const forward = (event: WabosEvent) => {
+      const evBiz = (event as any).businessId;
+      if (evBiz !== undefined && evBiz !== businessId) return;
       try { socket.send(JSON.stringify(event)); } catch { /* client gone */ }
     };
     bus.on('event', forward);
     socket.on('close', () => bus.off('event', forward));
-    const wa = getWaState();
-    forward({ type: 'wa.status', status: wa.status, qr: wa.qr, me: wa.me });
+    const wa = getWaState(businessId);
+    forward({ type: 'wa.status', businessId, status: wa.status, qr: wa.qr, me: wa.me });
   });
 
   // ---- whatsapp connection -------------------------------------------------
@@ -66,6 +173,9 @@ export async function startApi() {
       ...wa,
       qrDataUrl: wa.qr ? await QRCode.toDataURL(wa.qr, { margin: 1, width: 320 }) : null,
       aiAvailable: isAiAvailable(),
+      planTier: await getPlanTier(),
+      features: await featureFlags(),
+      accountPhone: await getSetting('account_phone', ''),
     };
   });
 
@@ -74,20 +184,39 @@ export async function startApi() {
     return { ok: true };
   });
 
+  // Change numbers: keep brand assets + CRM, reset the old number's chats/money,
+  // then re-issue a QR for the new number.
+  app.post('/api/change-number', async () => {
+    await changeNumber();
+    return { ok: true };
+  });
+
+  // Dashboard session lifecycle: closing the app session pauses the WhatsApp
+  // socket but keeps the link + all data; logging back in resumes it.
+  app.post('/api/session/close', async () => {
+    await pauseWhatsApp();
+    return { ok: true };
+  });
+
+  app.post('/api/session/open', async () => {
+    await reconnectWhatsApp();
+    return { ok: true };
+  });
+
   // ---- conversations & messages ---------------------------------------------
   app.get('/api/conversations', async () => listConversations());
 
   app.get('/api/conversations/:id/messages', async (req) => {
     const id = Number((req.params as any).id);
-    return { conversation: getConversation(id), messages: listMessages(id, 200) };
+    return { conversation: await getConversation(id), messages: await listMessages(id, 200) };
   });
 
   app.post('/api/conversations/:id/messages', async (req, reply) => {
     const id = Number((req.params as any).id);
     const body = z.object({ text: z.string().min(1) }).parse(req.body);
-    if (!getConversation(id)) return reply.code(404).send({ error: 'Conversation not found' });
+    if (!(await getConversation(id))) return reply.code(404).send({ error: 'Conversation not found' });
     // A manual reply means a human is handling this thread now
-    setConversationMode(id, 'human');
+    await setConversationMode(id, 'human');
     const ok = await sendText({ conversationId: id, text: body.text, humanized: false });
     return { ok };
   });
@@ -95,26 +224,78 @@ export async function startApi() {
   app.post('/api/conversations/:id/mode', async (req) => {
     const id = Number((req.params as any).id);
     const body = z.object({ mode: z.enum(['ai', 'human']) }).parse(req.body);
-    setConversationMode(id, body.mode);
+    await setConversationMode(id, body.mode);
+    return { ok: true };
+  });
+
+  app.post('/api/conversations/:id/agent', async (req, reply) => {
+    const id = Number((req.params as any).id);
+    const body = z.object({ agentId: z.number().int() }).parse(req.body);
+    if (!(await getConversation(id))) return reply.code(404).send({ error: 'Conversation not found' });
+    if (!(await getAgent(body.agentId))) return reply.code(404).send({ error: 'Agent not found' });
+    await setConversationAgent(id, body.agentId);
+    return { ok: true };
+  });
+
+  // ---- agents -----------------------------------------------------------------
+  app.get('/api/agents', async () => listAgents());
+
+  app.post('/api/agents', async (req, reply) => {
+    const body = z.object({
+      name: z.string().min(1),
+      slug: z.string().optional(),
+      description: z.string().optional(),
+      persona: z.string().optional(),
+      ai_tone: z.string().optional(),
+      ai_instructions: z.string().optional(),
+      model_default: z.string().optional(),
+      model_sales: z.string().optional(),
+      enabled: z.boolean().optional(),
+    }).parse(req.body);
+    await assertWithinLimit('agents');
+    return reply.code(201).send(await createAgent(body));
+  });
+
+  app.patch('/api/agents/:id', async (req, reply) => {
+    const id = Number((req.params as any).id);
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      slug: z.string().optional(),
+      description: z.string().optional(),
+      persona: z.string().optional(),
+      ai_tone: z.string().optional(),
+      ai_instructions: z.string().optional(),
+      model_default: z.string().optional(),
+      model_sales: z.string().optional(),
+      enabled: z.boolean().optional(),
+    }).parse(req.body);
+    const updated = await updateAgent(id, body);
+    if (!updated) return reply.code(404).send({ error: 'Agent not found' });
+    return updated;
+  });
+
+  app.delete('/api/agents/:id', async (req, reply) => {
+    const res = await deleteAgent(Number((req.params as any).id));
+    if (!res.ok) return reply.code(res.error === 'Agent not found' ? 404 : 409).send({ error: res.error });
     return { ok: true };
   });
 
   app.post('/api/conversations/:id/read', async (req) => {
-    markConversationRead(Number((req.params as any).id));
+    await markConversationRead(Number((req.params as any).id));
     return { ok: true };
   });
 
   // ---- contacts & tags -------------------------------------------------------
   app.get('/api/contacts', async () => {
-    return db.prepare(`
+    return many(`
       SELECT c.*, (
-        SELECT json_group_array(json_object('id', t.id, 'name', t.name))
+        SELECT COALESCE(json_agg(json_build_object('id', t.id, 'name', t.name)), '[]'::json)
         FROM contact_tags ct JOIN tags t ON t.id = ct.tag_id
         WHERE ct.contact_id = c.id
       ) AS tags,
       (SELECT id FROM conversations WHERE contact_id = c.id) AS conversation_id
-      FROM contacts c ORDER BY c.created_at DESC
-    `).all().map((row: any) => ({ ...row, tags: JSON.parse(row.tags) }));
+      FROM contacts c WHERE c.business_id = $1 ORDER BY c.created_at DESC
+    `, [currentBusinessId()]);
   });
 
   app.post('/api/contacts', async (req, reply) => {
@@ -122,45 +303,47 @@ export async function startApi() {
       phone: z.string().min(6).regex(/^\+?\d+$/, 'Digits only, e.g. 51987654321'),
       name: z.string().default(''),
     }).parse(req.body);
+    await assertWithinLimit('contacts');
     const phone = body.phone.replace('+', '');
-    const contact = upsertContactByJid(`${phone}@s.whatsapp.net`, body.name || undefined);
-    if (body.name) db.prepare('UPDATE contacts SET name = ? WHERE id = ?').run(body.name, contact.id);
-    return reply.code(201).send(db.prepare('SELECT * FROM contacts WHERE id = ?').get(contact.id));
+    const contact = await upsertContactByJid(`${phone}@s.whatsapp.net`, body.name || undefined);
+    if (body.name) await none('UPDATE contacts SET name = $1 WHERE id = $2', [body.name, contact.id]);
+    return reply.code(201).send(await one('SELECT * FROM contacts WHERE id = $1', [contact.id]));
   });
 
   app.patch('/api/contacts/:id', async (req) => {
     const id = Number((req.params as any).id);
     const body = z.object({ name: z.string().optional(), notes: z.string().optional() }).parse(req.body);
-    if (body.name !== undefined) db.prepare('UPDATE contacts SET name = ? WHERE id = ?').run(body.name, id);
-    if (body.notes !== undefined) db.prepare('UPDATE contacts SET notes = ? WHERE id = ?').run(body.notes, id);
-    return db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
+    if (body.name !== undefined) await none('UPDATE contacts SET name = $1 WHERE id = $2 AND business_id = $3', [body.name, id, currentBusinessId()]);
+    if (body.notes !== undefined) await none('UPDATE contacts SET notes = $1 WHERE id = $2 AND business_id = $3', [body.notes, id, currentBusinessId()]);
+    return one('SELECT * FROM contacts WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
   });
 
   app.delete('/api/contacts/:id', async (req) => {
-    db.prepare('DELETE FROM contacts WHERE id = ?').run(Number((req.params as any).id));
+    await none('DELETE FROM contacts WHERE id = $1 AND business_id = $2', [Number((req.params as any).id), currentBusinessId()]);
     return { ok: true };
   });
 
-  app.get('/api/tags', async () => db.prepare('SELECT * FROM tags ORDER BY name').all());
+  app.get('/api/tags', async () => many('SELECT * FROM tags WHERE business_id = $1 ORDER BY name', [currentBusinessId()]));
 
   app.post('/api/contacts/:id/tags', async (req) => {
     const contactId = Number((req.params as any).id);
     const body = z.object({ tag: z.string().min(1) }).parse(req.body);
     const tag = body.tag.trim().toLowerCase();
-    db.prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)').run(tag);
-    const tagRow = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag) as { id: number };
-    db.prepare('INSERT OR IGNORE INTO contact_tags (contact_id, tag_id) VALUES (?, ?)').run(contactId, tagRow.id);
+    const businessId = currentBusinessId();
+    await none('INSERT INTO tags (business_id, name) VALUES ($1, $2) ON CONFLICT (business_id, lower(name)) DO NOTHING', [businessId, tag]);
+    const tagRow = (await one<{ id: number }>('SELECT id FROM tags WHERE business_id = $1 AND lower(name) = lower($2)', [businessId, tag]))!;
+    await none('INSERT INTO contact_tags (contact_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [contactId, tagRow.id]);
     return { ok: true };
   });
 
   app.delete('/api/contacts/:id/tags/:tagId', async (req) => {
     const { id, tagId } = req.params as any;
-    db.prepare('DELETE FROM contact_tags WHERE contact_id = ? AND tag_id = ?').run(Number(id), Number(tagId));
+    await none('DELETE FROM contact_tags WHERE contact_id = $1 AND tag_id = $2', [Number(id), Number(tagId)]);
     return { ok: true };
   });
 
   // ---- catalog ----------------------------------------------------------------
-  app.get('/api/products', async () => db.prepare('SELECT * FROM products ORDER BY created_at DESC').all());
+  app.get('/api/products', async () => many('SELECT * FROM products WHERE business_id = $1 ORDER BY created_at DESC', [currentBusinessId()]));
 
   app.post('/api/products', async (req, reply) => {
     const body = z.object({
@@ -169,9 +352,9 @@ export async function startApi() {
       price: z.number().nonnegative(),
       currency: z.string().default('PEN'),
     }).parse(req.body);
-    const info = db.prepare('INSERT INTO products (name, description, price, currency) VALUES (?, ?, ?, ?)')
-      .run(body.name, body.description, body.price, body.currency);
-    return reply.code(201).send(db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid));
+    const row = await one('INSERT INTO products (business_id, name, description, price, currency) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [currentBusinessId(), body.name, body.description, body.price, body.currency]);
+    return reply.code(201).send(row);
   });
 
   app.patch('/api/products/:id', async (req) => {
@@ -183,50 +366,165 @@ export async function startApi() {
       currency: z.string().optional(),
       active: z.boolean().optional(),
     }).parse(req.body);
-    const current = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as any;
+    const current = await one<any>('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
     if (!current) return { error: 'Not found' };
-    db.prepare('UPDATE products SET name = ?, description = ?, price = ?, currency = ?, active = ? WHERE id = ?')
-      .run(
+    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5 WHERE id = $6',
+      [
         body.name ?? current.name,
         body.description ?? current.description,
         body.price ?? current.price,
         body.currency ?? current.currency,
         body.active === undefined ? current.active : body.active ? 1 : 0,
         id,
-      );
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+      ]);
+    return one('SELECT * FROM products WHERE id = $1', [id]);
   });
 
   app.delete('/api/products/:id', async (req) => {
-    db.prepare('DELETE FROM products WHERE id = ?').run(Number((req.params as any).id));
+    await none('DELETE FROM products WHERE id = $1 AND business_id = $2', [Number((req.params as any).id), currentBusinessId()]);
     return { ok: true };
   });
 
   // ---- FAQs ---------------------------------------------------------------------
-  app.get('/api/faqs', async () => db.prepare('SELECT * FROM faqs ORDER BY id').all());
+  app.get('/api/faqs', async () => many('SELECT * FROM faqs WHERE business_id = $1 ORDER BY id', [currentBusinessId()]));
 
   app.post('/api/faqs', async (req, reply) => {
     const body = z.object({ question: z.string().min(1), answer: z.string().min(1) }).parse(req.body);
-    const info = db.prepare('INSERT INTO faqs (question, answer) VALUES (?, ?)').run(body.question, body.answer);
-    return reply.code(201).send(db.prepare('SELECT * FROM faqs WHERE id = ?').get(info.lastInsertRowid));
+    const row = await one('INSERT INTO faqs (business_id, question, answer) VALUES ($1, $2, $3) RETURNING *',
+      [currentBusinessId(), body.question, body.answer]);
+    return reply.code(201).send(row);
   });
 
   app.delete('/api/faqs/:id', async (req) => {
-    db.prepare('DELETE FROM faqs WHERE id = ?').run(Number((req.params as any).id));
+    await none('DELETE FROM faqs WHERE id = $1 AND business_id = $2', [Number((req.params as any).id), currentBusinessId()]);
+    return { ok: true };
+  });
+
+  // ---- knowledge base ---------------------------------------------------------
+  app.get('/api/knowledge/collections', async () => listCollections());
+
+  app.post('/api/knowledge/collections', async (req, reply) => {
+    const body = z.object({ name: z.string().min(1), description: z.string().optional(), sort_order: z.number().int().optional() }).parse(req.body);
+    return reply.code(201).send(await createCollection(body));
+  });
+
+  app.patch('/api/knowledge/collections/:id', async (req, reply) => {
+    const body = z.object({ name: z.string().min(1).optional(), description: z.string().optional(), sort_order: z.number().int().optional() }).parse(req.body);
+    const updated = await updateCollection(Number((req.params as any).id), body);
+    if (!updated) return reply.code(404).send({ error: 'Collection not found' });
+    return updated;
+  });
+
+  app.delete('/api/knowledge/collections/:id', async (req, reply) => {
+    if (!(await deleteCollection(Number((req.params as any).id)))) return reply.code(404).send({ error: 'Collection not found' });
+    return { ok: true };
+  });
+
+  app.get('/api/knowledge/documents', async (req) => {
+    const collectionId = (req.query as any)?.collection_id;
+    return listDocuments(collectionId !== undefined ? Number(collectionId) : undefined);
+  });
+
+  const documentBody = z.object({
+    title: z.string().min(1),
+    kind: z.enum(['policy', 'guide', 'brand', 'faq', 'other']).optional(),
+    collection_id: z.number().int().nullable().optional(),
+    summary: z.string().optional(),
+    content: z.string().optional(),
+    keywords: z.string().optional(),
+    pinned: z.boolean().optional(),
+    active: z.boolean().optional(),
+  });
+
+  app.post('/api/knowledge/documents', async (req, reply) => {
+    return reply.code(201).send(await createDocument(documentBody.parse(req.body)));
+  });
+
+  app.patch('/api/knowledge/documents/:id', async (req, reply) => {
+    const updated = await updateDocument(Number((req.params as any).id), documentBody.partial().parse(req.body));
+    if (!updated) return reply.code(404).send({ error: 'Document not found' });
+    return updated;
+  });
+
+  app.delete('/api/knowledge/documents/:id', async (req, reply) => {
+    if (!(await deleteDocument(Number((req.params as any).id)))) return reply.code(404).send({ error: 'Document not found' });
     return { ok: true };
   });
 
   // ---- settings -------------------------------------------------------------------
-  app.get('/api/settings', async () => ({ ...getAllSettings(), _aiAvailable: isAiAvailable() }));
+  app.get('/api/settings', async () => ({ ...(await getAllSettings()), _aiAvailable: isAiAvailable() }));
 
   app.put('/api/settings', async (req) => {
     const body = z.record(z.string()).parse(req.body);
     for (const [key, value] of Object.entries(body)) {
       if (key.startsWith('_')) continue;
-      setSetting(key, value);
+      await setSetting(key, value);
     }
     return getAllSettings();
   });
+
+  // ---- voice DNA (style analysis) ---------------------------------------------------
+  const serializeAnalysis = (a: any) => a && { ...a, profile: a.profile ? JSON.parse(a.profile) : null };
+
+  app.post('/api/style/analyze', async (_req, reply) => {
+    if (!(await isFeatureEnabled('style_analysis'))) {
+      return reply.code(402).send({ error: 'Función premium no disponible en tu plan' });
+    }
+    if (!isAnalyzerAvailable()) {
+      return reply.code(409).send({ error: 'La IA no está configurada (falta ANTHROPIC_API_KEY)' });
+    }
+    if (await hasActiveStyleAnalysis()) {
+      return reply.code(409).send({ error: 'Ya hay un análisis en curso' });
+    }
+    return reply.code(201).send(serializeAnalysis(await createStyleAnalysis()));
+  });
+
+  app.get('/api/style/latest', async () => serializeAnalysis(await getLatestStyleAnalysis()) ?? null);
+
+  app.get('/api/style/:id', async (req, reply) => {
+    const a = await getStyleAnalysis(Number((req.params as any).id));
+    if (!a) return reply.code(404).send({ error: 'Analysis not found' });
+    return serializeAnalysis(a);
+  });
+
+  app.post('/api/style/:id/apply', async (req, reply) => {
+    const body = z.object({ agentId: z.number().int().optional() }).parse(req.body ?? {});
+    const applied = await applyStyleProfile(Number((req.params as any).id), body.agentId);
+    if (!applied) return reply.code(409).send({ error: 'El análisis no está listo para aplicar' });
+    return serializeAnalysis(applied);
+  });
+
+  // ---- whatsapp history import (opt-in) ---------------------------------------------
+  app.get('/api/history/status', async () => {
+    const row = (await one<{ n: number }>('SELECT COUNT(*)::int AS n FROM messages m JOIN conversations c ON c.id = m.conversation_id WHERE c.business_id = $1', [currentBusinessId()]))!;
+    return {
+      import: await getLatestImport() ?? null,
+      storedMessages: row.n,
+      fullSync: (await getSetting('history_full_sync', '0')) === '1',
+    };
+  });
+
+  app.post('/api/history/import', async (req, reply) => {
+    const body = z.object({ mode: z.enum(['on_demand', 'full_rescan']) }).parse(req.body ?? {});
+    if (getWaState().status !== 'connected') {
+      return reply.code(409).send({ error: 'WhatsApp no está conectado' });
+    }
+    if (await getActiveImport()) {
+      return reply.code(409).send({ error: 'Ya hay una importación en curso' });
+    }
+    if (body.mode === 'on_demand') {
+      const imp = await createImport('on_demand');
+      void startOnDemandBackfill(imp.id); // fire-and-forget; progress streams over the bus
+      return reply.code(201).send(imp);
+    }
+    // full_rescan: enable full sync and tell the client to re-link. The backlog
+    // lands after logout → QR → reconnect and is ingested by the gated handler.
+    await setSetting('history_full_sync', '1');
+    await createImport('sync');
+    return reply.code(201).send({ relink: true });
+  });
+
+  app.post('/api/history/stop', async () => ({ ok: true, import: await stopImport() ?? null }));
 
   // ---- broadcasts -------------------------------------------------------------------
   app.get('/api/broadcasts', async () => listBroadcasts());
@@ -243,7 +541,7 @@ export async function startApi() {
       return reply.code(409).send({ error: 'WhatsApp is not connected' });
     }
     try {
-      return reply.code(201).send(createBroadcast({ name: body.name, message: body.message, tagId: body.tagId ?? null }));
+      return reply.code(201).send(await createBroadcast({ name: body.name, message: body.message, tagId: body.tagId ?? null }));
     } catch (err: any) {
       return reply.code(400).send({ error: err.message });
     }
@@ -265,10 +563,10 @@ export async function startApi() {
       concept: z.string().default(''),
       dueAt: z.number().int().nullable().optional(),
     }).parse(req.body);
-    if (!db.prepare('SELECT id FROM contacts WHERE id = ?').get(body.contactId)) {
+    if (!(await one('SELECT id FROM contacts WHERE id = $1 AND business_id = $2', [body.contactId, currentBusinessId()]))) {
       return reply.code(404).send({ error: 'Contact not found' });
     }
-    return reply.code(201).send(createCharge({
+    return reply.code(201).send(await createCharge({
       contactId: body.contactId,
       amount: body.amount,
       currency: body.currency,
@@ -279,10 +577,10 @@ export async function startApi() {
 
   app.post('/api/charges/:id/cancel', async (req, reply) => {
     const id = Number((req.params as any).id);
-    const charge = getCharge(id);
+    const charge = await getCharge(id);
     if (!charge) return reply.code(404).send({ error: 'Charge not found' });
     if (charge.status === 'paid') return reply.code(409).send({ error: 'Charge is already paid' });
-    if (charge.status !== 'cancelled') setChargeStatus(id, 'cancelled');
+    if (charge.status !== 'cancelled') await setChargeStatus(id, 'cancelled');
     return { ok: true };
   });
 
@@ -290,7 +588,7 @@ export async function startApi() {
     const query = z.object({
       outcome: z.enum(['pending', 'auto_verified', 'review', 'rejected', 'not_receipt', 'manual_verified', 'manual_rejected']).optional(),
     }).parse(req.query ?? {});
-    return listReceipts(query.outcome).map((r: any) => ({ ...r, reasons: JSON.parse(r.reasons) }));
+    return (await listReceipts(query.outcome)).map((r: any) => ({ ...r, reasons: JSON.parse(r.reasons) }));
   });
 
   app.post('/api/receipts/:id/approve', async (req, reply) => {
@@ -307,7 +605,7 @@ export async function startApi() {
   });
 
   app.get('/api/media/:id', async (req, reply) => {
-    const media = getMedia(Number((req.params as any).id));
+    const media = await getMedia(Number((req.params as any).id));
     if (!media) return reply.code(404).send({ error: 'Media not found' });
     const absPath = mediaAbsolutePath(media);
     if (!fs.existsSync(absPath)) return reply.code(404).send({ error: 'Media file missing' });
@@ -318,11 +616,14 @@ export async function startApi() {
 
   // ---- payment-notification webhook (per-business secret, NOT dashboard token) ----
   app.post('/api/webhooks/payment', async (req, reply) => {
-    const settings = getPaymentSettings();
-    if (!settings.webhookSecret) return reply.code(503).send({ error: 'Webhook not configured' });
-    if ((req.headers['x-wabos-secret'] ?? '') !== settings.webhookSecret) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    // The webhook runs outside the auth hook, so resolve the tenant from the
+    // secret: it's the business whose payments_webhook_secret matches.
+    const provided = String(req.headers['x-wabos-secret'] ?? '');
+    if (!provided) return reply.code(401).send({ error: 'Unauthorized' });
+    const owner = await one<{ business_id: number }>(
+      "SELECT business_id FROM settings WHERE key = 'payments_webhook_secret' AND value = $1 LIMIT 1", [provided]);
+    if (!owner) return reply.code(401).send({ error: 'Unauthorized' });
+
     const body = z.object({
       provider: z.enum(['yape', 'plin', 'transfer', 'other']).nullable().optional(),
       amount: z.number().nullable().optional(),
@@ -334,29 +635,39 @@ export async function startApi() {
       external_id: z.string().min(1),
     }).parse(req.body);
 
-    const inserted = insertNotification({
-      source: 'webhook',
-      provider: body.provider ?? null,
-      amount: body.amount ?? null,
-      currency: body.currency,
-      operationNumber: body.operation_number ?? null,
-      senderName: body.sender_name ?? null,
-      rawText: body.raw_text ?? null,
-      receivedAt: body.received_at ?? null,
-      externalId: body.external_id,
+    return runWithBusiness(owner.business_id, async () => {
+      const inserted = await insertNotification({
+        source: 'webhook',
+        provider: body.provider ?? null,
+        amount: body.amount ?? null,
+        currency: body.currency,
+        operationNumber: body.operation_number ?? null,
+        senderName: body.sender_name ?? null,
+        rawText: body.raw_text ?? null,
+        receivedAt: body.received_at ?? null,
+        externalId: body.external_id,
+      });
+      if (inserted) await rekickPendingReceipts(); // resolve any screenshot already waiting
+      return { ok: true, duplicate: inserted === null };
     });
-    if (inserted) rekickPendingReceipts(); // resolve any screenshot already waiting
-    return { ok: true, duplicate: inserted === null };
   });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof z.ZodError) {
       return reply.code(400).send({ error: err.errors.map((e) => e.message).join(', ') });
     }
+    if ((err as any).code === 'PLAN_LIMIT') {
+      return reply.code(402).send({ error: (err as Error).message });
+    }
     logger.error({ err }, 'API error');
     return reply.code(500).send({ error: err instanceof Error ? err.message : 'Internal error' });
   });
 
+  return app;
+}
+
+export async function startApi() {
+  const app = await buildApi();
   await app.listen({ port: config.port, host: '0.0.0.0' });
   logger.info(`API listening on http://localhost:${config.port}`);
   return app;

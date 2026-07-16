@@ -1,25 +1,10 @@
-import { db, setSetting } from './index.js';
+import { initDb, setSetting, none } from './index.js';
+import { pool } from './pool.js';
 
 // Demo data profiled on a real business — STAND 120 (smokeshop, Surco, Lima).
 // Lets you test the full flow (AI catalog answers, tags, broadcasts) against a
 // realistic profile before loading your own data. Source: https://stand120.com
-
-setSetting('business_name', 'STAND 120');
-setSetting(
-  'business_description',
-  'Smokeshop en Surco, Lima. Vendemos bongs, pipas, grinders, vaporizadores, papeles y accesorios para fumar. ' +
-  'Tienda física en Av. Aviación 5024, int. 120, C.C. Polvos de Higuereta, Santiago de Surco. ' +
-  'Delivery local por Indrive de lunes a sábado de 12:00 a 20:00. Envíos a todo el Perú el mismo día por Olva o Shalom ' +
-  'para pedidos recibidos hasta las 5:00 pm (lunes a sábado). Redes: @stand120_life.',
-);
-setSetting('business_hours', 'Lunes a sábado, delivery local 12:00–20:00. Envíos a provincia el mismo día si el pedido entra antes de las 5:00 pm.');
-setSetting('ai_tone', 'Amigable, relajado y cercano, con buena onda. Responde en español peruano. Trata a los clientes como parte de la comunidad STAND 120.');
-setSetting('ai_instructions',
-  'Solo atendemos a mayores de 18 años; si detectas que es menor de edad, no continúes con la venta. ' +
-  'Los productos son accesorios para fumar (tabaco/hierbas legales). No des consejos médicos ni promuevas sustancias ilegales. ' +
-  'Si preguntan por disponibilidad exacta de stock o piden una foto de un producto, ofrece pasar la conversación a una persona.',
-);
-setSetting('ai_enabled', '1');
+// Run with `pnpm --filter engine seed` (against the dev Postgres).
 
 const products: [string, string, number][] = [
   ['Pack Hello Kitty', 'Pack temático Hello Kitty. Precio de oferta (regular S/ 119).', 90.0],
@@ -35,8 +20,6 @@ const products: [string, string, number][] = [
   ['Pipa Pen', 'Pipa tipo lapicero, discreta y portátil. Precio de oferta (regular S/ 35).', 30.0],
   ['Pipa Murano Lunares GRD', 'Pipa Murano con diseño de lunares, tamaño grande. Precio de oferta (regular S/ 65).', 49.0],
 ];
-const insertProduct = db.prepare('INSERT INTO products (name, description, price) VALUES (?, ?, ?)');
-for (const [name, description, price] of products) insertProduct.run(name, description, price);
 
 const faqs: [string, string][] = [
   ['¿Hacen delivery?', 'Sí. Delivery local en Lima por Indrive de lunes a sábado de 12:00 a 20:00. El costo del Indrive lo cubre el cliente según la zona.'],
@@ -48,7 +31,35 @@ const faqs: [string, string][] = [
   ['¿Puedo hacer devoluciones?', 'Contamos con política de devoluciones y reembolsos. Escríbenos con tu número de pedido y te ayudamos a coordinar.'],
   ['¿Dónde los sigo en redes?', 'Búscanos como @stand120_life en Instagram, TikTok y Facebook.'],
 ];
-const insertFaq = db.prepare('INSERT INTO faqs (question, answer) VALUES (?, ?)');
-for (const [question, answer] of faqs) insertFaq.run(question, answer);
 
-console.log(`Seeded: ${products.length} products, ${faqs.length} FAQs, business profile for "STAND 120".`);
+async function main() {
+  await initDb();
+  await setSetting('business_name', 'STAND 120');
+  await setSetting(
+    'business_description',
+    'Smokeshop en Surco, Lima. Vendemos bongs, pipas, grinders, vaporizadores, papeles y accesorios para fumar. ' +
+    'Tienda física en Av. Aviación 5024, int. 120, C.C. Polvos de Higuereta, Santiago de Surco. ' +
+    'Delivery local por Indrive de lunes a sábado de 12:00 a 20:00. Envíos a todo el Perú el mismo día por Olva o Shalom ' +
+    'para pedidos recibidos hasta las 5:00 pm (lunes a sábado). Redes: @stand120_life.',
+  );
+  await setSetting('business_hours', 'Lunes a sábado, delivery local 12:00–20:00. Envíos a provincia el mismo día si el pedido entra antes de las 5:00 pm.');
+  await setSetting('ai_tone', 'Amigable, relajado y cercano, con buena onda. Responde en español peruano. Trata a los clientes como parte de la comunidad STAND 120.');
+  await setSetting('ai_instructions',
+    'Solo atendemos a mayores de 18 años; si detectas que es menor de edad, no continúes con la venta. ' +
+    'Los productos son accesorios para fumar (tabaco/hierbas legales). No des consejos médicos ni promuevas sustancias ilegales. ' +
+    'Si preguntan por disponibilidad exacta de stock o piden una foto de un producto, ofrece pasar la conversación a una persona.',
+  );
+  await setSetting('ai_enabled', '1');
+
+  for (const [name, description, price] of products) {
+    await none('INSERT INTO products (name, description, price) VALUES ($1, $2, $3)', [name, description, price]);
+  }
+  for (const [question, answer] of faqs) {
+    await none('INSERT INTO faqs (question, answer) VALUES ($1, $2)', [question, answer]);
+  }
+
+  console.log(`Seeded: ${products.length} products, ${faqs.length} FAQs, business profile for "STAND 120".`);
+  await pool.end();
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });

@@ -1,12 +1,27 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api } from '@/lib/api';
+import { api, deleteAccount } from '@/lib/api';
+import { cn } from '@/lib/cn';
+import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field } from '@/components/ui/primitives';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/Modal';
 
 interface Faq { id: number; question: string; answer: string }
 
-const FIELDS: { key: string; label: string; hint?: string; textarea?: boolean }[] = [
+type TabId = 'ia' | 'perfil' | 'pagos' | 'faqs';
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: 'ia', label: 'Empleado IA', icon: Bot },
+  { id: 'perfil', label: 'Perfil', icon: Store },
+  { id: 'pagos', label: 'Pagos', icon: Wallet },
+  { id: 'faqs', label: 'FAQs', icon: HelpCircle },
+];
+
+const PROFILE: { key: string; label: string; hint?: string; textarea?: boolean }[] = [
   { key: 'business_name', label: 'Nombre del negocio' },
   { key: 'business_description', label: 'Descripción', hint: 'Qué vendes, dónde estás, delivery, métodos de pago…', textarea: true },
   { key: 'business_hours', label: 'Horario de atención' },
@@ -18,8 +33,9 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [faqForm, setFaqForm] = useState({ question: '', answer: '' });
-  const [saved, setSaved] = useState(false);
   const [aiAvailable, setAiAvailable] = useState(true);
+  const [tab, setTab] = useState<TabId>('ia');
+  const toast = useToast();
 
   const load = useCallback(() => {
     api<Record<string, any>>('/api/settings').then((s) => {
@@ -29,23 +45,25 @@ export default function SettingsPage() {
     }).catch(() => {});
     api<Faq[]>('/api/faqs').then(setFaqs).catch(() => {});
   }, []);
-
   useEffect(load, [load]);
+
+  const set = (key: string, value: string) => setSettings((s) => ({ ...s, [key]: value }));
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     await api('/api/settings', { method: 'PUT', body: JSON.stringify(settings) });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    toast('Ajustes guardados', 'success');
   }
-
+  async function saveOne(key: string, value: string) {
+    set(key, value);
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({ [key]: value }) });
+  }
   async function addFaq(e: React.FormEvent) {
     e.preventDefault();
     await api('/api/faqs', { method: 'POST', body: JSON.stringify(faqForm) });
     setFaqForm({ question: '', answer: '' });
     load();
   }
-
   async function removeFaq(id: number) {
     await api(`/api/faqs/${id}`, { method: 'DELETE' });
     load();
@@ -55,243 +73,251 @@ export default function SettingsPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-3xl p-8">
-        <h1 className="text-2xl font-bold">Ajustes</h1>
-        <p className="mt-1 text-sm text-slate-500">Perfil del negocio y configuración del Empleado IA.</p>
+      <div className="mx-auto max-w-3xl space-y-5 p-6 lg:p-8">
+        <PageHeader title="Ajustes" subtitle="Perfil del negocio y configuración del Empleado IA." />
 
-        <div className="mt-6 flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div>
-            <div className="font-medium">Empleado IA</div>
-            <p className="text-xs text-slate-500">
-              {aiAvailable
-                ? 'Responde automáticamente las conversaciones en modo IA.'
-                : '⚠️ Sin ANTHROPIC_API_KEY en el motor la IA no puede responder.'}
-            </p>
+        {/* Segmented tabs */}
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition',
+                    active ? 'bg-surface text-fg shadow-[var(--shadow-card)]' : 'text-muted hover:text-fg',
+                  )}
+                >
+                  <Icon size={15} className={active ? 'text-brand' : 'text-subtle'} />
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
-          <button
-            onClick={async () => {
-              const next = aiEnabled ? '0' : '1';
-              const updated = { ...settings, ai_enabled: next };
-              setSettings(updated);
-              await api('/api/settings', { method: 'PUT', body: JSON.stringify({ ai_enabled: next }) });
-            }}
-            className={`relative h-7 w-12 rounded-full transition ${aiEnabled ? 'bg-wa' : 'bg-slate-300'}`}
-            aria-label="Activar o desactivar IA"
-          >
-            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${aiEnabled ? 'left-6' : 'left-1'}`} />
-          </button>
         </div>
 
-        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="font-medium">Modelo del Empleado IA</div>
-          <p className="text-xs text-slate-500">
-            <b>Calidad</b> (Sonnet 5) da las mejores respuestas de venta. <b>Ahorro</b> (Haiku 4.5) cuesta ~3× menos,
-            ideal para planes básicos. El costo baja aún más con el caché de contexto (ya activado).
-          </p>
-          <select
-            value={settings.ai_model || 'claude-sonnet-5'}
-            onChange={async (e) => {
-              const v = e.target.value;
-              setSettings({ ...settings, ai_model: v });
-              await api('/api/settings', { method: 'PUT', body: JSON.stringify({ ai_model: v }) });
-            }}
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-          >
+        {/* ── Empleado IA ── */}
+        {tab === 'ia' && (
+        <div className="space-y-5 fade-up">
+        {/* AI employee */}
+        <Card className="flex items-center justify-between p-5">
+          <div className="flex items-start gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand/12 text-brand"><Bot size={18} /></span>
+            <div>
+              <div className="font-medium text-fg">Empleado IA</div>
+              <p className="text-xs text-muted">
+                {aiAvailable ? 'Responde automáticamente las conversaciones en modo IA.'
+                  : <span className="inline-flex items-center gap-1 text-warn"><AlertTriangle size={12} /> Sin ANTHROPIC_API_KEY la IA no puede responder.</span>}
+              </p>
+            </div>
+          </div>
+          <Switch checked={aiEnabled} onChange={(v) => saveOne('ai_enabled', v ? '1' : '0')} label="Activar IA" />
+        </Card>
+
+        {/* Model */}
+        <Card className="p-5">
+          <div className="flex items-center gap-2"><Sparkles size={16} className="text-accent" /><span className="font-medium text-fg">Modelo del Empleado IA</span></div>
+          <p className="mt-1 text-xs text-muted"><b>Calidad</b> (Sonnet 5) da las mejores respuestas de venta. <b>Ahorro</b> (Haiku 4.5) cuesta ~3× menos. El caché de contexto (ya activo) baja aún más el costo.</p>
+          <Select className="mt-3" value={settings.ai_model || 'claude-sonnet-5'} onChange={(e) => saveOne('ai_model', e.target.value)}>
             <option value="claude-sonnet-5">Calidad — Claude Sonnet 5</option>
             <option value="claude-haiku-4-5">Ahorro — Claude Haiku 4.5</option>
-          </select>
+          </Select>
+        </Card>
+
+        {/* Voice DNA */}
+        <Card className="flex items-center justify-between gap-3 p-5">
+          <div className="flex items-start gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent/12 text-accent"><Wand2 size={18} /></span>
+            <div>
+              <div className="font-medium text-fg">ADN de voz</div>
+              <p className="text-xs text-muted">
+                {settings.communication_profile
+                  ? 'Tu estilo aprendido está aplicado: la IA responde con la voz de tu negocio.'
+                  : 'Deja que la IA lea tu historial y aprenda cómo escribe tu negocio.'}
+              </p>
+            </div>
+          </div>
+          <Link href="/voice"><Button size="sm" variant="secondary">{settings.communication_profile ? 'Ver' : 'Analizar'}</Button></Link>
+        </Card>
         </div>
+        )}
 
-        <form onSubmit={save} className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">Perfil del negocio</h2>
-          {FIELDS.map((f) => (
-            <div key={f.key}>
-              <label className="block text-sm font-medium">{f.label}</label>
-              {f.hint && <p className="text-xs text-slate-400">{f.hint}</p>}
-              {f.textarea ? (
-                <textarea
-                  value={settings[f.key] ?? ''}
-                  onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })}
-                  rows={3}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-                />
-              ) : (
-                <input
-                  value={settings[f.key] ?? ''}
-                  onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-                />
-              )}
+        {/* ── Perfil del negocio ── */}
+        {tab === 'perfil' && (
+        <div className="space-y-5 fade-up">
+        {/* Business profile */}
+        <form onSubmit={save}>
+          <SectionCard title="Perfil del negocio">
+            <div className="space-y-4">
+              {PROFILE.map((f) => (
+                <Field key={f.key} label={f.label} hint={f.hint}>
+                  {f.textarea
+                    ? <Textarea value={settings[f.key] ?? ''} onChange={(e) => set(f.key, e.target.value)} rows={3} />
+                    : <Input value={settings[f.key] ?? ''} onChange={(e) => set(f.key, e.target.value)} />}
+                </Field>
+              ))}
+              <Button>Guardar perfil</Button>
             </div>
-          ))}
-          <button className="rounded-lg bg-wa-dark px-5 py-2 text-sm font-medium text-white">
-            {saved ? '✓ Guardado' : 'Guardar'}
-          </button>
+          </SectionCard>
         </form>
 
-        <form onSubmit={save} className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">Pagos (Yape / Plin)</h2>
-          <p className="text-xs text-slate-500">
-            WABOS compara los comprobantes que envían tus clientes contra estos datos.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { key: 'payments_yape_name', label: 'Nombre en Yape', hint: 'Tal como aparece al yapear, ej. Maria F. Quispe A.' },
-              { key: 'payments_yape_phone', label: 'Número Yape', hint: 'Ej. 987654321' },
-              { key: 'payments_plin_name', label: 'Nombre en Plin' },
-              { key: 'payments_plin_phone', label: 'Número Plin' },
-            ].map((f) => (
-              <div key={f.key}>
-                <label className="block text-sm font-medium">{f.label}</label>
-                {f.hint && <p className="text-xs text-slate-400">{f.hint}</p>}
-                <input
-                  value={settings[f.key] ?? ''}
-                  onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
-            <div>
-              <div className="text-sm font-medium">Confirmación automática de pagos</div>
-              <p className="text-xs text-slate-500">
-                ⚠️ La IA lee el comprobante pero no confirma que el dinero llegó a tu cuenta.
-                Desactivado, todo comprobante pasa por tu revisión.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSettings({ ...settings, payments_auto_confirm: settings.payments_auto_confirm === '1' ? '0' : '1' })}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition ${settings.payments_auto_confirm === '1' ? 'bg-wa' : 'bg-slate-300'}`}
-              aria-label="Activar o desactivar confirmación automática"
-            >
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${settings.payments_auto_confirm === '1' ? 'left-6' : 'left-1'}`} />
-            </button>
-          </div>
-          <button className="rounded-lg bg-wa-dark px-5 py-2 text-sm font-medium text-white">
-            {saved ? '✓ Guardado' : 'Guardar'}
-          </button>
-        </form>
+        <DangerZone />
+        </div>
+        )}
 
-        <form onSubmit={save} className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">Verificación bancaria (anti-fraude)</h2>
-          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
-            <div>
-              <div className="text-sm font-medium">Exigir cruce con notificación real del banco</div>
-              <p className="text-xs text-slate-500">
-                Recomendado. Un pago solo se confirma solo si el comprobante coincide con la
-                notificación real de Yape/Plin (monto + N° de operación). Así una captura falsa nunca se aprueba sola.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSettings({ ...settings, payments_require_bank_match: settings.payments_require_bank_match === '0' ? '1' : '0' })}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition ${settings.payments_require_bank_match !== '0' ? 'bg-wa' : 'bg-slate-300'}`}
-              aria-label="Exigir cruce bancario"
-            >
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${settings.payments_require_bank_match !== '0' ? 'left-6' : 'left-1'}`} />
-            </button>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Fuente de notificaciones</label>
-            <p className="text-xs text-slate-400">De dónde WABOS obtiene los avisos reales de pago.</p>
-            <select
-              value={settings.payments_ground_truth_source ?? 'off'}
-              onChange={(e) => setSettings({ ...settings, payments_ground_truth_source: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-            >
-              <option value="off">Ninguna (todo pasa a revisión manual)</option>
-              <option value="email">Correo (sin instalar nada) — recomendado</option>
-              <option value="webhook">Webhook (app reenviadora / tercero)</option>
-            </select>
-          </div>
-
-          {settings.payments_ground_truth_source === 'email' && (
-            <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
-              <p className="col-span-2 text-xs text-slate-500">
-                Activa en Yape/Plin el aviso por correo (mínimo S/10) apuntando a esta bandeja. WABOS la lee y cruza los pagos.
-              </p>
+        {/* ── Pagos ── */}
+        {tab === 'pagos' && (
+        <div className="space-y-5 fade-up">
+        {/* Payments identity */}
+        <form onSubmit={save}>
+          <SectionCard title="Pagos (Yape / Plin)" desc="WABOS compara los comprobantes de tus clientes contra estos datos.">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[
-                { key: 'payments_imap_host', label: 'Servidor IMAP', hint: 'ej. imap.gmail.com' },
-                { key: 'payments_imap_port', label: 'Puerto', hint: '993' },
-                { key: 'payments_imap_user', label: 'Correo (usuario)' },
-                { key: 'payments_imap_pass', label: 'Contraseña de aplicación', hint: 'no tu contraseña normal' },
+                { key: 'payments_yape_name', label: 'Nombre en Yape', hint: 'Tal como aparece al yapear' },
+                { key: 'payments_yape_phone', label: 'Número Yape', hint: 'Ej. 987654321' },
+                { key: 'payments_plin_name', label: 'Nombre en Plin' },
+                { key: 'payments_plin_phone', label: 'Número Plin' },
               ].map((f) => (
-                <div key={f.key}>
-                  <label className="block text-sm font-medium">{f.label}</label>
-                  {f.hint && <p className="text-xs text-slate-400">{f.hint}</p>}
-                  <input
-                    type={f.key === 'payments_imap_pass' ? 'password' : 'text'}
-                    value={settings[f.key] ?? ''}
-                    onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-                  />
-                </div>
+                <Field key={f.key} label={f.label} hint={f.hint}>
+                  <Input value={settings[f.key] ?? ''} onChange={(e) => set(f.key, e.target.value)} />
+                </Field>
               ))}
             </div>
-          )}
-
-          {settings.payments_ground_truth_source === 'webhook' && (
-            <div className="rounded-lg bg-slate-50 p-3">
-              <label className="block text-sm font-medium">Secreto del webhook</label>
-              <p className="text-xs text-slate-400">
-                Envía las notificaciones a <code className="rounded bg-slate-200 px-1">POST /api/webhooks/payment</code> con el header <code className="rounded bg-slate-200 px-1">x-wabos-secret</code>.
-              </p>
-              <input
-                value={settings.payments_webhook_secret ?? ''}
-                onChange={(e) => setSettings({ ...settings, payments_webhook_secret: e.target.value })}
-                placeholder="un secreto largo y aleatorio"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-              />
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-4 py-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-fg"><Wallet size={14} /> Confirmación automática</div>
+                <p className="text-xs text-muted">⚠️ La IA lee el comprobante pero no confirma que el dinero llegó. Desactivado, todo pasa por tu revisión.</p>
+              </div>
+              <Switch checked={settings.payments_auto_confirm === '1'} onChange={(v) => set('payments_auto_confirm', v ? '1' : '0')} label="Auto-confirmar" />
             </div>
-          )}
-          <button className="rounded-lg bg-wa-dark px-5 py-2 text-sm font-medium text-white">
-            {saved ? '✓ Guardado' : 'Guardar'}
-          </button>
+            <div className="mt-4"><Button>Guardar pagos</Button></div>
+          </SectionCard>
         </form>
 
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="font-semibold">Preguntas frecuentes</h2>
-          <p className="text-xs text-slate-500">La IA usa estas respuestas como fuente de verdad.</p>
-          <form onSubmit={addFaq} className="mt-3 space-y-2">
-            <input
-              value={faqForm.question}
-              onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })}
-              placeholder="Pregunta, ej. ¿Hacen delivery?"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-            />
+        {/* Bank verification */}
+        <form onSubmit={save}>
+          <SectionCard title="Verificación bancaria (anti-fraude)"
+            actions={<span className="inline-flex items-center gap-1 text-xs text-brand"><ShieldCheck size={13} /> ground truth</span>}>
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-4 py-3">
+              <div>
+                <div className="text-sm font-medium text-fg">Exigir cruce con notificación real del banco</div>
+                <p className="text-xs text-muted">Recomendado. Un pago solo se confirma si el comprobante coincide con la notificación real de Yape/Plin (monto + N° de operación). Una captura falsa nunca se aprueba sola.</p>
+              </div>
+              <Switch checked={settings.payments_require_bank_match !== '0'} onChange={(v) => set('payments_require_bank_match', v ? '1' : '0')} label="Exigir cruce" />
+            </div>
+
+            <div className="mt-4">
+              <Field label="Fuente de notificaciones" hint="De dónde WABOS obtiene los avisos reales de pago.">
+                <Select value={settings.payments_ground_truth_source ?? 'off'} onChange={(e) => set('payments_ground_truth_source', e.target.value)}>
+                  <option value="off">Ninguna (todo pasa a revisión manual)</option>
+                  <option value="email">Correo (sin instalar nada) — recomendado</option>
+                  <option value="webhook">Webhook (app reenviadora / tercero)</option>
+                </Select>
+              </Field>
+            </div>
+
+            {settings.payments_ground_truth_source === 'email' && (
+              <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl bg-surface-2 p-3 sm:grid-cols-2">
+                <p className="text-xs text-muted sm:col-span-2">Activa en Yape/Plin el aviso por correo (mínimo S/10) apuntando a esta bandeja. WABOS la lee y cruza los pagos.</p>
+                {[
+                  { key: 'payments_imap_host', label: 'Servidor IMAP', hint: 'ej. imap.gmail.com' },
+                  { key: 'payments_imap_port', label: 'Puerto', hint: '993' },
+                  { key: 'payments_imap_user', label: 'Correo (usuario)' },
+                  { key: 'payments_imap_pass', label: 'Contraseña de aplicación', hint: 'no tu contraseña normal' },
+                ].map((f) => (
+                  <Field key={f.key} label={f.label} hint={f.hint}>
+                    <Input type={f.key === 'payments_imap_pass' ? 'password' : 'text'} value={settings[f.key] ?? ''} onChange={(e) => set(f.key, e.target.value)} />
+                  </Field>
+                ))}
+              </div>
+            )}
+
+            {settings.payments_ground_truth_source === 'webhook' && (
+              <div className="mt-3 rounded-xl bg-surface-2 p-3">
+                <Field label="Secreto del webhook" hint="Envía las notificaciones a POST /api/webhooks/payment con el header x-wabos-secret.">
+                  <Input value={settings.payments_webhook_secret ?? ''} onChange={(e) => set('payments_webhook_secret', e.target.value)} placeholder="un secreto largo y aleatorio" />
+                </Field>
+              </div>
+            )}
+            <div className="mt-4"><Button>Guardar verificación</Button></div>
+          </SectionCard>
+        </form>
+        </div>
+        )}
+
+        {/* ── FAQs ── */}
+        {tab === 'faqs' && (
+        <div className="space-y-5 fade-up">
+        {/* FAQs */}
+        <SectionCard title="Preguntas frecuentes" desc="La IA usa estas respuestas como fuente de verdad."
+          actions={<HelpCircle size={16} className="text-subtle" />}>
+          <form onSubmit={addFaq} className="space-y-2">
+            <Input value={faqForm.question} onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })} placeholder="Pregunta, ej. ¿Hacen delivery?" />
             <div className="flex gap-2">
-              <input
-                value={faqForm.answer}
-                onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })}
-                placeholder="Respuesta"
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-wa-dark focus:outline-none"
-              />
-              <button
-                disabled={!faqForm.question || !faqForm.answer}
-                className="rounded-lg bg-wa-dark px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                Agregar
-              </button>
+              <Input value={faqForm.answer} onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })} placeholder="Respuesta" className="flex-1" />
+              <Button disabled={!faqForm.question || !faqForm.answer}>Agregar</Button>
             </div>
           </form>
           <div className="mt-4 space-y-2">
             {faqs.map((f) => (
-              <div key={f.id} className="flex items-start justify-between rounded-lg bg-slate-50 px-3 py-2">
+              <div key={f.id} className="flex items-start justify-between gap-3 rounded-xl bg-surface-2 px-3.5 py-2.5">
                 <div className="min-w-0 text-sm">
-                  <div className="font-medium">{f.question}</div>
-                  <div className="text-xs text-slate-500">{f.answer}</div>
+                  <div className="font-medium text-fg">{f.question}</div>
+                  <div className="text-xs text-muted">{f.answer}</div>
                 </div>
-                <button onClick={() => removeFaq(f.id)} className="ml-3 shrink-0 text-xs text-red-400 hover:text-red-600">
-                  Eliminar
-                </button>
+                <button onClick={() => removeFaq(f.id)} className="shrink-0 text-subtle transition hover:text-danger"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>
+        </SectionCard>
         </div>
+        )}
       </div>
     </Shell>
+  );
+}
+
+// Permanent account + data deletion. Irreversible, so it's gated behind a
+// destructive confirm and lives at the bottom of the profile tab.
+function DangerZone() {
+  const confirm = useConfirm();
+  const toast = useToast();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  async function remove() {
+    const ok = await confirm({
+      title: 'Eliminar cuenta',
+      message: 'Se eliminarán permanentemente tu cuenta y TODOS los datos de tu negocio: catálogo, contactos, chats, agentes, base de conocimiento y la conexión de WhatsApp. Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar todo',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await deleteAccount();
+      router.replace('/register');
+    } catch (err: any) {
+      toast(err?.message ?? 'No se pudo eliminar la cuenta', 'error');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="border-danger/30 p-5">
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-danger/10 text-danger"><AlertTriangle size={18} /></span>
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold text-fg">Eliminar cuenta</h3>
+          <p className="mt-0.5 text-sm text-muted">Borra tu cuenta y todos los datos de tu negocio de forma permanente. No se puede deshacer.</p>
+          <Button variant="danger" className="mt-4" onClick={remove} disabled={busy}>
+            <Trash2 size={15} /> {busy ? 'Eliminando…' : 'Eliminar mi cuenta'}
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }

@@ -1,5 +1,6 @@
-import { db } from '../db/index.js';
+import { one, many, none } from '../db/index.js';
 import { bus } from '../events.js';
+import { currentBusinessId } from '../context.js';
 
 export interface Contact {
   id: number; jid: string; phone: string; name: string; notes: string; created_at: number;
@@ -16,37 +17,55 @@ export function jidToPhone(jid: string): string {
   return jid.split('@')[0].split(':')[0];
 }
 
-export function upsertContactByJid(jid: string, name?: string): Contact {
-  const existing = db.prepare('SELECT * FROM contacts WHERE jid = ?').get(jid) as Contact | undefined;
+export async function upsertContactByJid(jid: string, name?: string): Promise<Contact> {
+  const businessId = currentBusinessId();
+  const existing = await one<Contact>('SELECT * FROM contacts WHERE business_id = $1 AND jid = $2', [businessId, jid]);
   if (existing) {
     // Keep a manually-set name; only fill in the WhatsApp pushName when we have nothing
     if (name && !existing.name) {
-      db.prepare('UPDATE contacts SET name = ? WHERE id = ?').run(name, existing.id);
+      await none('UPDATE contacts SET name = $1 WHERE id = $2', [name, existing.id]);
       existing.name = name;
     }
     return existing;
   }
-  const info = db.prepare('INSERT INTO contacts (jid, phone, name) VALUES (?, ?, ?)')
-    .run(jid, jidToPhone(jid), name ?? '');
-  return db.prepare('SELECT * FROM contacts WHERE id = ?').get(info.lastInsertRowid) as Contact;
+  return (await one<Contact>(
+    'INSERT INTO contacts (business_id, jid, phone, name) VALUES ($1, $2, $3, $4) RETURNING *',
+    [businessId, jid, jidToPhone(jid), name ?? ''],
+  ))!;
 }
 
-export function getOrCreateConversation(contactId: number): Conversation {
-  const existing = db.prepare('SELECT * FROM conversations WHERE contact_id = ?').get(contactId) as Conversation | undefined;
+export async function getOrCreateConversation(contactId: number): Promise<Conversation> {
+  const existing = await one<Conversation>('SELECT * FROM conversations WHERE contact_id = $1', [contactId]);
   if (existing) return existing;
-  const info = db.prepare('INSERT INTO conversations (contact_id) VALUES (?)').run(contactId);
-  return db.prepare('SELECT * FROM conversations WHERE id = ?').get(info.lastInsertRowid) as Conversation;
+  return (await one<Conversation>(
+    'INSERT INTO conversations (business_id, contact_id) VALUES ($1, $2) RETURNING *',
+    [currentBusinessId(), contactId],
+  ))!;
 }
 
-export function getConversation(id: number): (Conversation & Contact & { contact_id: number }) | undefined {
-  return db.prepare(`
+export async function getConversation(id: number): Promise<(Conversation & Contact & { contact_id: number }) | undefined> {
+  return one(`
     SELECT c.*, ct.jid, ct.phone, ct.name, ct.notes
     FROM conversations c JOIN contacts ct ON ct.id = c.contact_id
-    WHERE c.id = ?
-  `).get(id) as any;
+    WHERE c.id = $1 AND c.business_id = $2
+  `, [id, currentBusinessId()]);
 }
 
-export function insertMessage(msg: {
+// True when the conversation's contact carries `tagName`. Used to route model
+// tiering (sales-tagged chats get the stronger model). Case-insensitive to match
+// how tag_customer stores tags (lowercased).
+export async function conversationHasTag(conversationId: number, tagName: string): Promise<boolean> {
+  const row = await one(`
+    SELECT 1 FROM conversations c
+    JOIN contact_tags ct ON ct.contact_id = c.contact_id
+    JOIN tags t ON t.id = ct.tag_id
+    WHERE c.id = $1 AND c.business_id = $2 AND lower(t.name) = lower($3)
+    LIMIT 1
+  `, [conversationId, currentBusinessId(), tagName]);
+  return row !== undefined;
+}
+
+export async function insertMessage(msg: {
   waMessageId?: string | null;
   conversationId: number;
   direction: 'in' | 'out';
@@ -54,49 +73,52 @@ export function insertMessage(msg: {
   text: string;
   fromAi?: boolean;
   timestamp?: number;
-}): Message | null {
+}): Promise<Message | null> {
   const ts = msg.timestamp ?? Math.floor(Date.now() / 1000);
-  const info = db.prepare(`
-    INSERT OR IGNORE INTO messages (wa_message_id, conversation_id, direction, type, text, from_ai, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(msg.waMessageId ?? null, msg.conversationId, msg.direction, msg.type ?? 'text', msg.text, msg.fromAi ? 1 : 0, ts);
-  if (info.changes === 0) return null; // duplicate wa_message_id
+  const inserted = await one<{ id: number }>(`
+    INSERT INTO messages (wa_message_id, conversation_id, direction, type, text, from_ai, timestamp)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (wa_message_id) WHERE wa_message_id IS NOT NULL DO NOTHING
+    RETURNING id
+  `, [msg.waMessageId ?? null, msg.conversationId, msg.direction, msg.type ?? 'text', msg.text, msg.fromAi ? 1 : 0, ts]);
+  if (!inserted) return null; // duplicate wa_message_id
 
   const unreadDelta = msg.direction === 'in' ? 1 : 0;
-  db.prepare('UPDATE conversations SET last_message_at = ?, unread_count = unread_count + ? WHERE id = ?')
-    .run(ts, unreadDelta, msg.conversationId);
+  await none('UPDATE conversations SET last_message_at = $1, unread_count = unread_count + $2 WHERE id = $3',
+    [ts, unreadDelta, msg.conversationId]);
 
-  const row = db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid) as Message;
+  const row = (await one<Message>('SELECT * FROM messages WHERE id = $1', [inserted.id]))!;
   bus.emitEvent({ type: 'message.new', conversationId: msg.conversationId, message: row });
-  bus.emitEvent({ type: 'conversation.updated', conversation: getConversation(msg.conversationId) });
+  bus.emitEvent({ type: 'conversation.updated', conversation: await getConversation(msg.conversationId) });
   return row;
 }
 
-export function listConversations() {
-  return db.prepare(`
+export async function listConversations() {
+  return many(`
     SELECT c.id, c.mode, c.unread_count, c.last_message_at,
            ct.id AS contact_id, ct.jid, ct.phone, ct.name,
            (SELECT text FROM messages m WHERE m.conversation_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) AS last_message,
            (SELECT direction FROM messages m WHERE m.conversation_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) AS last_direction
     FROM conversations c JOIN contacts ct ON ct.id = c.contact_id
+    WHERE c.business_id = $1
     ORDER BY c.last_message_at DESC
-  `).all();
+  `, [currentBusinessId()]);
 }
 
-export function listMessages(conversationId: number, limit = 100): Message[] {
-  const rows = db.prepare(`
-    SELECT * FROM messages WHERE conversation_id = ?
-    ORDER BY timestamp DESC, id DESC LIMIT ?
-  `).all(conversationId, limit) as Message[];
+export async function listMessages(conversationId: number, limit = 100): Promise<Message[]> {
+  const rows = await many<Message>(`
+    SELECT * FROM messages WHERE conversation_id = $1
+    ORDER BY timestamp DESC, id DESC LIMIT $2
+  `, [conversationId, limit]);
   return rows.reverse();
 }
 
-export function setConversationMode(id: number, mode: 'ai' | 'human') {
-  db.prepare('UPDATE conversations SET mode = ? WHERE id = ?').run(mode, id);
-  bus.emitEvent({ type: 'conversation.updated', conversation: getConversation(id) });
+export async function setConversationMode(id: number, mode: 'ai' | 'human') {
+  await none('UPDATE conversations SET mode = $1 WHERE id = $2', [mode, id]);
+  bus.emitEvent({ type: 'conversation.updated', conversation: await getConversation(id) });
 }
 
-export function markConversationRead(id: number) {
-  db.prepare('UPDATE conversations SET unread_count = 0 WHERE id = ?').run(id);
-  bus.emitEvent({ type: 'conversation.updated', conversation: getConversation(id) });
+export async function markConversationRead(id: number) {
+  await none('UPDATE conversations SET unread_count = 0 WHERE id = $1', [id]);
+  bus.emitEvent({ type: 'conversation.updated', conversation: await getConversation(id) });
 }

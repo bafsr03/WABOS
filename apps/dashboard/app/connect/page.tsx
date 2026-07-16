@@ -1,90 +1,211 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { CheckCircle2, AlertTriangle, Smartphone, History, DownloadCloud, Square } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
+import { PageHeader, Card, Button, Spinner, Badge } from '@/components/ui/primitives';
+import { useConfirm } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/Toast';
 
-interface Status {
-  status: string;
-  qrDataUrl: string | null;
-  me: { id: string; name?: string } | null;
-  aiAvailable: boolean;
-}
+interface Status { status: string; qrDataUrl: string | null; me: { id: string; name?: string } | null; aiAvailable: boolean; accountPhone?: string }
+interface HistoryImport { id: number; status: string; source: string; messages_imported: number; chats_seen: number; progress: number }
+interface HistoryStatus { import: HistoryImport | null; storedMessages: number; fullSync: boolean }
 
 export default function ConnectPage() {
   const [status, setStatus] = useState<Status | null>(null);
+  const [hist, setHist] = useState<HistoryStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
+  const toast = useToast();
 
-  const refresh = useCallback(() => {
-    api<Status>('/api/status').then(setStatus).catch(() => {});
-  }, []);
+  const refresh = useCallback(() => { api<Status>('/api/status').then(setStatus).catch(() => {}); }, []);
+  const refreshHistory = useCallback(() => { api<HistoryStatus>('/api/history/status').then(setHist).catch(() => {}); }, []);
 
   useEffect(() => {
-    refresh();
-    // QR rotates every ~30s and connection state changes are pushed over WS
+    // Ensure this business's socket is running — a freshly-registered tenant has
+    // no stored credentials, so nothing started it at boot. session/open lazily
+    // starts the socket (which emits the QR); it's a no-op if already connected.
+    api('/api/session/open', { method: 'POST' })
+      .catch(() => {})
+      .finally(() => { refresh(); refreshHistory(); });
     return connectWs((event) => {
       if (event.type === 'wa.status') refresh();
+      if (event.type === 'account.number_changed') {
+        toast('Número cambiado: se reiniciaron las conversaciones. Tu catálogo y marca se mantienen.', 'info');
+        refresh();
+        refreshHistory();
+      }
+      if (event.type === 'history.progress') {
+        setHist((h) => (h ? { ...h, import: event.import } : h));
+        if (['done', 'stopped', 'failed'].includes(event.import?.status)) refreshHistory();
+      }
     });
-  }, [refresh]);
+  }, [refresh, refreshHistory, toast]);
+
+  const importing = hist?.import?.status === 'running';
+
+  async function changeNumber() {
+    if (!(await confirm({
+      title: 'Cambiar o reconectar número',
+      message: 'Se desvinculará el número actual y podrás escanear el QR. Si escaneas el MISMO número, tus datos se mantienen intactos. Si escaneas uno DIFERENTE, se reiniciarán las conversaciones y cobros (tu catálogo, marca, ADN de voz y contactos se mantienen).',
+      confirmLabel: 'Continuar',
+    }))) return;
+    await api('/api/change-number', { method: 'POST' });
+    toast('Escanea el QR para volver a vincular', 'info');
+    refresh();
+    refreshHistory();
+  }
 
   async function logout() {
-    if (!confirm('¿Desvincular este número de WhatsApp? Tendrás que escanear el QR de nuevo.')) return;
+    if (!(await confirm({
+      title: 'Borrar todo y empezar de cero',
+      message: 'Se borrarán TODOS los datos de este WABOS: contactos, conversaciones, cobros, catálogo, ADN de voz y ajustes. Tendrás que escanear el QR de nuevo. Esto NO se puede deshacer.',
+      confirmLabel: 'Borrar todo',
+      danger: true,
+    }))) return;
     await api('/api/logout', { method: 'POST' });
+    toast('Datos borrados. Escanea el QR para empezar de cero', 'info');
     refresh();
+    refreshHistory();
+  }
+
+  async function importOnDemand() {
+    setBusy(true);
+    try {
+      await api('/api/history/import', { method: 'POST', body: JSON.stringify({ mode: 'on_demand' }) });
+      toast('Importando historial…', 'success');
+      refreshHistory();
+    } catch (err: any) { toast(err.message, 'error'); } finally { setBusy(false); }
+  }
+
+  async function importFullRescan() {
+    if (!(await confirm({
+      title: 'Importar todo el historial',
+      message: 'Para traer todo tu historial, WhatsApp necesita reenviarlo: tendrás que escanear el QR una vez más. ¿Continuar?',
+      confirmLabel: 'Reconectar e importar',
+    }))) return;
+    setBusy(true);
+    try {
+      await api('/api/history/import', { method: 'POST', body: JSON.stringify({ mode: 'full_rescan' }) });
+      // Relink WITHOUT wiping (change-number only unlinks + re-issues the QR; the
+      // same number keeps all data). NEVER call /api/logout here — that wipes.
+      await api('/api/change-number', { method: 'POST' });
+      toast('Escanea el QR con el MISMO número para importar tu historial', 'info');
+      refresh();
+    } catch (err: any) { toast(err.message, 'error'); } finally { setBusy(false); }
+  }
+
+  async function stopImport() {
+    await api('/api/history/stop', { method: 'POST' }).catch(() => {});
+    refreshHistory();
   }
 
   return (
     <Shell>
-      <div className="mx-auto max-w-2xl p-8">
-        <h1 className="text-2xl font-bold">Conexión de WhatsApp</h1>
-        <p className="mt-1 text-sm text-slate-500">Vincula el número de tu negocio para que WABOS trabaje por ti.</p>
+      <div className="mx-auto max-w-2xl p-6 lg:p-8">
+        <PageHeader title="Conexión de WhatsApp" subtitle="Vincula el número de tu negocio para que WABOS trabaje por ti." />
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          {!status && <p className="text-slate-500">Cargando…</p>}
+        <Card className="relative overflow-hidden p-8 text-center">
+          <div className="aurora pointer-events-none absolute inset-x-0 top-0 h-32" />
+          {!status && <div className="py-8"><Spinner className="mx-auto h-8 w-8" /></div>}
 
           {status?.status === 'connected' && (
-            <div>
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✅</div>
-              <h2 className="mt-4 text-lg font-semibold">WhatsApp conectado</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {status.me?.name ? `${status.me.name} — ` : ''}{status.me?.id?.split(':')[0]?.split('@')[0]}
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-success/12 text-success"><CheckCircle2 size={32} /></div>
+              <h2 className="mt-4 font-display text-xl font-semibold text-fg">WhatsApp conectado</h2>
+              <p className="mt-1 text-sm text-muted">
+                {status.me?.name ? `${status.me.name} — ` : ''}
+                <span className="tabular">{status.me?.id?.split(':')[0]?.split('@')[0]}</span>
               </p>
               {!status.aiAvailable && (
-                <p className="mx-auto mt-4 max-w-sm rounded-lg bg-amber-50 p-3 text-xs text-amber-700">
-                  ⚠️ Sin ANTHROPIC_API_KEY el Empleado IA está desactivado: todas las conversaciones
-                  requieren respuesta humana.
+                <p className="mx-auto mt-4 flex max-w-sm items-start gap-2 rounded-xl bg-warn/10 p-3 text-left text-xs text-warn">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                  Sin ANTHROPIC_API_KEY el Empleado IA está desactivado: todas las conversaciones requieren respuesta humana.
                 </p>
               )}
-              <button
-                onClick={logout}
-                className="mt-6 rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-              >
-                Desvincular número
-              </button>
-            </div>
+              <div className="mt-6 flex flex-col items-center gap-2">
+                <Button variant="secondary" onClick={changeNumber}>Cambiar número</Button>
+                <button onClick={logout} className="text-xs text-subtle transition hover:text-danger">
+                  Borrar todo y empezar de cero
+                </button>
+              </div>
+            </motion.div>
           )}
 
           {status?.status === 'qr' && status.qrDataUrl && (
             <div>
-              <h2 className="text-lg font-semibold">Escanea este código QR</h2>
-              <ol className="mx-auto mt-2 max-w-sm text-left text-sm text-slate-500">
-                <li>1. Abre WhatsApp en el teléfono del negocio</li>
-                <li>2. Ajustes → Dispositivos vinculados</li>
-                <li>3. Vincular un dispositivo → escanea el código</li>
+              <h2 className="font-display text-xl font-semibold text-fg">Escanea este código</h2>
+              <ol className="mx-auto mt-3 max-w-xs space-y-1 text-left text-sm text-muted">
+                <li className="flex gap-2"><span className="text-brand">1.</span> Abre WhatsApp en el teléfono del negocio</li>
+                <li className="flex gap-2"><span className="text-brand">2.</span> Ajustes → Dispositivos vinculados</li>
+                <li className="flex gap-2"><span className="text-brand">3.</span> Vincular un dispositivo → escanea</li>
               </ol>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={status.qrDataUrl} alt="QR de WhatsApp" className="mx-auto mt-4 h-64 w-64 rounded-lg border" />
-              <p className="mt-2 text-xs text-slate-400">El código se renueva automáticamente.</p>
+              <img src={status.qrDataUrl} alt="QR de WhatsApp" className="mx-auto mt-5 h-60 w-60 rounded-2xl border border-border bg-white p-2" />
+              <p className="mt-2 text-xs text-subtle">El código se renueva automáticamente.</p>
             </div>
           )}
 
           {status && status.status !== 'connected' && status.status !== 'qr' && (
-            <div>
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-wa-dark" />
-              <p className="mt-4 text-sm text-slate-500">Estado: {status.status}… esperando conexión con WhatsApp</p>
+            <div className="py-6">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-subtle"><Smartphone size={24} /></div>
+              <Spinner className="mx-auto mt-4 h-6 w-6" />
+              <p className="mt-3 text-sm text-muted">Estado: {status.status}… esperando conexión</p>
             </div>
           )}
-        </div>
+        </Card>
+
+        {status?.status === 'connected' && (
+          <Card className="mt-5 p-6">
+            <div className="flex items-start gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand/12 text-brand"><History size={18} /></span>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-fg">Historial de conversaciones</h3>
+                <p className="mt-0.5 text-xs text-muted">
+                  Por defecto WABOS empieza desde ahora y no importa tu historial. Puedes traerlo cuando quieras.
+                </p>
+              </div>
+              <span className="ml-auto shrink-0"><Badge tone="neutral">{hist?.storedMessages ?? 0} mensajes</Badge></span>
+            </div>
+
+            {importing ? (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-fg"><Spinner className="h-4 w-4" /> Importando historial…</div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                  <motion.div className="h-full rounded-full brand-gradient" initial={{ width: 0 }} animate={{ width: `${hist?.import?.progress ?? 0}%` }} transition={{ ease: 'easeOut' }} />
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <p className="tabular text-xs text-subtle">{hist?.import?.messages_imported ?? 0} mensajes importados</p>
+                  <Button size="sm" variant="secondary" onClick={stopImport}><Square size={13} /> Detener</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <Button variant="secondary" onClick={importOnDemand} disabled={busy}>
+                  <DownloadCloud size={15} /> Importar bajo demanda
+                </Button>
+                <Button variant="secondary" onClick={importFullRescan} disabled={busy}>
+                  <History size={15} /> Importar todo (reconectar)
+                </Button>
+              </div>
+            )}
+            {!importing && hist?.import && ['done', 'stopped', 'failed'].includes(hist.import.status) && (
+              <div className="mt-3 text-xs text-subtle">
+                <p>
+                  Última importación: {hist.import.status === 'done' ? 'completada' : hist.import.status === 'stopped' ? 'detenida' : 'fallida'} · {hist.import.messages_imported} mensajes.
+                </p>
+                {hist.import.status === 'done' && hist.import.source === 'on_demand' && hist.import.messages_imported === 0 && (
+                  <p className="mt-1 text-warn">
+                    WhatsApp no envió mensajes más antiguos por esta vía. Para traer todo tu historial usa <b>Importar todo (reconectar)</b>.
+                  </p>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
       </div>
     </Shell>
   );

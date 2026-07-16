@@ -1,8 +1,10 @@
 import { logger } from '../logger.js';
 import { getSock } from './connection.js';
+import { currentBusinessId, runWithBusiness } from '../context.js';
 import { getConversation, insertMessage } from '../modules/store.js';
 
 interface SendJob {
+  businessId: number;
   conversationId: number;
   jid: string;
   text: string;
@@ -11,21 +13,26 @@ interface SendJob {
   resolve: (ok: boolean) => void;
 }
 
-const queue: SendJob[] = [];
-let processing = false;
+// One serialized queue per business: each tenant's sends pace independently
+// (anti-ban jitter) and route to that tenant's own socket.
+const queues = new Map<number, { queue: SendJob[]; processing: boolean }>();
+function queueFor(businessId: number) {
+  let q = queues.get(businessId);
+  if (!q) { q = { queue: [], processing: false }; queues.set(businessId, q); }
+  return q;
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const jitter = (min: number, max: number) => min + Math.random() * (max - min);
 
-// All outgoing messages funnel through one serialized queue: a global pace
-// with jitter keeps sending patterns human-shaped (anti-ban guardrail).
-async function processQueue() {
-  if (processing) return;
-  processing = true;
-  while (queue.length > 0) {
-    const job = queue.shift()!;
+async function processQueue(businessId: number) {
+  const q = queueFor(businessId);
+  if (q.processing) return;
+  q.processing = true;
+  while (q.queue.length > 0) {
+    const job = q.queue.shift()!;
     try {
-      const sock = getSock();
+      const sock = getSock(businessId);
       if (job.humanized) {
         await sock.sendPresenceUpdate('composing', job.jid);
         await sleep(jitter(2000, 5000));
@@ -34,32 +41,36 @@ async function processQueue() {
         await sleep(jitter(800, 1800));
       }
       const sent = await sock.sendMessage(job.jid, { text: job.text });
-      insertMessage({
+      // The queue drains outside the original request context, so re-enter the
+      // job's business before writing (insertMessage scopes by currentBusinessId).
+      await runWithBusiness(businessId, () => insertMessage({
         waMessageId: sent?.key?.id ?? null,
         conversationId: job.conversationId,
         direction: 'out',
         text: job.text,
         fromAi: job.fromAi,
-      });
+      }));
       job.resolve(true);
     } catch (err) {
-      logger.error({ err, jid: job.jid }, 'failed to send message');
+      logger.error({ err, jid: job.jid, businessId }, 'failed to send message');
       job.resolve(false);
     }
   }
-  processing = false;
+  q.processing = false;
 }
 
-export function sendText(opts: {
+export async function sendText(opts: {
   conversationId: number;
   text: string;
   fromAi?: boolean;
   humanized?: boolean;
 }): Promise<boolean> {
-  const conversation = getConversation(opts.conversationId);
-  if (!conversation) return Promise.resolve(false);
+  const businessId = currentBusinessId();
+  const conversation = await getConversation(opts.conversationId);
+  if (!conversation) return false;
   return new Promise((resolve) => {
-    queue.push({
+    queueFor(businessId).queue.push({
+      businessId,
       conversationId: opts.conversationId,
       jid: conversation.jid,
       text: opts.text,
@@ -67,6 +78,6 @@ export function sendText(opts: {
       humanized: opts.humanized ?? true,
       resolve,
     });
-    void processQueue();
+    void processQueue(businessId);
   });
 }

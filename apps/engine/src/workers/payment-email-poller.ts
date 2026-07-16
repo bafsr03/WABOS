@@ -1,7 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { logger } from '../logger.js';
-import { getSetting } from '../db/index.js';
+import { getAllSettings } from '../db/index.js';
 import { enqueueJob } from '../jobs/queue.js';
 import { insertNotification } from '../modules/payment-notifications.js';
 import { parseNotificationEmail } from '../modules/notification-parse.js';
@@ -10,13 +10,14 @@ import { rekickPendingReceipts } from './receipt-verifier.js';
 // Senders we trust as payment-notification sources.
 const SENDER_ALLOWLIST = ['yape.com.pe', 'viabcp.com', 'interbank.pe', 'bbva.pe', 'bbva.com', 'scotiabank.com.pe'];
 
-function emailConfig() {
+async function emailConfig() {
+  const s = await getAllSettings();
   return {
-    enabled: getSetting('payments_ground_truth_source', 'off') === 'email',
-    host: getSetting('payments_imap_host', ''),
-    port: Number(getSetting('payments_imap_port', '993')) || 993,
-    user: getSetting('payments_imap_user', ''),
-    pass: getSetting('payments_imap_pass', ''),
+    enabled: (s.payments_ground_truth_source ?? 'off') === 'email',
+    host: s.payments_imap_host ?? '',
+    port: Number(s.payments_imap_port ?? '993') || 993,
+    user: s.payments_imap_user ?? '',
+    pass: s.payments_imap_pass ?? '',
   };
 }
 
@@ -27,7 +28,7 @@ function isAllowed(from: string): boolean {
 
 // One IMAP sweep: fetch UNSEEN mail, parse payment alerts into the ledger, mark seen.
 export async function pollPaymentEmails(): Promise<void> {
-  const cfg = emailConfig();
+  const cfg = await emailConfig();
   if (!cfg.enabled || !cfg.host || !cfg.user || !cfg.pass) return;
 
   const client = new ImapFlow({
@@ -52,7 +53,7 @@ export async function pollPaymentEmails(): Promise<void> {
           if (info) {
             const externalId = parsed.messageId ?? `${from}:${msg.uid}`;
             const receivedAt = parsed.date ? Math.floor(parsed.date.getTime() / 1000) : undefined;
-            const row = insertNotification({
+            const row = await insertNotification({
               source: 'email',
               provider: info.provider,
               amount: info.amount,
@@ -78,7 +79,7 @@ export async function pollPaymentEmails(): Promise<void> {
 
   if (ingested > 0) {
     logger.info({ ingested }, 'payment emails ingested');
-    rekickPendingReceipts();
+    await rekickPendingReceipts();
   }
 }
 
@@ -92,13 +93,13 @@ export async function paymentEmailPollJob(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, 'payment email poll failed');
   } finally {
-    if (emailConfig().enabled) {
-      enqueueJob('payment.email_poll', {}, Math.floor(Date.now() / 1000) + 60);
+    if ((await emailConfig()).enabled) {
+      await enqueueJob('payment.email_poll', {}, Math.floor(Date.now() / 1000) + 60);
     }
   }
 }
 
 // Kick off the loop at startup if email polling is configured.
-export function startEmailPolling() {
-  if (emailConfig().enabled) enqueueJob('payment.email_poll', {}, Math.floor(Date.now() / 1000) + 5);
+export async function startEmailPolling() {
+  if ((await emailConfig()).enabled) await enqueueJob('payment.email_poll', {}, Math.floor(Date.now() / 1000) + 5);
 }

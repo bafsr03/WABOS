@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Camino a Producción</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}
+.topbar a:hover,.topbar a.active{color:#fff}
+.topbar .sp{flex:1}
+.hero{background:linear-gradient(135deg,#0f172a,#128c7e);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1080px;margin:0 auto}
+.hero h1{margin:0;font-size:32px}
+.hero p{margin:10px 0 0;color:#cbd5e1;max-width:760px}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:250px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0;border-left:2px solid transparent;padding-left:10px}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.sub{padding-left:22px;font-size:12.5px}
+nav.toc .grp{font-weight:700;color:var(--ink);margin-top:12px;padding-left:10px;text-transform:uppercase;font-size:11px;letter-spacing:.04em}
+main{min-width:0}
+main h2{font-size:23px;margin:40px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:24px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.callout.tip{border-color:#3b82f6;background:#eff6ff}
+.pill{display:inline-block;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.pill.new{background:#eef2ff;color:#4338ca}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1080px;margin:0 auto}
+/* task cards */
+.test{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:6px 18px 14px;margin:14px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.test > summary{cursor:pointer;font-weight:700;font-size:15.5px;padding:10px 0;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.test > summary::-webkit-details-marker{display:none}
+.test > summary::before{content:'▸';color:var(--wa-dark);font-size:13px;transition:transform .15s}
+.test[open] > summary::before{transform:rotate(90deg)}
+.test .id{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#0f172a;color:#fff;padding:2px 8px;border-radius:6px}
+.steps{margin:6px 0 0;padding-left:20px}
+.steps li{margin:5px 0}
+.expect{border-left:4px solid var(--wa);background:#f0fdf4;padding:10px 14px;border-radius:8px;margin:12px 0 4px;font-size:14px}
+.expect b{color:#047857}
+.route{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)}
+/* status + priority chips */
+.st{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.02em}
+.st.done{background:#dcfce7;color:#15803d}
+.st.partial{background:#fef9c3;color:#a16207}
+.st.todo{background:#e2e8f0;color:#475569}
+.prio{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--line)}
+.prio.p0{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+.prio.p1{background:#ffedd5;color:#c2410c;border-color:#fed7aa}
+.prio.p2{background:#e0f2fe;color:#0369a1;border-color:#bae6fd}
+.stagehead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.eff{font-size:12px;color:var(--muted)}
+.dod{border-left:4px solid #3b82f6;background:#eff6ff;padding:10px 14px;border-radius:8px;margin-top:10px;font-size:13.5px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:10px 0 0}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}.test{break-inside:avoid}.test>summary::before{display:none}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="user-manual.html">Usuario</a>
+  <a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a>
+  <a href="testing-guide.html">Pruebas</a>
+  <a href="production-readiness.html" class="active">Producción</a>
+  <a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🚀 WABOS — Camino a Producción</h1>
+  <p>Dónde estamos hoy y todo lo que falta para llevar WABOS a producción — desde poner en vivo a un solo comercio (STAND 120) hasta el SaaS multi-cliente. Por etapas, con estado, prioridad y pasos concretos. Imprime para usar como checklist (Cmd/Ctrl+P).</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <div class="grp">Resumen</div>
+  <a href="#estado">Dónde estamos hoy</a>
+  <a href="#hosting">Hosting (comparación)</a>
+  <a href="#secuencia">Secuencia recomendada</a>
+  <div class="grp">Etapas</div>
+  <a href="#stage0">0 · Go-live del piloto</a>
+  <a href="#stage1">1 · Completar pagos</a>
+  <a href="#stage2">2 · Fiabilidad & observabilidad</a>
+  <a href="#stage3">3 · Seguridad & datos</a>
+  <a href="#stage4">4 · Multi-cliente (SaaS)</a>
+  <a href="#stage5">5 · Cobros & onboarding</a>
+  <a href="#stage6">6 · Escala & API oficial</a>
+  <div class="grp">Transversal</div>
+  <a href="#cicd">CI/CD</a>
+  <a href="#ban">Riesgo de baneo</a>
+  <a href="#legal">Legal & datos (Perú)</a>
+  <a href="#costos">Modelo de costos</a>
+</nav>
+<main>
+
+<div class="callout tip">
+  <b>Cómo leer esto.</b> Cada tarea trae un estado y una prioridad:
+  <div class="legend">
+    <span><span class="st done">✅ hecho</span> ya construido y probado</span>
+    <span><span class="st partial">🟡 parcial</span> base lista, falta terminar</span>
+    <span><span class="st todo">⬜ pendiente</span> por hacer</span>
+    <span><span class="prio p0">P0</span> bloqueante</span>
+    <span><span class="prio p1">P1</span> importante</span>
+    <span><span class="prio p2">P2</span> después</span>
+  </div>
+  Complementa el <a href="v2-roadmap.html">Roadmap v2</a> (qué funciones construir) — este documento es la lista de <b>producción/operaciones</b> (qué falta para operar de verdad).
+</div>
+
+<!-- ============================================================ -->
+<h2 id="estado">Dónde estamos hoy</h2>
+<p>WABOS V1 es un sistema funcional end-to-end. En el piloto real, el Empleado IA de STAND 120 cerró una venta completa (saludo → catálogo → precio → logística de delivery a Cieneguilla → captura de datos → handoff a humano).</p>
+
+<h3>Lo que ya funciona <span class="st done">✅</span></h3>
+<table>
+<tr><th>Módulo</th><th>Estado</th></tr>
+<tr><td><b>Empleado IA</b> (Claude) — responde con perfil + catálogo + FAQs, tono configurable, handoff a humano, tags</td><td>✅ + caché de contexto y elección de modelo (Calidad/Ahorro)</td></tr>
+<tr><td><b>Inbox realtime</b> (WebSocket), modo IA/Humano por conversación, kill-switch global</td><td>✅</td></tr>
+<tr><td><b>CRM</b> — contactos, etiquetas, notas · <b>Catálogo</b> · <b>Campañas</b> (throttle 6–12s anti-ban)</td><td>✅</td></tr>
+<tr><td><b>Verificación de Pagos</b> — cobros, descarga de comprobante, lectura por visión (Haiku), reglas (monto/destinatario/fecha/N° op/confianza), cola de revisión</td><td>✅</td></tr>
+<tr><td><b>Ground truth bancario</b> — ledger de notificaciones, poller IMAP de correo, webhook, cruce op#+monto, auto-confirmación solo con cruce real, re-check diferido, handoff en revisión</td><td>✅</td></tr>
+<tr><td><b>Cola de trabajos durable</b> (tabla <code>jobs</code>, reintentos, sobrevive reinicios) + patrón de workers</td><td>✅</td></tr>
+<tr><td><b>Reconexión de WhatsApp</b> con backoff exponencial (<code>wa/connection.ts</code>)</td><td>✅</td></tr>
+<tr><td><b>Pruebas</b> — 32 tests del motor (reglas de verificación + parsers de correo)</td><td>✅</td></tr>
+</table>
+
+<h3>Arquitectura y límites actuales</h3>
+<pre><code>Cliente ─▶ WhatsApp ─▶ Motor (Node, siempre encendido)         Dashboard (Next.js 15)
+                       ├─ Baileys 6.7.23 (WebSocket)   ◀─REST+WS─┤  Inbox · CRM · Catálogo
+                       ├─ Fastify (REST/WS)                       │  Campañas · Cobros · Ajustes
+                       ├─ SQLite (better-sqlite3, WAL)            └  Conexión (QR)
+                       ├─ Empleado IA + workers (jobs)
+                       └─ @anthropic-ai/sdk (Claude)</code></pre>
+<ul>
+  <li><b>Mono-cliente</b>: un motor = un negocio. Sin <code>business_id</code>, sin login de usuarios — un solo <code>DASHBOARD_TOKEN</code> compartido protege todo el dashboard.</li>
+  <li><b>El motor NO puede ser serverless</b>: mantiene el socket de WhatsApp abierto → necesita un proceso siempre encendido.</li>
+  <li>Corre con <code>tsx src/index.ts</code> (sin artefacto compilado). <b>Sin Dockerfile, sin CI, sin backups.</b> Node ≥20.</li>
+  <li><code>CORS: origin:true</code> (abierto), sin rate limiting, secretos (API key, IMAP, webhook) en texto plano en <code>.env</code>/SQLite.</li>
+  <li>WhatsApp vía <b>Baileys (no oficial)</b> — riesgo de baneo del número (ver §Riesgo de baneo).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="hosting">Hosting — comparación y recomendación</h2>
+<p>Restricción clave: el <b>motor</b> debe estar siempre encendido (socket de WhatsApp), así que nunca va en serverless/Vercel Functions. El <b>dashboard</b> (Next.js) sí puede ir en cualquier lado.</p>
+<table>
+<tr><th>Opción</th><th>Motor</th><th>Dashboard</th><th>Pros / Contras</th><th>Costo aprox.</th></tr>
+<tr>
+  <td><b>VPS auto-gestionado</b> <span class="pill">Recomendado</span></td>
+  <td>VPS Linux (Hetzner / DigitalOcean / Contabo), <code>systemd</code> o <code>pm2</code></td>
+  <td>Mismo VPS detrás de Caddy</td>
+  <td>+ Más barato, control total, todo en un lugar.<br>− Tú administras el servidor.</td>
+  <td>~US$5–12/mes</td>
+</tr>
+<tr>
+  <td>VPS motor + Vercel dashboard</td>
+  <td>VPS (siempre encendido)</td>
+  <td>Vercel</td>
+  <td>+ Dashboard con deploys fáciles + CDN.<br>− Dos lugares que administrar; CORS/orígenes.</td>
+  <td>VPS + Vercel (free/Pro)</td>
+</tr>
+<tr>
+  <td>PaaS de contenedores</td>
+  <td>Railway / Render / Fly.io (proceso persistente)</td>
+  <td>Igual o Vercel</td>
+  <td>+ Menos admin de servidor.<br>− Más caro al escalar; verifica que el volumen/disco persista (auth + SQLite).</td>
+  <td>~US$10–25/mes</td>
+</tr>
+</table>
+<div class="callout"><b>Recomendación para el piloto:</b> un VPS chico (2 vCPU / 2–4 GB). Motor bajo <code>systemd</code> con auto-restart; <b>Caddy</b> como reverse-proxy + TLS automático (necesario para el webhook público y para servir el dashboard con HTTPS). Disco persistente para <code>apps/engine/auth/</code> (sesión de WhatsApp) y <code>apps/engine/data/</code> (SQLite + comprobantes). Cuando pases a multi-cliente, este mismo patrón escala a un "connection manager" por número.</div>
+
+<!-- ============================================================ -->
+<h2 id="secuencia">Secuencia recomendada</h2>
+<p>No hace falta hacerlo todo antes de operar. Camino sugerido:</p>
+<pre><code>Etapa 0 (go-live piloto)  ──▶  Etapa 1 (completar pagos)
+        │                              │
+        └──────────▶ Etapas 2 y 3 (fiabilidad + seguridad) en paralelo
+                                       │
+                                       ▼
+                    Etapa 4 (multi-cliente) ──▶ Etapa 5 (cobros/onboarding) ──▶ Etapa 6 (escala/API oficial)</code></pre>
+<ul>
+  <li><b>Para tener a STAND 120 en vivo:</b> Etapa 0 + los P0/P1 de la Etapa 1 (que la IA cree el cobro y pida el comprobante).</li>
+  <li><b>Para vender a otros comercios:</b> además Etapas 3 → 4 → 5.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="stage0">Etapa 0 — Go-live del piloto (mono-cliente)</h2>
+<p>Objetivo: STAND 120 usándolo con clientes reales, de forma estable, sin que se caiga ni se pierdan datos.</p>
+
+<details class="test" open>
+  <summary><span class="id">0.1</span> Despliegue en servidor siempre encendido <span class="st todo">⬜</span> <span class="prio p0">P0</span></summary>
+  <ol class="steps">
+    <li>Aprovisiona el VPS (§Hosting). Instala Node ≥20, pnpm, git.</li>
+    <li>Clona el repo privado, <code>pnpm install</code>, copia <code>.env.example</code> → <code>.env</code> con las llaves reales.</li>
+    <li>Corre el motor como servicio <code>systemd</code> (o <code>pm2 start</code>) con <b>auto-restart</b> y arranque al bootear.</li>
+    <li>Escanea el QR una vez desde el teléfono del negocio; la sesión queda en <code>apps/engine/auth/</code>.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> el motor se reinicia solo tras un crash/reboot y reconecta a WhatsApp sin intervención.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">0.2</span> Dominio + TLS + webhook público <span class="st todo">⬜</span> <span class="prio p0">P0</span></summary>
+  <ol class="steps">
+    <li>Apunta un dominio/subdominio al VPS.</li>
+    <li>Configura <b>Caddy</b> (TLS automático) como reverse-proxy: <code>dashboard</code> y <code>/api</code>, <code>/ws</code>, <code>/api/webhooks/*</code> del motor.</li>
+    <li>Verifica que <code>https://tu-dominio/api/webhooks/payment</code> sea accesible (lo necesita el forwarder de pagos).</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> el dashboard carga por HTTPS y el webhook responde desde internet.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">0.3</span> Build de producción <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Hoy el motor corre con <code>tsx</code> (interpreta TS en caliente). Para producción: o bien fija <code>tsx</code> como runtime estable, o compila a JS (<code>tsc</code> con <code>outDir</code>) y corre <code>node dist/index.js</code>.</li>
+    <li><code>pnpm --filter @wabos/dashboard build</code> + <code>next start</code> (o Vercel) para el dashboard en modo producción (no <code>dev</code>).</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> ni motor ni dashboard corren en modo <code>dev</code>.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">0.4</span> Backups de la base de datos + prueba de restore <span class="st todo">⬜</span> <span class="prio p0">P0</span></summary>
+  <ol class="steps">
+    <li>La SQLite (<code>apps/engine/data/wabos.db</code>) tiene TODO: clientes, conversaciones, cobros, comprobantes. <b>Hoy no hay respaldo.</b></li>
+    <li>Cron diario: <code>sqlite3 wabos.db ".backup respaldo.db"</code> (consistente con WAL) + copia <b>fuera del servidor</b> (S3/Backblaze/rsync).</li>
+    <li>Respalda también <code>apps/engine/auth/</code> (sesión de WhatsApp) y <code>data/media/</code> (imágenes de comprobantes).</li>
+    <li><b>Haz un restore de prueba</b> en otra carpeta y confirma que el motor arranca con él.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> existe un backup automático offsite y verificaste un restore real.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">0.5</span> Health check + monitoreo de uptime <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Agrega un endpoint <code>GET /health</code> en Fastify que reporte estado del proceso y de WhatsApp (<code>getWaState()</code>).</li>
+    <li>Conecta un monitor externo (UptimeRobot/BetterStack) que avise si el motor cae o WhatsApp se desconecta.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> recibes una alerta (correo/WhatsApp) si el servicio se cae.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">0.6</span> Logs persistentes + warm-up del número <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Redirige los logs del motor a archivo con rotación (<code>systemd journal</code> o <code>pm2 logrotate</code>).</li>
+    <li><b>Warm-up del número</b> nuevo: úsalo como WhatsApp normal unos días antes de automatizar; no envíes masivos de golpe (ver §Riesgo de baneo).</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> puedes revisar logs históricos y el número tiene actividad orgánica previa.</div>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="stage1">Etapa 1 — Completar pagos</h2>
+<p>La verificación funciona, pero apenas se conecta a la conversación. Estos son los huecos reales.</p>
+
+<details class="test" open>
+  <summary><span class="id">1.1</span> La IA crea el cobro y pide el comprobante <span class="st todo">⬜</span> <span class="prio p0">P0</span></summary>
+  <p style="margin:2px 0 0;font-size:14px">Hoy los cobros se crean <b>a mano</b> en el dashboard, así que la verificación casi nunca se dispara sola. Es la pieza que conecta todo.</p>
+  <ol class="steps">
+    <li>Agrega herramientas de IA en <code>ai/tools.ts</code>: <code>get_pending_charges</code> (responde "¿cuánto te debo?" con la identidad Yape/Plin) y <code>create_charge</code> (montо + concepto), tras cerrar una venta.</li>
+    <li>Regla en el system-prompt (<code>ai/employee.ts</code>): "al acordar una venta, usa <code>create_charge</code> y pide el comprobante por aquí."</li>
+    <li>Gátalo con un ajuste (<code>ai_can_create_charge</code>) por si el dueño prefiere crearlos manual.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> el bot, al cerrar una venta, crea el cobro y pide la captura — y el flujo de verificación se dispara solo.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">1.2</span> Validar los parsers de correo con emails Yape/Plin reales <span class="st partial">🟡</span> <span class="prio p0">P0</span></summary>
+  <p style="margin:2px 0 0;font-size:14px">Los parsers (<code>modules/notification-parse.ts</code>) se probaron con correos <i>sintéticos</i>. Los reales tienen su propio HTML/redacción.</p>
+  <ol class="steps">
+    <li>Junta correos reales de aviso de Yape (BCP) y Plin (Interbank/BBVA/Scotiabank).</li>
+    <li>Ajusta las regex de monto / N° de operación / remitente contra esos formatos.</li>
+    <li>Recuerda el umbral: el aviso por yapeo solo llega desde <b>S/10</b>; ventas menores no generan correo → caen a revisión (limitación de Yape, no un bug).</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un correo real de Yape/Plin aparece en el panel 🔔 Notificaciones y cruza un comprobante real.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">1.3</span> Forwarder de notificaciones para el webhook <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>El webhook funciona pero nada le envía todavía. Opciones: documentar una receta <b>MacroDroid/Tasker</b> (POST del texto del aviso), o integrar un servicio (<b>BiPe Alerta</b> / <b>Yapay</b>) que ya reenvía.</li>
+    <li>Es el respaldo para pagos &lt; S/10 que el correo no cubre.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un aviso real del teléfono llega al ledger sin intervención manual.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">1.4</span> Recordatorios / cobros vencidos <span class="st todo">⬜</span> <span class="prio p2">P2</span></summary>
+  <ol class="steps">
+    <li>Job auto-reprogramado <code>charge.remind</code>: barre cobros pendientes vencidos, 1 recordatorio/contacto/24h, respeta modo Humano, marca <code>expired</code> tras N días.</li>
+    <li>Filtro "Vencidos" en la página de Cobros.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un cobro impago recibe un recordatorio automático y se marca vencido.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">1.5</span> Reportería financiera + registro manual de pago <span class="st todo">⬜</span> <span class="prio p2">P2</span></summary>
+  <ol class="steps">
+    <li>Totales en Cobros: cobrado hoy/semana, pendientes, exportar CSV.</li>
+    <li>Botón "Registrar pago manual" (el schema ya soporta <code>source='manual'</code>) para pagos confirmados por teléfono.</li>
+    <li>Job <code>media.cleanup</code>: retención de imágenes de comprobantes (borrar las viejas no verificadas).</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> el dueño ve cuánto entró y puede registrar un pago a mano.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">1.6</span> Guardrails de precisión de la IA <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>En el piloto el bot inventó un descuento ("antes S/35" — el precio S/30 sí era real) e improvisó logística (Indrive/Olva/Shalom).</li>
+    <li>Reglas de system-prompt: nunca inventar descuentos/anclas de precio; política de delivery/pago configurable por el dueño (FAQs/ajustes) en vez de improvisada.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> el bot solo menciona precios/promos/logística que existen en la configuración.</div>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="stage2">Etapa 2 — Fiabilidad & observabilidad</h2>
+
+<details class="test">
+  <summary><span class="id">2.1</span> Rastreo de errores (Sentry) <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Integra Sentry (o similar) en motor y dashboard para capturar excepciones con stacktrace y contexto.</li>
+    <li>Hoy los errores solo van a los logs de Pino; un fallo de IA/envío puede pasar desapercibido.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un error en producción te llega con detalle sin revisar logs a mano.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">2.2</span> Visibilidad de la cola de trabajos <span class="st partial">🟡</span> <span class="prio p2">P2</span></summary>
+  <ol class="steps">
+    <li>La tabla <code>jobs</code> ya reintenta y marca <code>dead</code>; falta una vista en el dashboard de jobs <code>dead</code>/atascados.</li>
+    <li>Un job <code>dead</code> ya fuerza el comprobante a revisión (no se pierde), pero conviene verlo.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> puedes ver y reintentar trabajos fallidos desde el dashboard.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">2.3</span> Apagado limpio + checkpoint de WAL <span class="st todo">⬜</span> <span class="prio p2">P2</span></summary>
+  <ol class="steps">
+    <li>Maneja <code>SIGTERM</code>: cierra el socket de WhatsApp y la DB ordenadamente al desplegar.</li>
+    <li><code>PRAGMA wal_checkpoint</code> periódico para que el archivo WAL no crezca sin control.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> desplegar una versión nueva no corrompe ni pierde mensajes en vuelo.</div>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="stage3">Etapa 3 — Seguridad & datos</h2>
+<div class="callout warn">Manejas datos personales de clientes (chats, teléfonos) y datos de pago. Estos puntos son obligatorios antes de operar con terceros, y muy recomendables incluso para el piloto.</div>
+
+<details class="test">
+  <summary><span class="id">3.1</span> Autenticación real (reemplazar el token único) <span class="st todo">⬜</span> <span class="prio p0">P0</span></summary>
+  <ol class="steps">
+    <li>Hoy un solo <code>DASHBOARD_TOKEN</code> compartido abre todo el dashboard. Cámbialo por login por usuario (aunque sea mono-cliente).</li>
+    <li>Para multi-cliente, esto se cubre con Clerk en la Etapa 4; para el piloto basta un login simple con sesión.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> el acceso requiere usuario/contraseña, no un token pegado en la URL/localStorage.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">3.2</span> CORS, rate limiting y validación <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Cierra <code>CORS</code> (hoy <code>origin:true</code>) al dominio del dashboard.</li>
+    <li>Rate limiting en <code>/api</code> y sobre todo en <code>/api/webhooks/payment</code> (endpoint público).</li>
+    <li>El webhook ya valida <code>x-wabos-secret</code>; revisa que Zod cubra todos los bodies.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> orígenes no autorizados son rechazados y el webhook resiste abuso.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">3.3</span> Secretos cifrados en reposo <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>La contraseña IMAP y el secreto del webhook viven en texto plano en la tabla <code>settings</code> (SQLite).</li>
+    <li>Cífralos en reposo o muévelos a variables de entorno; restringe permisos del archivo de la DB.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un volcado de la DB no expone credenciales de correo/webhook.</div>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="stage4">Etapa 4 — Multi-cliente (fundamentos SaaS)</h2>
+<p>Para vender WABOS a varios comercios. Cambio grande — alinea con el <a href="v2-roadmap.html">Roadmap v2</a> (Prioridad #1).</p>
+
+<details class="test">
+  <summary><span class="id">4.1</span> <code>business_id</code> en todo + Postgres + migraciones <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Agrega <code>business_id</code> a cada tabla y a cada query (aislamiento por comercio).</li>
+    <li>Migra SQLite → <b>Postgres (Neon)</b> y adopta una herramienta de migraciones (<b>Drizzle</b> o Prisma) — hoy el schema se crea a mano en <code>db/index.ts</code>.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> dos comercios coexisten sin ver datos del otro, con migraciones versionadas.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">4.2</span> Auth / organizaciones / roles (Clerk) <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Clerk para usuarios, organizaciones (un comercio = una org) y roles (dueño/vendedor).</li>
+    <li>Gating por plan (Básico/Avanzado/Pro/Empresarial).</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> cada comercio se registra, invita a su equipo y solo ve lo suyo.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">4.3</span> Connection manager de WhatsApp por comercio <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Hoy un motor = un número. Para multi-cliente: gestor de conexiones (varios sockets Baileys) o un worker/proceso por comercio.</li>
+    <li>Aísla el estado de sesión y la cola de envío por comercio; decide shared-process vs worker-per-tenant según carga.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> N comercios conectan su propio número desde un mismo despliegue.</div>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="stage5">Etapa 5 — Cobros del operador & onboarding</h2>
+
+<details class="test">
+  <summary><span class="id">5.1</span> Facturación por suscripción <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Cobro recurrente al comercio: <b>Culqi / Izipay</b> (Perú), Stripe para internacional; Yape/Plin para planes chicos.</li>
+    <li>Ciclo de vida de suscripción: alta, upgrade/downgrade, impago → suspensión.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un comercio paga su plan y el acceso se activa/suspende automático.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">5.2</span> Onboarding self-service + topes de costo IA <span class="st todo">⬜</span> <span class="prio p1">P1</span></summary>
+  <ol class="steps">
+    <li>Asistente: escanear número → perfil del negocio → catálogo/FAQs, sin intervención tuya.</li>
+    <li>Medición de uso + <b>tope de costo IA por plan</b> (regla ≤30% del precio del plan) con degradación a modo humano al superarlo.</li>
+    <li>Consola de operador (tú) para ver comercios, uso y estado de conexión.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un comercio se da de alta solo y su costo IA nunca supera el margen objetivo.</div>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="stage6">Etapa 6 — Escala & API oficial</h2>
+
+<details class="test">
+  <summary><span class="id">6.1</span> Adaptador de WhatsApp Cloud API (oficial) <span class="st todo">⬜</span> <span class="prio p2">P2</span></summary>
+  <ol class="steps">
+    <li>Baileys (no oficial) tiene riesgo de baneo. Ofrece la <b>API oficial de WhatsApp (Cloud API)</b> como plan premium.</li>
+    <li>Aísla Baileys detrás de la capa <code>wa/</code> para que el adaptador oficial entre sin tocar el resto.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> un comercio puede correr sobre la API oficial sin baneo.</div>
+</details>
+
+<details class="test">
+  <summary><span class="id">6.2</span> Cola distribuida + almacenamiento de media + escala horizontal <span class="st todo">⬜</span> <span class="prio p2">P2</span></summary>
+  <ol class="steps">
+    <li>La cola <code>jobs</code> (SQLite) fue diseñada como escalón hacia <b>BullMQ/Redis</b>: reemplaza solo <code>jobs/queue.ts</code>.</li>
+    <li>Comprobantes/media a object storage (S3/R2) + CDN en vez del disco local.</li>
+    <li>Escala horizontal del dashboard/API; el motor sigue con afinidad por número.</li>
+  </ol>
+  <div class="dod"><b>Listo cuando:</b> el sistema soporta cientos de comercios sin cuellos de botella.</div>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="cicd">CI/CD</h2>
+<p>Hoy: sin <code>.github</code>, sin pipeline. Recomendado:</p>
+<ul>
+  <li><b>GitHub Actions</b> en cada PR: <code>pnpm typecheck</code> + <code>pnpm --filter @wabos/engine test</code> (los 32 tests) + build del dashboard.</li>
+  <li>Deploy en merge a <code>main</code>: pull en el VPS + reinicio del servicio (o deploy del dashboard a Vercel).</li>
+  <li>Protege <code>main</code> (checks obligatorios antes de merge).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="ban">Riesgo de baneo de WhatsApp</h2>
+<div class="callout danger"><b>El mayor riesgo operativo del piloto.</b> Baileys es no oficial; un baneo del número = el negocio se queda sin bot. Ya hay mitigaciones (jitter de envío 2–5s, throttle de campañas 6–12s). Además:</div>
+<ul>
+  <li><b>Warm-up</b>: usa el número como WhatsApp normal días antes de automatizar.</li>
+  <li>Nunca envíos masivos a números que no te escribieron primero; respeta el throttle de campañas.</li>
+  <li>Usa un número secundario/dedicado, no el personal del dueño.</li>
+  <li>Ten un plan B: si el número cae, re-escanear con otro; a mediano plazo, la API oficial (Etapa 6).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="legal">Legal & datos (Perú)</h2>
+<ul>
+  <li><b>Protección de datos personales</b> (Ley N° 29733): manejas teléfonos, nombres y chats. Define retención, finalidad y un aviso de privacidad; permite borrado a pedido.</li>
+  <li><b>Datos de pago</b>: guardas imágenes de comprobantes y N° de operación. Trátalos como sensibles (acceso restringido, retención acotada — job <code>media.cleanup</code>).</li>
+  <li><b>Términos de WhatsApp</b>: la automatización vía API no oficial va contra los ToS de WhatsApp; comunícalo como riesgo y migra a la API oficial para clientes que lo requieran.</li>
+  <li><b>Transparencia con el cliente final</b>: el mensaje ya evita afirmar "dinero recibido" (dice "verificado por comprobante/banco"); mantén ese lenguaje honesto.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="costos">Modelo de costos</h2>
+<table>
+<tr><th>Concepto</th><th>Costo</th><th>Nota</th></tr>
+<tr><td>Hosting (VPS piloto)</td><td>~US$5–12/mes</td><td>Motor + dashboard + Caddy</td></tr>
+<tr><td>IA — Empleado (Claude)</td><td>~US$0.01–0.02/conversación</td><td>Con caché de contexto (ya activo) baja ~90% el bloque repetido; modelo Ahorro (Haiku) ~3× más barato</td></tr>
+<tr><td>IA — Lectura de comprobantes</td><td>&lt;US$0.01/comprobante</td><td>Haiku visión, solo cuando hay cobro pendiente</td></tr>
+<tr><td>Postgres/Neon (multi-cliente)</td><td>free → ~US$20/mes</td><td>Recién en Etapa 4</td></tr>
+<tr><td>Middleware de pagos (opcional)</td><td>variable</td><td>Si adoptas BiPe/Yapay en vez del correo</td></tr>
+</table>
+<div class="callout"><b>Regla de margen:</b> el costo de IA por comercio debe quedar ≤30% del precio del plan. Con caché + elección de modelo ya estás dentro del margen en el piloto; el tope automático por plan se implementa en la Etapa 5.</div>
+
+</main>
+</div>
+<footer>
+  WABOS — Camino a Producción · Estado a 13 jul 2026 · Complementa <a href="v2-roadmap.html">Roadmap v2</a> y <a href="testing-guide.html">Guía de Pruebas</a>.
+</footer>
+</body>
+</html>

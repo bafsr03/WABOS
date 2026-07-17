@@ -1,10 +1,11 @@
-import { getSetting, one } from '../db/index.js';
+import { one } from '../db/index.js';
 import { currentBusinessId } from '../context.js';
+import { getUsageRow } from './usage.js';
 
-// Thin premium-tier seam. The gate exists now but is a no-op this phase: the
-// default tier is 'pro', which unlocks everything. When billing lands, set the
-// 'plan_tier' setting (or expand the matrix) and feature call sites gate for
-// free — no changes needed where isFeatureEnabled() is used.
+// Thin premium-tier seam. The tier is the businesses.plan_tier column, kept in
+// sync with the billing provider by its webhook. 'free' gates premium features and
+// enforces caps; 'pro'/'enterprise' unlock progressively more. Feature call
+// sites use isFeatureEnabled()/assertWithinLimit() and need no per-tier changes.
 const FEATURE_MATRIX: Record<string, string[]> = {
   free: [],
   pro: ['*'],
@@ -32,14 +33,40 @@ export async function getLimits(): Promise<PlanLimits> {
 export async function assertWithinLimit(kind: 'contacts' | 'agents'): Promise<void> {
   const limit = (await getLimits())[kind];
   if (limit === INF) return;
-  const row = await one<{ n: number }>(`SELECT COUNT(*)::int AS n FROM ${kind} WHERE business_id = $1`, [currentBusinessId()]);
+  // Test contacts don't count against the plan (they're not real CRM contacts).
+  const testFilter = kind === 'contacts' ? ' AND is_test = 0' : '';
+  const row = await one<{ n: number }>(`SELECT COUNT(*)::int AS n FROM ${kind} WHERE business_id = $1${testFilter}`, [currentBusinessId()]);
   if ((row?.n ?? 0) >= limit) {
     throw Object.assign(new Error(`Alcanzaste el límite de tu plan (${limit} ${kind}). Actualiza para agregar más.`), { code: 'PLAN_LIMIT' });
   }
 }
 
 export async function getPlanTier(): Promise<string> {
-  return getSetting('plan_tier', 'pro');
+  const row = await one<{ plan_tier: string }>('SELECT plan_tier FROM businesses WHERE id = $1', [currentBusinessId()]);
+  return row?.plan_tier ?? 'free';
+}
+
+export interface AiUsage { messages: number; limit: number; period: string; inputTokens: number; outputTokens: number }
+
+// Current business's AI-message usage this period alongside its tier cap. Feeds
+// the hard-cap check and the dashboard usage meter (/api/status).
+export async function getAiUsage(): Promise<AiUsage> {
+  const [row, limits] = await Promise.all([getUsageRow(), getLimits()]);
+  return {
+    messages: row.messages,
+    limit: limits.aiMessagesPerMonth,
+    period: row.period,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+  };
+}
+
+// True while the business is under its monthly AI-message allotment. Consulted
+// before the AI auto-replies; at the cap the AI pauses (hard cap) until the
+// period rolls over or the plan is upgraded. ∞ tiers are always within limit.
+export async function isAiWithinLimit(): Promise<boolean> {
+  const { messages, limit } = await getAiUsage();
+  return limit === INF || messages < limit;
 }
 
 export async function isFeatureEnabled(feature: string): Promise<boolean> {

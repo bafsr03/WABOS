@@ -3,20 +3,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, type LucideIcon } from 'lucide-react';
+import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api, deleteAccount } from '@/lib/api';
+import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, type Status } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field } from '@/components/ui/primitives';
+import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/Modal';
 
 interface Faq { id: number; question: string; answer: string }
 
-type TabId = 'ia' | 'perfil' | 'pagos' | 'faqs';
+type TabId = 'ia' | 'perfil' | 'plan' | 'pagos' | 'faqs';
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'ia', label: 'Empleado IA', icon: Bot },
   { id: 'perfil', label: 'Perfil', icon: Store },
+  { id: 'plan', label: 'Plan', icon: CreditCard },
   { id: 'pagos', label: 'Pagos', icon: Wallet },
   { id: 'faqs', label: 'FAQs', icon: HelpCircle },
 ];
@@ -34,7 +35,8 @@ export default function SettingsPage() {
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [faqForm, setFaqForm] = useState({ question: '', answer: '' });
   const [aiAvailable, setAiAvailable] = useState(true);
-  const [tab, setTab] = useState<TabId>('ia');
+  const [tab, setTab] = useState<TabId>(() =>
+    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('billing')) ? 'plan' : 'ia');
   const toast = useToast();
 
   const load = useCallback(() => {
@@ -168,6 +170,9 @@ export default function SettingsPage() {
         </div>
         )}
 
+        {/* ── Plan / facturación ── */}
+        {tab === 'plan' && <div className="fade-up"><PlanTab toast={toast} /></div>}
+
         {/* ── Pagos ── */}
         {tab === 'pagos' && (
         <div className="space-y-5 fade-up">
@@ -277,6 +282,108 @@ export default function SettingsPage() {
         )}
       </div>
     </Shell>
+  );
+}
+
+// Plan + billing. Shows the current tier, AI-message usage against the cap, and
+// (when billing is configured) upgrade / manage-subscription actions.
+const TIER_META: Record<string, { label: string; blurb: string }> = {
+  free: { label: 'Free', blurb: 'Para empezar' },
+  pro: { label: 'Pro', blurb: 'Para negocios en crecimiento' },
+  enterprise: { label: 'Enterprise', blurb: 'Volumen alto, sin límites' },
+};
+
+function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | 'error') => void }) {
+  const [status, setStatus] = useState<Status | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    getStatus().then(setStatus).catch(() => {});
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('billing') === 'success') toast('¡Suscripción activada! Puede tardar unos segundos en reflejarse.', 'success');
+    if (params.get('billing') === 'cancelled') toast('Pago cancelado.', 'info');
+  }, [toast]);
+
+  async function upgrade(tier: 'pro' | 'enterprise') {
+    setBusy(true);
+    try { await startCheckout(tier); } catch (err: any) { toast(err.message, 'error'); setBusy(false); }
+  }
+  async function manage() {
+    setBusy(true);
+    try { await openBillingPortal(); } catch (err: any) { toast(err.message, 'error'); setBusy(false); }
+  }
+
+  if (!status) return <Card className="p-5 text-sm text-muted">Cargando plan…</Card>;
+
+  const tier = status.planTier;
+  const meta = TIER_META[tier] ?? { label: tier, blurb: '' };
+  const used = status.usage.aiMessages;
+  const limit = status.usage.aiMessagesLimit;
+  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const over = limit != null && used >= limit;
+
+  return (
+    <div className="space-y-5">
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand/12 text-brand"><CreditCard size={18} /></span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-fg">Plan actual</span>
+                <Badge tone={tier === 'free' ? 'neutral' : 'brand'}>{meta.label}</Badge>
+                {status.subscriptionStatus && status.subscriptionStatus !== 'active' && (
+                  <Badge tone="warn">{status.subscriptionStatus}</Badge>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-muted">{meta.blurb}</p>
+            </div>
+          </div>
+          {status.billingAvailable && status.subscriptionStatus && (
+            <Button size="sm" variant="secondary" onClick={manage} disabled={busy}>Gestionar</Button>
+          )}
+        </div>
+
+        {/* Usage meter */}
+        <div className="mt-5">
+          <div className="mb-1.5 flex items-center justify-between text-xs">
+            <span className="text-muted">Mensajes de IA este mes</span>
+            <span className={cn('tabular font-medium', over ? 'text-danger' : 'text-fg')}>
+              {used.toLocaleString('es-PE')}{limit != null ? ` / ${limit.toLocaleString('es-PE')}` : ' · ilimitado'}
+            </span>
+          </div>
+          {limit != null && (
+            <div className="h-2 w-full overflow-hidden rounded-full bg-surface-3">
+              <div className={cn('h-full rounded-full transition-all', over ? 'bg-danger' : 'bg-brand')} style={{ width: `${pct}%` }} />
+            </div>
+          )}
+          {over && <p className="mt-2 text-xs text-danger">Alcanzaste el límite: la IA dejó de responder automáticamente. Actualiza tu plan para reactivarla.</p>}
+        </div>
+      </Card>
+
+      {status.billingAvailable ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {(['pro', 'enterprise'] as const).map((t) => (
+            <Card key={t} className="flex flex-col gap-3 p-5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-fg">{TIER_META[t].label}</span>
+                  {tier === t && <Badge tone="brand"><Check size={11} /> Actual</Badge>}
+                </div>
+                <p className="mt-0.5 text-xs text-muted">{TIER_META[t].blurb}</p>
+              </div>
+              <Button className="mt-auto w-full" disabled={busy || tier === t} onClick={() => upgrade(t)}>
+                {tier === t ? 'Plan actual' : `Cambiar a ${TIER_META[t].label}`}
+              </Button>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-5 text-sm text-muted">
+          El cobro con tarjeta aún no está configurado en este entorno. Configura las claves de facturación para habilitar las suscripciones.
+        </Card>
+      )}
+    </div>
   );
 }
 

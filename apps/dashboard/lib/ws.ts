@@ -1,8 +1,9 @@
-import { ENGINE_URL, getToken } from './api';
+import { ENGINE_URL, getToken, getBusinessId } from './api';
 
 export type EngineEvent = {
   type: 'wa.status' | 'message.new' | 'conversation.updated' | 'broadcast.progress'
-    | 'charge.updated' | 'receipt.review_needed' | 'payment.notification' | 'style.progress' | 'history.progress' | 'account.number_changed';
+    | 'charge.updated' | 'receipt.review_needed' | 'payment.notification' | 'style.progress' | 'history.progress'
+    | 'account.number_changed' | 'ai.quota_exceeded';
   [key: string]: any;
 };
 
@@ -14,7 +15,9 @@ export function connectWs(onEvent: (event: EngineEvent) => void): () => void {
 
   const open = () => {
     const wsUrl = ENGINE_URL.replace(/^http/, 'ws');
-    ws = new WebSocket(`${wsUrl}/ws?token=${encodeURIComponent(getToken())}`);
+    const biz = getBusinessId();
+    const bizParam = biz ? `&businessId=${encodeURIComponent(biz)}` : '';
+    ws = new WebSocket(`${wsUrl}/ws?token=${encodeURIComponent(getToken())}${bizParam}`);
     ws.onmessage = (e) => {
       try { onEvent(JSON.parse(e.data)); } catch { /* ignore malformed frames */ }
     };

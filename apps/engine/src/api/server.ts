@@ -8,7 +8,7 @@ import { logger } from '../logger.js';
 import { bus, type WabosEvent } from '../events.js';
 import { one, many, none, getAllSettings, getSetting, setSetting } from '../db/index.js';
 import { DEFAULT_BUSINESS_ID, runWithBusiness, currentBusinessId } from '../context.js';
-import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses } from '../modules/auth.js';
+import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses, createBusinessForUser } from '../modules/auth.js';
 import { getWaState, logoutWhatsApp, changeNumber, pauseWhatsApp, reconnectWhatsApp, purgeConnection } from '../wa/connection.js';
 import { sendText } from '../wa/outbound.js';
 import { isAiAvailable } from '../ai/employee.js';
@@ -29,7 +29,9 @@ import {
 import { approveReceipt, rejectReceipt, rekickPendingReceipts } from '../workers/receipt-verifier.js';
 import { insertNotification, listNotifications } from '../modules/payment-notifications.js';
 import { getPaymentSettings } from '../modules/charges.js';
-import { featureFlags, getPlanTier, isFeatureEnabled, assertWithinLimit } from '../modules/entitlements.js';
+import { featureFlags, getPlanTier, isFeatureEnabled, assertWithinLimit, getAiUsage } from '../modules/entitlements.js';
+import { createCheckoutSession, createPortalSession, handleWebhook, isBillingAvailable } from '../modules/billing/index.js';
+import { startAgentTest, sendTestMessage, deleteTestConversation } from '../modules/agent-testing.js';
 import {
   createStyleAnalysis, getStyleAnalysis, getLatestStyleAnalysis,
   hasActiveStyleAnalysis, applyStyleProfile,
@@ -48,6 +50,18 @@ export async function buildApi() {
   // Production locks the origin to the dashboard URL; dev leaves it permissive.
   await app.register(cors, { origin: config.allowedOrigin || true });
   await app.register(websocket);
+
+  // Parse JSON as usual but keep the raw bytes on the request — the billing
+  // webhook needs the exact payload to verify its signature.
+  app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+    (req as any).rawBody = body;
+    const text = (body as Buffer).toString('utf8');
+    try {
+      done(null, text.length ? JSON.parse(text) : {});
+    } catch (err) {
+      done(err as Error);
+    }
+  });
 
   // ---- auth ----------------------------------------------------------------
   // Callback-style hook so we can bind the tenant with als.run(store, done):
@@ -130,6 +144,37 @@ export async function buildApi() {
     return { user: await getUser(uid), businesses: await listUserBusinesses(uid) };
   });
 
+  // Create an additional workspace owned by the current user (the "+ Nuevo
+  // espacio" action in the switcher). Legacy-token sessions can't own new ones.
+  app.post('/api/businesses', async (req, reply) => {
+    const uid = (req as any).uid as number | undefined;
+    if (!uid) return reply.code(400).send({ error: 'Esta sesión no puede crear espacios' });
+    const body = z.object({ name: z.string().min(1) }).parse(req.body);
+    return reply.code(201).send(await createBusinessForUser(uid, body.name));
+  });
+
+  // ---- billing (Merchant of Record) -----------------------------------------
+  app.post('/api/billing/checkout', async (req, reply) => {
+    const body = z.object({ tier: z.enum(['pro', 'enterprise']) }).parse(req.body);
+    try {
+      return { url: await createCheckoutSession(body.tier) };
+    } catch (err: any) {
+      if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
+      if (err.code === 'BAD_PLAN') return reply.code(400).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.post('/api/billing/portal', async (_req, reply) => {
+    try {
+      return { url: await createPortalSession() };
+    } catch (err: any) {
+      if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
+      if (err.code === 'NO_SUBSCRIPTION') return reply.code(409).send({ error: err.message });
+      throw err;
+    }
+  });
+
   // Permanently delete the account + all owned businesses and their data. Only
   // available to real user sessions (not the legacy dashboard token).
   app.delete('/api/account', async (req, reply) => {
@@ -143,13 +188,16 @@ export async function buildApi() {
 
   // ---- realtime ------------------------------------------------------------
   app.get('/ws', { websocket: true }, async (socket, req) => {
-    const token = new URL(req.url, 'http://localhost').searchParams.get('token') ?? '';
-    // Resolve the socket's business: legacy token → STAND 120, else a user JWT.
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const token = params.get('token') ?? '';
+    const requested = params.get('businessId') ? Number(params.get('businessId')) : undefined;
+    // Resolve the socket's business: legacy token → STAND 120, else a user JWT
+    // scoped to the requested workspace (membership enforced) or their first one.
     let businessId: number | null = null;
     if (token === config.dashboardToken) businessId = DEFAULT_BUSINESS_ID;
     else {
       const uid = token ? await verifyToken(token) : null;
-      if (uid) businessId = await resolveBusinessForUser(uid);
+      if (uid) businessId = await resolveBusinessForUser(uid, requested);
     }
     if (!businessId) { socket.close(4001, 'Unauthorized'); return; }
 
@@ -169,6 +217,9 @@ export async function buildApi() {
   // ---- whatsapp connection -------------------------------------------------
   app.get('/api/status', async () => {
     const wa = getWaState();
+    const usage = await getAiUsage();
+    const biz = await one<{ subscription_status: string | null; current_period_end: number | null }>(
+      'SELECT subscription_status, current_period_end FROM businesses WHERE id = $1', [currentBusinessId()]);
     return {
       ...wa,
       qrDataUrl: wa.qr ? await QRCode.toDataURL(wa.qr, { margin: 1, width: 320 }) : null,
@@ -176,6 +227,14 @@ export async function buildApi() {
       planTier: await getPlanTier(),
       features: await featureFlags(),
       accountPhone: await getSetting('account_phone', ''),
+      billingAvailable: isBillingAvailable(),
+      subscriptionStatus: biz?.subscription_status ?? null,
+      currentPeriodEnd: biz?.current_period_end ?? null,
+      usage: {
+        aiMessages: usage.messages,
+        aiMessagesLimit: usage.limit === Number.POSITIVE_INFINITY ? null : usage.limit,
+        period: usage.period,
+      },
     };
   });
 
@@ -280,6 +339,32 @@ export async function buildApi() {
     return { ok: true };
   });
 
+  // ---- agent testing (drive an agent in the Inbox without a real WhatsApp) ----
+  // Create/reset a test conversation pinned to this agent; returns its id so the
+  // dashboard can deep-link to /inbox?c=<id>.
+  app.post('/api/agents/:id/test', async (req, reply) => {
+    const agentId = Number((req.params as any).id);
+    if (!(await getAgent(agentId))) return reply.code(404).send({ error: 'Agent not found' });
+    return reply.code(201).send(await startAgentTest(agentId));
+  });
+
+  // Send a message AS the customer into a test conversation and run the AI. The
+  // reply is delivered socket-free and streams back over the websocket.
+  app.post('/api/conversations/:id/test-messages', async (req, reply) => {
+    const id = Number((req.params as any).id);
+    const body = z.object({ text: z.string().min(1) }).parse(req.body);
+    const result = await sendTestMessage(id, body.text);
+    if (!result.ok) return reply.code(result.error === 'Not a test conversation' ? 400 : 404).send({ error: result.error });
+    return { ok: true };
+  });
+
+  app.delete('/api/conversations/:id/test', async (req, reply) => {
+    const id = Number((req.params as any).id);
+    const result = await deleteTestConversation(id);
+    if (!result.ok) return reply.code(result.error === 'Not a test conversation' ? 400 : 404).send({ error: result.error });
+    return { ok: true };
+  });
+
   app.post('/api/conversations/:id/read', async (req) => {
     await markConversationRead(Number((req.params as any).id));
     return { ok: true };
@@ -294,7 +379,7 @@ export async function buildApi() {
         WHERE ct.contact_id = c.id
       ) AS tags,
       (SELECT id FROM conversations WHERE contact_id = c.id) AS conversation_id
-      FROM contacts c WHERE c.business_id = $1 ORDER BY c.created_at DESC
+      FROM contacts c WHERE c.business_id = $1 AND c.is_test = 0 ORDER BY c.created_at DESC
     `, [currentBusinessId()]);
   });
 
@@ -650,6 +735,20 @@ export async function buildApi() {
       if (inserted) await rekickPendingReceipts(); // resolve any screenshot already waiting
       return { ok: true, duplicate: inserted === null };
     });
+  });
+
+  // ---- billing webhook (provider-neutral; signature-verified inside the module) ----
+  app.post('/api/webhooks/billing', async (req, reply) => {
+    const rawBody = (req as any).rawBody as Buffer | undefined;
+    if (!rawBody) return reply.code(400).send({ error: 'Missing body' });
+    try {
+      await handleWebhook(rawBody, req.headers as Record<string, string | undefined>);
+      return { received: true };
+    } catch (err: any) {
+      if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
+      logger.warn({ err }, 'billing webhook rejected');
+      return reply.code(400).send({ error: 'Webhook error' });
+    }
   });
 
   app.setErrorHandler((err, _req, reply) => {

@@ -15,7 +15,8 @@ type BaseEvent =
   | { type: 'account.number_changed' }
   | { type: 'charge.updated'; charge: unknown }
   | { type: 'receipt.review_needed'; receipt: unknown }
-  | { type: 'payment.notification'; notification: unknown };
+  | { type: 'payment.notification'; notification: unknown }
+  | { type: 'ai.quota_exceeded'; conversationId: number };
 
 export type WabosEvent = BaseEvent & { businessId?: number };
 

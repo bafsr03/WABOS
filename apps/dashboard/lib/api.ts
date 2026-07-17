@@ -11,6 +11,18 @@ export function setToken(token: string) {
 
 export function clearToken() {
   localStorage.removeItem('wabos_token');
+  localStorage.removeItem('wabos_business_id');
+}
+
+// The active workspace. Sent as X-Business-Id so the engine scopes every request
+// (and the websocket) to it; unset means "the user's first business".
+export function getBusinessId(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('wabos_business_id') ?? '';
+}
+
+export function setBusinessId(id: number | string) {
+  localStorage.setItem('wabos_business_id', String(id));
 }
 
 async function authRequest(path: string, payload: object): Promise<void> {
@@ -48,6 +60,7 @@ export async function deleteAccount(): Promise<void> {
 }
 
 export async function api<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+  const businessId = getBusinessId();
   const res = await fetch(`${ENGINE_URL}${path}`, {
     ...options,
     headers: {
@@ -55,6 +68,7 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
       // application/json with an empty body makes Fastify reject the request.
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${getToken()}`,
+      ...(businessId ? { 'X-Business-Id': businessId } : {}),
       ...options.headers,
     },
   });
@@ -68,6 +82,55 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
     throw new Error(body.error ?? `Request failed (${res.status})`);
   }
   return res.json();
+}
+
+// ---- workspaces (multi-business) --------------------------------------------
+export interface BusinessLite { id: number; name: string; plan_tier: string; role: string }
+
+export function getMe(): Promise<{ user: { id: number; email: string } | null; businesses: BusinessLite[] }> {
+  return api('/api/auth/me');
+}
+
+export function createBusiness(name: string): Promise<BusinessLite> {
+  return api('/api/businesses', { method: 'POST', body: JSON.stringify({ name }) });
+}
+
+// ---- billing ----------------------------------------------------------------
+export interface Status {
+  status: string;
+  planTier: string;
+  billingAvailable: boolean;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: number | null;
+  usage: { aiMessages: number; aiMessagesLimit: number | null; period: string };
+  features: Record<string, boolean>;
+}
+
+export function getStatus(): Promise<Status> {
+  return api('/api/status');
+}
+
+export async function startCheckout(tier: 'pro' | 'enterprise'): Promise<void> {
+  const { url } = await api<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ tier }) });
+  window.location.href = url;
+}
+
+export async function openBillingPortal(): Promise<void> {
+  const { url } = await api<{ url: string }>('/api/billing/portal', { method: 'POST' });
+  window.location.href = url;
+}
+
+// ---- agent testing ----------------------------------------------------------
+export function startAgentTest(agentId: number): Promise<{ conversationId: number }> {
+  return api(`/api/agents/${agentId}/test`, { method: 'POST' });
+}
+
+export function sendTestMessage(conversationId: number, text: string): Promise<{ ok: boolean }> {
+  return api(`/api/conversations/${conversationId}/test-messages`, { method: 'POST', body: JSON.stringify({ text }) });
+}
+
+export function deleteTestConversation(conversationId: number): Promise<{ ok: boolean }> {
+  return api(`/api/conversations/${conversationId}/test`, { method: 'DELETE' });
 }
 
 // Media is served behind the bearer token, so <img src> won't work directly:

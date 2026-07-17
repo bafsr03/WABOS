@@ -8,6 +8,14 @@ import { resolveAgentForConversation, getRoutableAgents, type Agent } from '../m
 import { getPinnedForPrompt } from '../modules/knowledge.js';
 import { sendText } from '../wa/outbound.js';
 import { executeTool, buildToolDefinitions, type ToolContext } from './tools.js';
+import { isAiWithinLimit } from '../modules/entitlements.js';
+import { recordAiUsage } from '../modules/usage.js';
+import { bus } from '../events.js';
+
+// How the AI reply is delivered. Real conversations send over WhatsApp (default);
+// test conversations inject a socket-free deliverer so the pipeline runs without
+// a live connection (see modules/agent-testing.ts).
+export type ReplyDeliverer = (conversationId: number, text: string) => Promise<void>;
 
 // maxRetries 4 (SDK default 2): absorb transient 529 overloaded_error transparently.
 const client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, maxRetries: 4 }) : null;
@@ -104,10 +112,22 @@ function buildVoiceBlock(raw?: string): string | null {
   return lines.length > 1 ? lines.join('\n') : null;
 }
 
-export async function runAiEmployee(conversationId: number, routeDepth = 0): Promise<void> {
+export async function runAiEmployee(conversationId: number, routeDepth = 0, deliver?: ReplyDeliverer): Promise<void> {
   if (!client) return;
   const conversation = await getConversation(conversationId);
   if (!conversation) return;
+
+  // Test conversations run the pipeline without billing or the WhatsApp socket.
+  const isTest = (conversation as any).is_test === 1;
+
+  // Hard cap: once a business exhausts its monthly AI-message allotment the AI
+  // stops auto-replying (the human inbox still works) until the period rolls
+  // over or the plan is upgraded. Test traffic is exempt.
+  if (!isTest && routeDepth === 0 && !(await isAiWithinLimit())) {
+    logger.warn({ conversationId, businessId: currentBusinessId() }, 'AI reply skipped — monthly message cap reached');
+    bus.emitEvent({ type: 'ai.quota_exceeded', conversationId });
+    return;
+  }
 
   // Resolve which agent answers this conversation (assigned agent, else the
   // business default). Without any agent there's nothing to run.
@@ -154,6 +174,9 @@ export async function runAiEmployee(conversationId: number, routeDepth = 0): Pro
     ? (agent.model_sales || await getSetting('ai_model_sales', config.aiModelSales))
     : (agent.model_default || await getSetting('ai_model_default', config.aiModelDefault));
 
+  let inputTokens = 0;
+  let outputTokens = 0;
+
   for (let iteration = 0; iteration < 5; iteration++) {
     const response = await client.messages.create({
       model,
@@ -164,6 +187,8 @@ export async function runAiEmployee(conversationId: number, routeDepth = 0): Pro
     });
 
     const u = response.usage;
+    inputTokens += u.input_tokens;
+    outputTokens += u.output_tokens;
     logger.info({
       conversationId, agent: agent.slug, model,
       input: u.input_tokens, output: u.output_tokens,
@@ -190,12 +215,20 @@ export async function runAiEmployee(conversationId: number, routeDepth = 0): Pro
     // agent reply now. Depth-guarded so agents can't ping-pong forever.
     if (ctx.routedToAgentId && routeDepth < 2) {
       logger.info({ conversationId, from: agent.slug, toAgentId: ctx.routedToAgentId }, 'conversation routed to agent');
-      return runAiEmployee(conversationId, routeDepth + 1);
+      if (!isTest) await recordAiUsage({ inputTokens, outputTokens }); // this turn's tokens; the routed run meters the reply
+      return runAiEmployee(conversationId, routeDepth + 1, deliver);
     }
   }
 
   if (replyText && !ctx.routedToAgentId) {
     logger.info({ conversationId, agent: agent.slug, handedOff: ctx.handedOff }, 'AI employee replying');
-    await sendText({ conversationId, text: replyText, fromAi: true });
+    if (deliver) await deliver(conversationId, replyText);
+    else await sendText({ conversationId, text: replyText, fromAi: true });
+  }
+
+  // Meter one delivered AI reply (plus accumulated tokens for cost visibility).
+  // Test traffic is free. Routed turns count under the answering agent's run.
+  if (!isTest) {
+    await recordAiUsage({ messages: replyText && !ctx.routedToAgentId ? 1 : 0, inputTokens, outputTokens });
   }
 }

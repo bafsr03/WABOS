@@ -8,10 +8,11 @@ import {
   LayoutDashboard, MessageCircle, Users, ShoppingBag, Wallet, Megaphone,
   Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, type LucideIcon,
 } from 'lucide-react';
-import { api, clearToken, getToken } from '@/lib/api';
+import { api, clearToken, getToken, getStatus } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { cn } from '@/lib/cn';
 import { StatusDot, Button } from '@/components/ui/primitives';
+import BusinessSwitcher from '@/components/BusinessSwitcher';
 
 interface NavItem { href: string; label: string; icon: LucideIcon }
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -58,11 +59,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [waStatus, setWaStatus] = useState('...');
   const [sheet, setSheet] = useState(false);
+  const [overCap, setOverCap] = useState(false);
+
+  const checkCap = () => getStatus()
+    .then((s) => setOverCap(s.usage.aiMessagesLimit != null && s.usage.aiMessages >= s.usage.aiMessagesLimit))
+    .catch(() => {});
 
   useEffect(() => {
     if (!getToken()) { router.replace('/login'); return; }
     setReady(true);
-    return connectWs((event) => { if (event.type === 'wa.status') setWaStatus(event.status); });
+    checkCap();
+    return connectWs((event) => {
+      if (event.type === 'wa.status') setWaStatus(event.status);
+      if (event.type === 'ai.quota_exceeded') setOverCap(true);
+    });
   }, [router]);
 
   useEffect(() => { setSheet(false); }, [pathname]); // close on navigate
@@ -93,7 +103,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </Link>
         {onNavigate && <button onClick={onNavigate} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-2 lg:hidden"><X size={18} /></button>}
       </div>
-      <div className="px-5">
+      <div className="space-y-2 px-5">
+        <BusinessSwitcher />
         <Link href="/connect" onClick={onNavigate} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs transition hover:border-border-strong">
           <StatusDot tone={waTone} pulse={waStatus === 'connected'} />
           <span className="text-muted">WhatsApp</span>
@@ -153,6 +164,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </header>
+        {overCap && (
+          <Link href="/settings?billing=cap" className="flex items-center gap-2 border-b border-danger/20 bg-danger/10 px-4 py-2 text-xs font-medium text-danger transition hover:bg-danger/16 sm:px-6">
+            <span className="grid h-4 w-4 place-items-center rounded-full bg-danger/20">!</span>
+            Alcanzaste el límite de mensajes de IA de tu plan — la IA dejó de responder. Actualiza para reactivarla.
+          </Link>
+        )}
         <main className="aurora min-h-0 flex-1 overflow-y-auto pb-28 lg:pb-0">{children}</main>
       </div>
 
@@ -188,6 +205,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-border bg-surface p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 340, damping: 34 }}>
               <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-border-strong" />
+
+              <div className="mb-3"><BusinessSwitcher /></div>
 
               <Link href="/connect" className="flex items-center gap-2 rounded-xl border border-border bg-surface-2/60 px-3 py-2.5 text-sm transition hover:border-border-strong">
                 <StatusDot tone={waTone} pulse={waStatus === 'connected'} />

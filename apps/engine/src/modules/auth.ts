@@ -44,7 +44,8 @@ export async function provisionBusiness(businessId: number, name: string): Promi
   await runWithBusiness(businessId, async () => {
     await setSetting('business_name', name);
     await setSetting('ai_enabled', '1');
-    await setSetting('plan_tier', 'free'); // getPlanTier() reads this; new tenants start free
+    // plan_tier lives on the businesses row (source of truth for entitlements,
+    // synced by the billing webhook); new tenants start 'free' via the INSERT.
 
     await none(
       `INSERT INTO agents (business_id, name, slug, description, is_default, enabled)
@@ -68,6 +69,17 @@ export async function registerUser(email: string, password: string, businessName
   await none('INSERT INTO memberships (user_id, business_id, role) VALUES ($1, $2, $3)', [user.id, business.id, 'owner']);
   await provisionBusiness(business.id, businessName);
   return { token: await issueToken(user.id), user, business: { ...business, role: 'owner' } };
+}
+
+// Create a new workspace owned by an existing user (the switcher's "+ Nuevo
+// espacio"). Same business+membership+provision as registration, minus the user.
+export async function createBusinessForUser(userId: number, name: string): Promise<BusinessLite> {
+  const business = (await one<{ id: number; name: string; plan_tier: string }>(
+    "INSERT INTO businesses (name, plan_tier) VALUES ($1, 'free') RETURNING id, name, plan_tier", [name],
+  ))!;
+  await none('INSERT INTO memberships (user_id, business_id, role) VALUES ($1, $2, $3)', [userId, business.id, 'owner']);
+  await provisionBusiness(business.id, name);
+  return { ...business, role: 'owner' };
 }
 
 export async function loginUser(email: string, password: string): Promise<{ token: string; user: User }> {

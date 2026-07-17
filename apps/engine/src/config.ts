@@ -27,6 +27,17 @@ export const config = {
   // permissive (true), which is fine for localhost.
   allowedOrigin: process.env.ALLOWED_ORIGIN ?? '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  // Platform billing via a Merchant of Record. Provider-selectable so the rail can
+  // be swapped without touching routes/metering/UI. Empty keys = billing disabled
+  // (checkout/portal return 503). Lemon Squeezy variant ids map to plan tiers.
+  billingProvider: process.env.BILLING_PROVIDER ?? 'lemonsqueezy',
+  lemonSqueezyApiKey: process.env.LEMONSQUEEZY_API_KEY ?? '',
+  lemonSqueezyStoreId: process.env.LEMONSQUEEZY_STORE_ID ?? '',
+  lemonSqueezyWebhookSecret: process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? '',
+  lemonSqueezyVariantPro: process.env.LEMONSQUEEZY_VARIANT_PRO ?? '',
+  lemonSqueezyVariantEnterprise: process.env.LEMONSQUEEZY_VARIANT_ENTERPRISE ?? '',
+  // Where the checkout / customer portal redirects back to after payment.
+  dashboardUrl: process.env.DASHBOARD_URL ?? 'http://localhost:3000',
   aiModel: process.env.AI_MODEL ?? 'claude-sonnet-5',
   aiVisionModel: process.env.AI_VISION_MODEL ?? 'claude-haiku-4-5',
   // Per-conversation model tiering: everyone runs on the cheaper default model

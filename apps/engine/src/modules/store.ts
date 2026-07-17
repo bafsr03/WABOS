@@ -45,7 +45,7 @@ export async function getOrCreateConversation(contactId: number): Promise<Conver
 
 export async function getConversation(id: number): Promise<(Conversation & Contact & { contact_id: number }) | undefined> {
   return one(`
-    SELECT c.*, ct.jid, ct.phone, ct.name, ct.notes
+    SELECT c.*, ct.jid, ct.phone, ct.name, ct.notes, ct.is_test
     FROM conversations c JOIN contacts ct ON ct.id = c.contact_id
     WHERE c.id = $1 AND c.business_id = $2
   `, [id, currentBusinessId()]);
@@ -96,7 +96,7 @@ export async function insertMessage(msg: {
 export async function listConversations() {
   return many(`
     SELECT c.id, c.mode, c.unread_count, c.last_message_at,
-           ct.id AS contact_id, ct.jid, ct.phone, ct.name,
+           ct.id AS contact_id, ct.jid, ct.phone, ct.name, ct.is_test,
            (SELECT text FROM messages m WHERE m.conversation_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) AS last_message,
            (SELECT direction FROM messages m WHERE m.conversation_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) AS last_direction
     FROM conversations c JOIN contacts ct ON ct.id = c.contact_id

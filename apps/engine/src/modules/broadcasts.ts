@@ -37,9 +37,10 @@ export async function listBroadcasts() {
 
 export async function createBroadcast(input: { name: string; message: string; tagId?: number | null }) {
   const businessId = currentBusinessId();
+  // Test contacts are never real recipients.
   const contacts = (input.tagId
-    ? await many<Contact>('SELECT c.* FROM contacts c JOIN contact_tags ct ON ct.contact_id = c.id WHERE c.business_id = $1 AND ct.tag_id = $2', [businessId, input.tagId])
-    : await many<Contact>('SELECT * FROM contacts WHERE business_id = $1', [businessId]));
+    ? await many<Contact>('SELECT c.* FROM contacts c JOIN contact_tags ct ON ct.contact_id = c.id WHERE c.business_id = $1 AND c.is_test = 0 AND ct.tag_id = $2', [businessId, input.tagId])
+    : await many<Contact>('SELECT * FROM contacts WHERE business_id = $1 AND is_test = 0', [businessId]));
 
   if (contacts.length === 0) throw new Error('No recipients match the selected segment');
 

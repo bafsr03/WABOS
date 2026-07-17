@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2, Bot, Check, ChevronRight, Star, Settings, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Bot, Check, ChevronRight, Star, Settings, Sparkles, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Shell from '@/components/Shell';
-import { api } from '@/lib/api';
+import { api, startAgentTest } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
@@ -29,11 +30,27 @@ type View = { mode: 'list' } | { mode: 'edit'; agent: Agent | null };
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [view, setView] = useState<View>({ mode: 'list' });
+  const [testing, setTesting] = useState<number | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
+  const router = useRouter();
 
   const load = useCallback(() => { api<Agent[]>('/api/agents').then(setAgents).catch(() => {}); }, []);
   useEffect(load, [load]);
+
+  // Spin up (or reset) a test conversation for this agent and jump to the Inbox
+  // to chat with it — no real WhatsApp needed.
+  async function test(a: Agent) {
+    if (testing) return;
+    setTesting(a.id);
+    try {
+      const { conversationId } = await startAgentTest(a.id);
+      router.push(`/inbox?c=${conversationId}`);
+    } catch (err: any) {
+      toast(err.message, 'error');
+      setTesting(null);
+    }
+  }
 
   async function remove(a: Agent, back = false) {
     if (!(await confirm({ title: 'Eliminar agente', message: `Se eliminará "${a.name}". Las conversaciones asignadas volverán al agente por defecto.`, confirmLabel: 'Eliminar', danger: true }))) return;
@@ -50,16 +67,20 @@ export default function AgentsPage() {
       {view.mode === 'list' ? (
         <ListView
           agents={agents}
+          testing={testing}
           onNew={() => setView({ mode: 'edit', agent: null })}
           onOpen={(a) => setView({ mode: 'edit', agent: a })}
           onDelete={(a) => remove(a)}
+          onTest={test}
         />
       ) : (
         <EditorView
           agent={view.agent}
+          testing={testing}
           onClose={() => setView({ mode: 'list' })}
           onSaved={() => { load(); setView({ mode: 'list' }); }}
           onDelete={(a) => remove(a, true)}
+          onTest={test}
           toast={toast}
         />
       )}
@@ -69,11 +90,13 @@ export default function AgentsPage() {
 
 /* ------------------------------------------------------------------ List */
 
-function ListView({ agents, onNew, onOpen, onDelete }: {
+function ListView({ agents, testing, onNew, onOpen, onDelete, onTest }: {
   agents: Agent[];
+  testing: number | null;
   onNew: () => void;
   onOpen: (a: Agent) => void;
   onDelete: (a: Agent) => void;
+  onTest: (a: Agent) => void;
 }) {
   return (
     <div className="mx-auto max-w-4xl p-6 lg:p-8">
@@ -112,6 +135,14 @@ function ListView({ agents, onNew, onOpen, onDelete }: {
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted">{a.description || <span className="text-subtle">Sin descripción de derivación</span>}</p>
               </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onTest(a); }}
+                disabled={testing === a.id}
+                title="Probar agente"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-subtle opacity-0 transition hover:bg-brand/12 hover:text-brand group-hover:opacity-100 disabled:opacity-50"
+              >
+                <FlaskConical size={15} />
+              </button>
               {!a.is_default && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(a); }}
@@ -132,11 +163,13 @@ function ListView({ agents, onNew, onOpen, onDelete }: {
 
 /* ---------------------------------------------------------------- Editor */
 
-function EditorView({ agent, onClose, onSaved, onDelete, toast }: {
+function EditorView({ agent, testing, onClose, onSaved, onDelete, onTest, toast }: {
   agent: Agent | null;
+  testing: number | null;
   onClose: () => void;
   onSaved: () => void;
   onDelete: (a: Agent) => void;
+  onTest: (a: Agent) => void;
   toast: (msg: string, tone?: 'success' | 'info' | 'error') => void;
 }) {
   const isNew = !agent;
@@ -241,6 +274,12 @@ function EditorView({ agent, onClose, onSaved, onDelete, toast }: {
         )}
 
         {error && <p className="text-sm text-danger">{error}</p>}
+
+        {!isNew && (
+          <Button variant="secondary" className="w-full" disabled={testing === agent!.id} onClick={() => onTest(agent!)}>
+            <FlaskConical size={15} /> Probar agente en el Inbox
+          </Button>
+        )}
 
         {!isNew && !isDefault && (
           <Button variant="danger" className="w-full" onClick={() => onDelete(agent!)}>

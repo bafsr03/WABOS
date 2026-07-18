@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { useTempSchema, dropTempSchema } from '../test-helpers/tempSchema.js';
 
-// Metering math + hard-cap boundary on a free-tier business (limit 1000).
+// Metering math + hard-cap boundary on a Basico-tier business (limit 1000).
 
 let schema: string;
 let db: typeof import('../db/index.js');
@@ -17,8 +17,8 @@ beforeAll(async () => {
   ctx = await import('../context.js');
   usage = await import('./usage.js');
   ent = await import('./entitlements.js');
-  // New businesses default to plan_tier 'free' (finite AI cap).
-  const row = await db.one<{ id: number }>("INSERT INTO businesses (name, plan_tier) VALUES ('Free Co', 'free') RETURNING id");
+  // Basico tier has a 1,000-message cap (the boundary this test exercises).
+  const row = await db.one<{ id: number }>("INSERT INTO businesses (name, plan_tier) VALUES ('Basico Co', 'basico') RETURNING id");
   bizId = row!.id;
 });
 
@@ -30,7 +30,7 @@ afterAll(async () => {
 describe('ai usage metering', () => {
   it('accumulates messages/tokens and enforces the tier cap at the boundary', async () => {
     await ctx.runWithBusiness(bizId, async () => {
-      expect(await ent.getPlanTier()).toBe('free');
+      expect(await ent.getPlanTier()).toBe('basico');
       expect(await ent.isAiWithinLimit()).toBe(true);
 
       let u = await ent.getAiUsage();
@@ -45,6 +45,17 @@ describe('ai usage metering', () => {
       expect(u.inputTokens).toBe(13);
       expect(u.outputTokens).toBe(24);
       expect(await ent.isAiWithinLimit()).toBe(false); // 1000 >= 1000 → paused
+    });
+  });
+
+  it('applies the free-trial cap and falls back to free for an unknown tier', async () => {
+    const free = (await db.one<{ id: number }>("INSERT INTO businesses (name, plan_tier) VALUES ('Trial Co', 'free') RETURNING id"))!;
+    const bogus = (await db.one<{ id: number }>("INSERT INTO businesses (name, plan_tier) VALUES ('Weird Co', 'mystery') RETURNING id"))!;
+    await ctx.runWithBusiness(free.id, async () => {
+      expect((await ent.getLimits()).aiMessagesPerMonth).toBe(200);
+    });
+    await ctx.runWithBusiness(bogus.id, async () => {
+      expect((await ent.getLimits()).aiMessagesPerMonth).toBe(200); // unknown → free caps
     });
   });
 });

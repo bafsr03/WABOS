@@ -155,7 +155,7 @@ export async function buildApi() {
 
   // ---- billing (Merchant of Record) -----------------------------------------
   app.post('/api/billing/checkout', async (req, reply) => {
-    const body = z.object({ tier: z.enum(['pro', 'enterprise']) }).parse(req.body);
+    const body = z.object({ tier: z.enum(['basico', 'avanzado', 'pro']) }).parse(req.body);
     try {
       return { url: await createCheckoutSession(body.tier) };
     } catch (err: any) {

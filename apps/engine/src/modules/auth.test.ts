@@ -84,11 +84,9 @@ describe('register + login', () => {
   });
 
   it('enforces the free-tier plan limit on agents (402)', async () => {
-    // free tier = 2 agents; the seeded default agent is 1, so one more is allowed…
-    const ok = await app.inject({ method: 'POST', url: '/api/agents', headers: bearer(token), payload: { name: 'Ventas' } });
-    expect(ok.statusCode).toBe(201);
-    // …and the next exceeds the cap.
-    const capped = await app.inject({ method: 'POST', url: '/api/agents', headers: bearer(token), payload: { name: 'Soporte' } });
+    // free trial = 1 agent, and the seeded default agent already fills it, so
+    // any additional agent exceeds the cap.
+    const capped = await app.inject({ method: 'POST', url: '/api/agents', headers: bearer(token), payload: { name: 'Ventas' } });
     expect(capped.statusCode).toBe(402);
   });
 });

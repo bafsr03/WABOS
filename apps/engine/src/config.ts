@@ -34,8 +34,10 @@ export const config = {
   lemonSqueezyApiKey: process.env.LEMONSQUEEZY_API_KEY ?? '',
   lemonSqueezyStoreId: process.env.LEMONSQUEEZY_STORE_ID ?? '',
   lemonSqueezyWebhookSecret: process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? '',
+  // Variant ids for the three self-serve plans. Enterprise is contact-us (no variant).
+  lemonSqueezyVariantBasico: process.env.LEMONSQUEEZY_VARIANT_BASICO ?? '',
+  lemonSqueezyVariantAvanzado: process.env.LEMONSQUEEZY_VARIANT_AVANZADO ?? '',
   lemonSqueezyVariantPro: process.env.LEMONSQUEEZY_VARIANT_PRO ?? '',
-  lemonSqueezyVariantEnterprise: process.env.LEMONSQUEEZY_VARIANT_ENTERPRISE ?? '',
   // Where the checkout / customer portal redirects back to after payment.
   dashboardUrl: process.env.DASHBOARD_URL ?? 'http://localhost:3000',
   aiModel: process.env.AI_MODEL ?? 'claude-sonnet-5',

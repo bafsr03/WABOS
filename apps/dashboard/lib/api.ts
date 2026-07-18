@@ -110,7 +110,9 @@ export function getStatus(): Promise<Status> {
   return api('/api/status');
 }
 
-export async function startCheckout(tier: 'pro' | 'enterprise'): Promise<void> {
+export type CheckoutTier = 'basico' | 'avanzado' | 'pro';
+
+export async function startCheckout(tier: CheckoutTier): Promise<void> {
   const { url } = await api<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ tier }) });
   window.location.href = url;
 }

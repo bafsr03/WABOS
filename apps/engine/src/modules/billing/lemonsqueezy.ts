@@ -3,7 +3,7 @@ import { config } from '../../config.js';
 import { one, none } from '../../db/index.js';
 import { currentBusinessId } from '../../context.js';
 import { logger } from '../../logger.js';
-import { type BillingProvider, type Tier, billingDisabled, badPlan, tierForVariant, variantForTier } from './provider.js';
+import { type BillingProvider, type CheckoutTier, billingDisabled, badPlan, tierForVariant, variantForTier } from './provider.js';
 
 // Lemon Squeezy Merchant-of-Record billing. LS is the seller of record: it takes
 // global cards/PayPal/wallets, handles tax, and pays out to Peru. We only create
@@ -45,7 +45,8 @@ async function ownerEmail(): Promise<string | undefined> {
 
 // Access-granting statuses keep the tier; terminal ones drop to free. A cancelled
 // sub still grants access until ends_at (LS keeps status 'cancelled' meanwhile).
-export function tierForSubscription(status: string, variantId: string, endsAt: number | null): Tier | 'free' {
+// Never returns 'enterprise' — that tier is set manually, not via checkout.
+export function tierForSubscription(status: string, variantId: string, endsAt: number | null): CheckoutTier | 'free' {
   if (status === 'expired' || status === 'unpaid' || status === 'paused') return 'free';
   if (status === 'cancelled' && endsAt != null && endsAt * 1000 < Date.now()) return 'free';
   return tierForVariant(variantId) ?? 'free';
@@ -78,7 +79,7 @@ async function syncSubscription(businessId: number, sub: any): Promise<void> {
 export const lemonSqueezyProvider: BillingProvider = {
   isAvailable: configured,
 
-  async createCheckoutUrl(tier: Tier): Promise<string> {
+  async createCheckoutUrl(tier: CheckoutTier): Promise<string> {
     if (!configured()) throw billingDisabled();
     const variantId = variantForTier(tier);
     if (!variantId) throw badPlan();

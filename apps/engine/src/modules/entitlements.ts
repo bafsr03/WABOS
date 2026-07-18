@@ -3,29 +3,37 @@ import { currentBusinessId } from '../context.js';
 import { getUsageRow } from './usage.js';
 
 // Thin premium-tier seam. The tier is the businesses.plan_tier column, kept in
-// sync with the billing provider by its webhook. 'free' gates premium features and
-// enforces caps; 'pro'/'enterprise' unlock progressively more. Feature call
-// sites use isFeatureEnabled()/assertWithinLimit() and need no per-tier changes.
+// sync with the billing provider by its webhook. New signups start on 'free'
+// (a limited trial); the paid ladder is basico → avanzado → pro; 'enterprise'
+// is a manual contact-us tier (no self-serve checkout). Premium features
+// (Voice DNA / style analysis) unlock at avanzado+. Feature call sites use
+// isFeatureEnabled()/assertWithinLimit() and need no per-tier changes.
 const FEATURE_MATRIX: Record<string, string[]> = {
   free: [],
+  basico: [],
+  avanzado: ['*'],
   pro: ['*'],
   enterprise: ['*'],
 };
 
 export type PlanTier = keyof typeof FEATURE_MATRIX;
 
-// Structural per-tier caps. Enforced on the create endpoints (agents, contacts).
-// AI-message metering needs billing/overage design and is deferred.
+// Structural per-tier caps. `contacts`/`agents` are enforced on the create
+// endpoints; `aiMessagesPerMonth` is the hard cap on auto-replies; `numbers` is
+// informational (a WhatsApp number == a workspace/subscription, not enforced here).
 export interface PlanLimits { numbers: number; contacts: number; agents: number; aiMessagesPerMonth: number }
 const INF = Number.POSITIVE_INFINITY;
 const LIMITS: Record<string, PlanLimits> = {
-  free: { numbers: 1, contacts: 500, agents: 2, aiMessagesPerMonth: 1000 },
-  pro: { numbers: 3, contacts: 10000, agents: 10, aiMessagesPerMonth: 50000 },
+  free: { numbers: 1, contacts: 100, agents: 1, aiMessagesPerMonth: 200 },
+  basico: { numbers: 1, contacts: 1000, agents: 1, aiMessagesPerMonth: 1000 },
+  avanzado: { numbers: 1, contacts: 5000, agents: 3, aiMessagesPerMonth: 3000 },
+  pro: { numbers: 2, contacts: 20000, agents: 5, aiMessagesPerMonth: 6000 },
   enterprise: { numbers: INF, contacts: INF, agents: INF, aiMessagesPerMonth: INF },
 };
 
 export async function getLimits(): Promise<PlanLimits> {
-  return LIMITS[await getPlanTier()] ?? LIMITS.pro;
+  // Unknown tier → the most restrictive caps (safest for cost).
+  return LIMITS[await getPlanTier()] ?? LIMITS.free;
 }
 
 // Throws a 402-flavored error when creating another row of `kind` would exceed

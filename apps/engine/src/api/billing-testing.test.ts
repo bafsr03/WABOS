@@ -38,8 +38,13 @@ describe('billing/metering status', () => {
   });
 
   it('checkout returns 503 when billing is not configured', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/billing/checkout', headers: legacy, payload: { tier: 'pro' } });
+    const res = await app.inject({ method: 'POST', url: '/api/billing/checkout', headers: legacy, payload: { tier: 'basico' } });
     expect(res.statusCode).toBe(503);
+  });
+
+  it('rejects an unknown checkout tier (400)', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/billing/checkout', headers: legacy, payload: { tier: 'enterprise' } });
+    expect(res.statusCode).toBe(400); // enterprise is contact-us, not a self-serve variant
   });
 });
 

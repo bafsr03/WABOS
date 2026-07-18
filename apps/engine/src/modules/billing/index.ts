@@ -1,5 +1,5 @@
 import { config } from '../../config.js';
-import { type BillingProvider, type Tier } from './provider.js';
+import { type BillingProvider, type CheckoutTier } from './provider.js';
 import { lemonSqueezyProvider } from './lemonsqueezy.js';
 
 // Pick the active billing rail from config. Adding Paddle / Mercado Pago later is
@@ -17,7 +17,7 @@ export function isBillingAvailable(): boolean {
   return provider()?.isAvailable() ?? false;
 }
 
-export function createCheckoutSession(tier: Tier): Promise<string> {
+export function createCheckoutSession(tier: CheckoutTier): Promise<string> {
   const p = provider();
   if (!p) throw Object.assign(new Error('El cobro no está configurado'), { code: 'BILLING_DISABLED' });
   return p.createCheckoutUrl(tier);

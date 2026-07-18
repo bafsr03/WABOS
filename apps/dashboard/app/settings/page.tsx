@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, type Status } from '@/lib/api';
+import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, type Status, type CheckoutTier } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
@@ -288,10 +288,22 @@ export default function SettingsPage() {
 // Plan + billing. Shows the current tier, AI-message usage against the cap, and
 // (when billing is configured) upgrade / manage-subscription actions.
 const TIER_META: Record<string, { label: string; blurb: string }> = {
-  free: { label: 'Free', blurb: 'Para empezar' },
-  pro: { label: 'Pro', blurb: 'Para negocios en crecimiento' },
-  enterprise: { label: 'Enterprise', blurb: 'Volumen alto, sin límites' },
+  free: { label: 'Prueba', blurb: 'Para explorar sin tarjeta' },
+  basico: { label: 'Básico', blurb: 'Para empezar a atender mejor' },
+  avanzado: { label: 'Avanzado', blurb: 'El favorito de los negocios que venden' },
+  pro: { label: 'Pro', blurb: 'Para equipos y operaciones serias' },
+  enterprise: { label: 'Empresarial', blurb: 'Múltiples sucursales, a tu medida' },
 };
+
+// The three self-serve plans, in upgrade order, with their monthly price (PEN).
+const SELF_SERVE: { tier: CheckoutTier; price: number; popular?: boolean }[] = [
+  { tier: 'basico', price: 49 },
+  { tier: 'avanzado', price: 89, popular: true },
+  { tier: 'pro', price: 159 },
+];
+
+// Where the Empresarial "Contáctanos" button points. Override per deployment.
+const CONTACT_URL = process.env.NEXT_PUBLIC_CONTACT_URL ?? 'mailto:hola@wabos.pe';
 
 function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | 'error') => void }) {
   const [status, setStatus] = useState<Status | null>(null);
@@ -304,7 +316,7 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
     if (params.get('billing') === 'cancelled') toast('Pago cancelado.', 'info');
   }, [toast]);
 
-  async function upgrade(tier: 'pro' | 'enterprise') {
+  async function upgrade(tier: CheckoutTier) {
     setBusy(true);
     try { await startCheckout(tier); } catch (err: any) { toast(err.message, 'error'); setBusy(false); }
   }
@@ -362,14 +374,16 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
       </Card>
 
       {status.billingAvailable ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {(['pro', 'enterprise'] as const).map((t) => (
-            <Card key={t} className="flex flex-col gap-3 p-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {SELF_SERVE.map(({ tier: t, price, popular }) => (
+            <Card key={t} className={cn('flex flex-col gap-3 p-5', popular && 'border-brand/40')}>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-fg">{TIER_META[t].label}</span>
-                  {tier === t && <Badge tone="brand"><Check size={11} /> Actual</Badge>}
+                  {tier === t ? <Badge tone="brand"><Check size={11} /> Actual</Badge>
+                    : popular ? <Badge tone="brand">Más popular</Badge> : null}
                 </div>
+                <p className="mt-1 text-xl font-semibold text-fg">S/{price}<span className="text-xs font-normal text-subtle"> /mes</span></p>
                 <p className="mt-0.5 text-xs text-muted">{TIER_META[t].blurb}</p>
               </div>
               <Button className="mt-auto w-full" disabled={busy || tier === t} onClick={() => upgrade(t)}>
@@ -377,6 +391,18 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
               </Button>
             </Card>
           ))}
+          {/* Enterprise is contact-us — set up manually, no self-serve checkout. */}
+          <Card className="flex flex-col gap-3 p-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-fg">{TIER_META.enterprise.label}</span>
+                {tier === 'enterprise' && <Badge tone="brand"><Check size={11} /> Actual</Badge>}
+              </div>
+              <p className="mt-1 text-xl font-semibold text-fg">A tu medida</p>
+              <p className="mt-0.5 text-xs text-muted">{TIER_META.enterprise.blurb}</p>
+            </div>
+            <a href={CONTACT_URL} className="mt-auto"><Button variant="secondary" className="w-full">Contáctanos</Button></a>
+          </Card>
         </div>
       ) : (
         <Card className="p-5 text-sm text-muted">

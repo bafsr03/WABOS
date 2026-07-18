@@ -18,7 +18,7 @@ const TIERS: Tier[] = [
   { name: 'Avanzado', monthly: 89, popular: true, blurb: 'El favorito de los negocios que venden.', cta: 'Empezar',
     features: ['3 usuarios', 'Catálogo + recomendaciones IA', 'Empleados: Ventas, Soporte, Recepción', 'Citas + campañas', 'Etiquetas + historial 1 año', '3,000 mensajes IA / mes'] },
   { name: 'Pro', monthly: 159, blurb: 'Para equipos y operaciones serias.', cta: 'Empezar',
-    features: ['10 usuarios', 'Inbox multi-agente + CRM avanzado', 'Los 5 Empleados IA', 'Pipelines + reportes', 'Difusiones ilimitadas*', '10,000 mensajes IA / mes'] },
+    features: ['10 usuarios', 'Inbox multi-agente + CRM avanzado', 'Los 5 Empleados IA', 'Pipelines + reportes', 'Difusiones ilimitadas*', '6,000 mensajes IA / mes'] },
   { name: 'Empresarial', monthly: 399, from: true, blurb: 'Múltiples sucursales, a tu medida.', cta: 'Contactar',
     features: ['Usuarios y números ilimitados', 'Múltiples sucursales', 'IA personalizada + integraciones', 'Infraestructura dedicada + SLA', 'White label', 'Uso justo'] },
 ];
@@ -26,9 +26,9 @@ const TIERS: Tier[] = [
 const COMPARE: { label: string; values: (string | boolean)[] }[] = [
   { label: 'Números de WhatsApp', values: ['1', '1', '1 (+add-on)', 'Ilimitado'] },
   { label: 'Usuarios / agentes', values: ['1', '3', '10', 'Ilimitado'] },
-  { label: 'Mensajes IA / mes', values: ['1,000', '3,000', '10,000', 'Uso justo'] },
+  { label: 'Mensajes IA / mes', values: ['1,000', '3,000', '6,000', 'Uso justo'] },
   { label: 'Difusiones / mes', values: ['500', '3,000', 'Ilimitadas*', 'Ilimitadas'] },
-  { label: 'Contactos (CRM)', values: ['1,000', '5,000', '25,000', 'Ilimitado'] },
+  { label: 'Contactos (CRM)', values: ['1,000', '5,000', '20,000', 'Ilimitado'] },
   { label: 'Productos en catálogo', values: ['50', '500', 'Ilimitado', 'Ilimitado'] },
   { label: 'Empleados IA', values: ['1', '3', '5', 'Personalizados'] },
   { label: 'Cobros verificados', values: [true, true, true, true] },
@@ -38,7 +38,7 @@ const COMPARE: { label: string; values: (string | boolean)[] }[] = [
 
 const FAQS = [
   { q: '¿Puedo cambiar de plan cuando quiera?', a: 'Sí, subes o bajas de plan en cualquier momento. Los cambios se prorratean automáticamente.' },
-  { q: '¿Qué pasa si supero los mensajes de IA?', a: 'No se corta el servicio: los mensajes extra se facturan como excedente a una tarifa clara, o puedes subir de plan si te conviene.' },
+  { q: '¿Qué pasa si supero los mensajes de IA?', a: 'Al llegar al límite del mes, la IA deja de responder automáticamente (tu bandeja e inbox siguen funcionando). Subes de plan para reactivarla al instante, y el conteo se reinicia cada mes.' },
   { q: '¿El precio incluye IGV?', a: 'Sí, todos los precios están en soles (S/) e incluyen IGV.' },
   { q: '¿Hay permanencia?', a: 'No hay contratos de permanencia. El plan mensual se cancela cuando quieras. El anual te da 2 meses gratis.' },
 ];

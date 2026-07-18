@@ -14,17 +14,19 @@ beforeAll(async () => {
   process.env.LEMONSQUEEZY_API_KEY = 'test_key';
   process.env.LEMONSQUEEZY_STORE_ID = '1';
   process.env.LEMONSQUEEZY_WEBHOOK_SECRET = SECRET;
+  process.env.LEMONSQUEEZY_VARIANT_BASICO = 'var_basico';
+  process.env.LEMONSQUEEZY_VARIANT_AVANZADO = 'var_avanzado';
   process.env.LEMONSQUEEZY_VARIANT_PRO = 'var_pro';
-  process.env.LEMONSQUEEZY_VARIANT_ENTERPRISE = 'var_ent';
   prov = await import('./provider.js');
   ls = await import('./lemonsqueezy.js');
 });
 
 describe('variant → tier', () => {
-  it('maps configured variants and rejects unknown ones', () => {
+  it('maps the three self-serve variants and rejects unknown ones', () => {
+    expect(prov.tierForVariant('var_basico')).toBe('basico');
+    expect(prov.tierForVariant('var_avanzado')).toBe('avanzado');
     expect(prov.tierForVariant('var_pro')).toBe('pro');
-    expect(prov.tierForVariant('var_ent')).toBe('enterprise');
-    expect(prov.tierForVariant('nope')).toBeNull();
+    expect(prov.tierForVariant('nope')).toBeNull(); // enterprise has no variant
   });
 });
 
@@ -33,8 +35,8 @@ describe('subscription status → tier', () => {
   const past = Math.floor(Date.now() / 1000) - 86400;
   it('grants the tier while active/on_trial/past_due', () => {
     expect(ls.tierForSubscription('active', 'var_pro', null)).toBe('pro');
-    expect(ls.tierForSubscription('on_trial', 'var_ent', null)).toBe('enterprise');
-    expect(ls.tierForSubscription('past_due', 'var_pro', null)).toBe('pro');
+    expect(ls.tierForSubscription('on_trial', 'var_avanzado', null)).toBe('avanzado');
+    expect(ls.tierForSubscription('past_due', 'var_basico', null)).toBe('basico');
   });
   it('keeps the tier for a cancelled sub until the period ends, then drops to free', () => {
     expect(ls.tierForSubscription('cancelled', 'var_pro', future)).toBe('pro');

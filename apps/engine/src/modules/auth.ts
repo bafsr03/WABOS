@@ -1,5 +1,5 @@
 import argon2 from 'argon2';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { SignJWT, jwtVerify, createRemoteJWKSet } from 'jose';
 import { one, many, none, setSetting } from '../db/index.js';
 import { config } from '../config.js';
@@ -155,6 +155,37 @@ export async function listUserBusinesses(userId: number): Promise<BusinessLite[]
     FROM memberships m JOIN businesses b ON b.id = m.business_id
     WHERE m.user_id = $1 ORDER BY m.created_at
   `, [userId]);
+}
+
+// ---- password reset --------------------------------------------------------
+const RESET_TTL_SECONDS = 60 * 60; // 1 hour
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+// Start a reset: if the email maps to a user, mint a single-use token, store its
+// hash, and return the raw token for the caller to email. Returns null when the
+// email is unknown (the caller still responds 200 so accounts can't be probed).
+export async function requestPasswordReset(email: string): Promise<{ token: string; user: User } | null> {
+  const user = await one<User>('SELECT id, email FROM users WHERE lower(email) = $1', [email.trim().toLowerCase()]);
+  if (!user) return null;
+  const token = randomBytes(32).toString('hex');
+  const expires = Math.floor(Date.now() / 1000) + RESET_TTL_SECONDS;
+  await none('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, $3)', [user.id, sha256(token), expires]);
+  return { token, user };
+}
+
+// Consume a reset token and set a new password. Returns false when the token is
+// missing/expired/already used. Invalidates all of the user's outstanding tokens.
+export async function resetPassword(token: string, newPassword: string): Promise<boolean> {
+  const now = Math.floor(Date.now() / 1000);
+  const row = await one<{ id: number; user_id: number }>(
+    'SELECT id, user_id FROM password_resets WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2',
+    [sha256(token), now],
+  );
+  if (!row) return false;
+  const hash = await argon2.hash(newPassword);
+  await none('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, row.user_id]);
+  await none('UPDATE password_resets SET used_at = $1 WHERE user_id = $2 AND used_at IS NULL', [now, row.user_id]);
+  return true;
 }
 
 // Resolve which business a request acts on. With one membership it's implicit;

@@ -115,3 +115,35 @@ describe('account deletion', () => {
     expect(await db.one('SELECT id FROM businesses WHERE id = 1')).toBeTruthy();
   });
 });
+
+describe('password reset', () => {
+  it('resets the password with a valid token and enforces single use', async () => {
+    const auth = await import('./auth.js');
+    await app.inject({ method: 'POST', url: '/api/auth/register', payload: { email: 'reset@tienda.pe', password: 'oldpassword', business_name: 'Reset Co' } });
+
+    // Unknown email → no token (but the HTTP endpoint still 200s, tested below).
+    expect(await auth.requestPasswordReset('nobody@nowhere.pe')).toBeNull();
+
+    const req = await auth.requestPasswordReset('reset@tienda.pe');
+    expect(req?.token).toBeTruthy();
+
+    // Wrong token is rejected; the real token works once.
+    expect(await auth.resetPassword('deadbeef', 'newpassword')).toBe(false);
+    expect(await auth.resetPassword(req!.token, 'newpassword')).toBe(true);
+    expect(await auth.resetPassword(req!.token, 'again1234')).toBe(false); // already used
+
+    // New password logs in; old one no longer does.
+    expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'reset@tienda.pe', password: 'newpassword' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'reset@tienda.pe', password: 'oldpassword' } })).statusCode).toBe(401);
+  });
+
+  it('the forgot endpoint always 200s (never reveals whether the email exists)', async () => {
+    expect((await app.inject({ method: 'POST', url: '/api/auth/forgot', payload: { email: 'reset@tienda.pe' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/forgot', payload: { email: 'ghost@nowhere.pe' } })).statusCode).toBe(200);
+  });
+
+  it('rejects an invalid/expired reset token over HTTP (400)', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/auth/reset', payload: { token: 'not-a-real-token', password: 'whatever8' } });
+    expect(res.statusCode).toBe(400);
+  });
+});

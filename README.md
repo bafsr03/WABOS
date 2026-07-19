@@ -79,4 +79,4 @@ lsof -ti :4000 -ti :3000 | xargs kill -9 2>/dev/null   # leaves Postgres + the t
 
 ## ⚠️ Disclaimer
 
-WABOS uses [Baileys](https://github.com/WhiskeySockets/Baileys), an unofficial WhatsApp Web protocol library. WhatsApp may ban numbers that send spam. WABOS ships anti-ban guardrails (send jitter, hard broadcast throttling), but use it responsibly and test with a secondary number. See §11 of the manual.
+WABOS will make you a milli, if its in gods plan 

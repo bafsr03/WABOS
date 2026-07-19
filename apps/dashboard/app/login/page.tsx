@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -14,7 +14,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Arriving from a completed password reset.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+      setNotice('Tu contraseña se actualizó. Inicia sesión con la nueva.');
+    }
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,13 +57,18 @@ export default function LoginPage() {
         </div>
         <p className="mt-3 text-sm text-muted">Inicia sesión en tu cuenta.</p>
 
+        {notice && <p className="mt-4 rounded-xl border border-success/30 bg-success/10 p-3 text-sm text-fg">{notice}</p>}
+
         <label className="mt-7 mb-1.5 block text-sm font-medium text-fg">Correo</label>
         <div className="relative">
           <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-subtle" />
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@negocio.pe" className="pl-10" autoFocus required />
         </div>
 
-        <label className="mt-4 mb-1.5 block text-sm font-medium text-fg">Contraseña</label>
+        <div className="mt-4 mb-1.5 flex items-center justify-between">
+          <label className="block text-sm font-medium text-fg">Contraseña</label>
+          <Link href="/forgot" className="text-xs text-muted hover:text-brand hover:underline">¿Olvidaste tu contraseña?</Link>
+        </div>
         <div className="relative">
           <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-subtle" />
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="pl-10" required />

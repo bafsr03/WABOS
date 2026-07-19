@@ -43,8 +43,16 @@ export const config = {
   lemonSqueezyVariantBasicoAnnual: process.env.LEMONSQUEEZY_VARIANT_BASICO_ANNUAL ?? '',
   lemonSqueezyVariantAvanzadoAnnual: process.env.LEMONSQUEEZY_VARIANT_AVANZADO_ANNUAL ?? '',
   lemonSqueezyVariantProAnnual: process.env.LEMONSQUEEZY_VARIANT_PRO_ANNUAL ?? '',
-  // Where the checkout / customer portal redirects back to after payment.
+  // Where the checkout / customer portal redirects back to after payment, and
+  // the base for password-reset links.
   dashboardUrl: process.env.DASHBOARD_URL ?? 'http://localhost:3000',
+  // Outbound email (SMTP) for transactional mail like password resets. Empty
+  // host = email disabled → reset links are logged to the console instead.
+  smtpHost: process.env.SMTP_HOST ?? '',
+  smtpPort: Number(process.env.SMTP_PORT ?? 587),
+  smtpUser: process.env.SMTP_USER ?? '',
+  smtpPass: process.env.SMTP_PASS ?? '',
+  smtpFrom: process.env.SMTP_FROM ?? 'WABOS <no-reply@wabos.pe>',
   aiModel: process.env.AI_MODEL ?? 'claude-sonnet-5',
   aiVisionModel: process.env.AI_VISION_MODEL ?? 'claude-haiku-4-5',
   // Per-conversation model tiering: everyone runs on the cheaper default model

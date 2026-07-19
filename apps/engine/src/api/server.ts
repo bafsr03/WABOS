@@ -8,7 +8,8 @@ import { logger } from '../logger.js';
 import { bus, type WabosEvent } from '../events.js';
 import { one, many, none, getAllSettings, getSetting, setSetting } from '../db/index.js';
 import { DEFAULT_BUSINESS_ID, runWithBusiness, currentBusinessId } from '../context.js';
-import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses, createBusinessForUser } from '../modules/auth.js';
+import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses, createBusinessForUser, requestPasswordReset, resetPassword } from '../modules/auth.js';
+import { sendPasswordReset } from '../modules/mailer.js';
 import { getWaState, logoutWhatsApp, changeNumber, pauseWhatsApp, reconnectWhatsApp, purgeConnection } from '../wa/connection.js';
 import { sendText } from '../wa/outbound.js';
 import { isAiAvailable } from '../ai/employee.js';
@@ -74,7 +75,8 @@ export async function buildApi() {
     // Webhooks authenticate with their own per-business secret; register/login
     // are the unauthenticated entry points.
     if (url.startsWith('/api/webhooks/')) return done();
-    if (url.startsWith('/api/auth/register') || url.startsWith('/api/auth/login') || url.startsWith('/api/auth/google')) return done();
+    if (url.startsWith('/api/auth/register') || url.startsWith('/api/auth/login') || url.startsWith('/api/auth/google')
+        || url.startsWith('/api/auth/forgot') || url.startsWith('/api/auth/reset')) return done();
 
     const header = req.headers.authorization ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -132,6 +134,25 @@ export async function buildApi() {
       if (err.code === 'GOOGLE_NOT_CONFIGURED') return reply.code(503).send({ error: err.message });
       throw err;
     }
+  });
+
+  // Request a reset link. Always 200 (never reveal whether the email exists).
+  app.post('/api/auth/forgot', async (req) => {
+    const body = z.object({ email: z.string().email() }).parse(req.body);
+    const result = await requestPasswordReset(body.email);
+    if (result) {
+      const link = `${config.dashboardUrl}/reset?token=${result.token}`;
+      await sendPasswordReset(result.user.email, link).catch((err) => logger.error({ err }, 'reset email failed'));
+    }
+    return { ok: true };
+  });
+
+  // Consume a reset token and set a new password.
+  app.post('/api/auth/reset', async (req, reply) => {
+    const body = z.object({ token: z.string().min(1), password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres') }).parse(req.body);
+    const ok = await resetPassword(body.token, body.password);
+    if (!ok) return reply.code(400).send({ error: 'El enlace es inválido o expiró. Solicita uno nuevo.' });
+    return { ok: true };
   });
 
   app.get('/api/auth/me', async (req) => {

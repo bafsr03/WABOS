@@ -53,6 +53,28 @@ export function googleLogin(credential: string): Promise<void> {
   return authRequest('/api/auth/google', { credential });
 }
 
+// Password recovery. `forgot` always resolves (the server never reveals whether
+// the email exists); `reset` throws with a message on an invalid/expired token.
+async function postJson(path: string, payload: object): Promise<void> {
+  const res = await fetch(`${ENGINE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? 'No se pudo completar la solicitud');
+  }
+}
+
+export function requestPasswordReset(email: string): Promise<void> {
+  return postJson('/api/auth/forgot', { email });
+}
+
+export function resetPassword(token: string, password: string): Promise<void> {
+  return postJson('/api/auth/reset', { token, password });
+}
+
 // Permanently delete the account + all its data, then clear the local session.
 export async function deleteAccount(): Promise<void> {
   await api('/api/account', { method: 'DELETE' });

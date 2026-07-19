@@ -30,7 +30,7 @@ import { approveReceipt, rejectReceipt, rekickPendingReceipts } from '../workers
 import { insertNotification, listNotifications } from '../modules/payment-notifications.js';
 import { getPaymentSettings } from '../modules/charges.js';
 import { featureFlags, getPlanTier, isFeatureEnabled, assertWithinLimit, getAiUsage } from '../modules/entitlements.js';
-import { createCheckoutSession, createPortalSession, handleWebhook, isBillingAvailable } from '../modules/billing/index.js';
+import { createCheckoutSession, createPortalSession, handleWebhook, isBillingAvailable, changePlan, cancelSubscription, resumeSubscription, syncSubscriptionFromProvider } from '../modules/billing/index.js';
 import { startAgentTest, sendTestMessage, deleteTestConversation } from '../modules/agent-testing.js';
 import {
   createStyleAnalysis, getStyleAnalysis, getLatestStyleAnalysis,
@@ -155,9 +155,12 @@ export async function buildApi() {
 
   // ---- billing (Merchant of Record) -----------------------------------------
   app.post('/api/billing/checkout', async (req, reply) => {
-    const body = z.object({ tier: z.enum(['basico', 'avanzado', 'pro']) }).parse(req.body);
+    const body = z.object({
+      tier: z.enum(['basico', 'avanzado', 'pro']),
+      interval: z.enum(['month', 'year']).default('month'),
+    }).parse(req.body);
     try {
-      return { url: await createCheckoutSession(body.tier) };
+      return { url: await createCheckoutSession(body.tier, body.interval) };
     } catch (err: any) {
       if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
       if (err.code === 'BAD_PLAN') return reply.code(400).send({ error: err.message });
@@ -171,6 +174,59 @@ export async function buildApi() {
     } catch (err: any) {
       if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
       if (err.code === 'NO_SUBSCRIPTION') return reply.code(409).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  // Switch an EXISTING subscription to another plan/interval (proration handled
+  // by Lemon Squeezy — no new subscription). Use this instead of /checkout when
+  // the business already has a subscription.
+  app.post('/api/billing/change', async (req, reply) => {
+    const body = z.object({
+      tier: z.enum(['basico', 'avanzado', 'pro']),
+      interval: z.enum(['month', 'year']).default('month'),
+    }).parse(req.body);
+    try {
+      await changePlan(body.tier, body.interval);
+      return { ok: true };
+    } catch (err: any) {
+      if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
+      if (err.code === 'NO_SUBSCRIPTION') return reply.code(409).send({ error: err.message });
+      if (err.code === 'BAD_PLAN') return reply.code(400).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.post('/api/billing/cancel', async (_req, reply) => {
+    try {
+      await cancelSubscription();
+      return { ok: true };
+    } catch (err: any) {
+      if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
+      if (err.code === 'NO_SUBSCRIPTION') return reply.code(409).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.post('/api/billing/resume', async (_req, reply) => {
+    try {
+      await resumeSubscription();
+      return { ok: true };
+    } catch (err: any) {
+      if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
+      if (err.code === 'NO_SUBSCRIPTION') return reply.code(409).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  // Webhook-independent reconcile — pull the subscription from the provider and
+  // apply it. Called after checkout (and by a manual "refresh" in the UI) so the
+  // plan reflects even if the webhook was missed.
+  app.post('/api/billing/sync', async (_req, reply) => {
+    try {
+      return { ok: true, found: await syncSubscriptionFromProvider() };
+    } catch (err: any) {
+      if (err.code === 'BILLING_DISABLED') return reply.code(503).send({ error: err.message });
       throw err;
     }
   });

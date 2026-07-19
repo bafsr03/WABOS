@@ -16,6 +16,11 @@ beforeAll(async () => {
   await db.initDb();
   const { config } = await import('../config.js');
   legacy = { authorization: `Bearer ${config.dashboardToken}` };
+  // Force billing OFF for this suite regardless of a developer's local .env, so
+  // the "not configured" assertions are deterministic.
+  config.lemonSqueezyApiKey = '';
+  config.lemonSqueezyStoreId = '';
+  config.lemonSqueezyWebhookSecret = '';
   const { buildApi } = await import('./server.js');
   app = await buildApi();
 });
@@ -45,6 +50,13 @@ describe('billing/metering status', () => {
   it('rejects an unknown checkout tier (400)', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/billing/checkout', headers: legacy, payload: { tier: 'enterprise' } });
     expect(res.statusCode).toBe(400); // enterprise is contact-us, not a self-serve variant
+  });
+
+  it('accepts an annual interval (503 only because billing is unconfigured)', async () => {
+    const ok = await app.inject({ method: 'POST', url: '/api/billing/checkout', headers: legacy, payload: { tier: 'basico', interval: 'year' } });
+    expect(ok.statusCode).toBe(503);
+    const bad = await app.inject({ method: 'POST', url: '/api/billing/checkout', headers: legacy, payload: { tier: 'basico', interval: 'quarterly' } });
+    expect(bad.statusCode).toBe(400); // invalid interval
   });
 });
 

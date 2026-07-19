@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, type Status, type CheckoutTier } from '@/lib/api';
+import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
@@ -295,30 +295,71 @@ const TIER_META: Record<string, { label: string; blurb: string }> = {
   enterprise: { label: 'Empresarial', blurb: 'Múltiples sucursales, a tu medida' },
 };
 
-// The three self-serve plans, in upgrade order, with their monthly price (PEN).
-const SELF_SERVE: { tier: CheckoutTier; price: number; popular?: boolean }[] = [
-  { tier: 'basico', price: 49 },
-  { tier: 'avanzado', price: 89, popular: true },
-  { tier: 'pro', price: 159 },
+// The three self-serve plans, in upgrade order. Annual = 10× the monthly price
+// (two months free), matching the marketing site. `annualPerMonth` is what to
+// show as the equivalent monthly rate on the annual toggle.
+const SELF_SERVE: { tier: CheckoutTier; monthly: number; annual: number; popular?: boolean }[] = [
+  { tier: 'basico', monthly: 49, annual: 490 },
+  { tier: 'avanzado', monthly: 89, annual: 890, popular: true },
+  { tier: 'pro', monthly: 159, annual: 1590 },
 ];
 
 // Where the Empresarial "Contáctanos" button points. Override per deployment.
 const CONTACT_URL = process.env.NEXT_PUBLIC_CONTACT_URL ?? 'mailto:hola@wabos.pe';
 
+const MANAGEABLE = ['active', 'on_trial', 'past_due', 'cancelled', 'paused'];
+
 function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | 'error') => void }) {
+  const confirm = useConfirm();
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
+  const [interval, setInterval] = useState<BillingInterval>('month');
+
+  const refresh = () => getStatus().then(setStatus).catch(() => {});
+
+  // Pull the subscription from the provider then refresh — used after checkout
+  // (webhook-independent) and by the manual "Actualizar" button.
+  async function sync(showToast = false) {
+    try { await syncBilling(); await refresh(); if (showToast) toast('Estado actualizado.', 'info'); }
+    catch (err: any) { if (showToast) toast(err.message, 'error'); }
+  }
 
   useEffect(() => {
-    getStatus().then(setStatus).catch(() => {});
+    refresh();
     const params = new URLSearchParams(window.location.search);
-    if (params.get('billing') === 'success') toast('¡Suscripción activada! Puede tardar unos segundos en reflejarse.', 'success');
+    if (params.get('billing') === 'success') {
+      toast('¡Suscripción activada! Confirmando…', 'success');
+      // LS may take a moment to finalize; reconcile now and again shortly after.
+      sync();
+      const t = setTimeout(() => sync(), 4000);
+      return () => clearTimeout(t);
+    }
     if (params.get('billing') === 'cancelled') toast('Pago cancelado.', 'info');
   }, [toast]);
 
-  async function upgrade(tier: CheckoutTier) {
+  // New subscriber → hosted checkout (redirect). Existing subscriber → change plan in place.
+  async function subscribe(tier: CheckoutTier) {
     setBusy(true);
-    try { await startCheckout(tier); } catch (err: any) { toast(err.message, 'error'); setBusy(false); }
+    try { await startCheckout(tier, interval); } catch (err: any) { toast(err.message, 'error'); setBusy(false); }
+  }
+  async function change(tier: CheckoutTier) {
+    setBusy(true);
+    try { await changePlan(tier, interval); toast('Plan actualizado.', 'success'); await refresh(); }
+    catch (err: any) { toast(err.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  async function cancel() {
+    if (!(await confirm({ title: 'Cancelar suscripción', message: 'Tu plan seguirá activo hasta el final del periodo ya pagado y luego bajará a la prueba gratis. Puedes reanudar antes de esa fecha.', confirmLabel: 'Cancelar suscripción', danger: true }))) return;
+    setBusy(true);
+    try { await cancelSubscription(); toast('Suscripción cancelada; sigue activa hasta el fin del periodo.', 'info'); await refresh(); }
+    catch (err: any) { toast(err.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  async function resume() {
+    setBusy(true);
+    try { await resumeSubscription(); toast('Suscripción reanudada.', 'success'); await refresh(); }
+    catch (err: any) { toast(err.message, 'error'); }
+    finally { setBusy(false); }
   }
   async function manage() {
     setBusy(true);
@@ -334,6 +375,13 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
   const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const over = limit != null && used >= limit;
 
+  const sub = status.subscriptionStatus;
+  const hasSub = !!sub && MANAGEABLE.includes(sub);       // has a subscription we can modify
+  const cancelled = sub === 'cancelled';                   // scheduled to end at period end
+  const periodEnd = status.currentPeriodEnd
+    ? new Date(status.currentPeriodEnd * 1000).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
+    : null;
+
   return (
     <div className="space-y-5">
       <Card className="p-5">
@@ -344,15 +392,23 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
               <div className="flex items-center gap-2">
                 <span className="font-medium text-fg">Plan actual</span>
                 <Badge tone={tier === 'free' ? 'neutral' : 'brand'}>{meta.label}</Badge>
-                {status.subscriptionStatus && status.subscriptionStatus !== 'active' && (
-                  <Badge tone="warn">{status.subscriptionStatus}</Badge>
-                )}
+                {sub && sub !== 'active' && <Badge tone="warn">{sub}</Badge>}
               </div>
-              <p className="mt-0.5 text-xs text-muted">{meta.blurb}</p>
+              <p className="mt-0.5 text-xs text-muted">
+                {cancelled && periodEnd ? `Se cancela el ${periodEnd} — reanuda para seguir.`
+                  : hasSub && periodEnd ? `Se renueva el ${periodEnd}.`
+                  : meta.blurb}
+              </p>
             </div>
           </div>
-          {status.billingAvailable && status.subscriptionStatus && (
-            <Button size="sm" variant="secondary" onClick={manage} disabled={busy}>Gestionar</Button>
+          {status.billingAvailable && (
+            <div className="flex shrink-0 items-center gap-2">
+              <button onClick={() => sync(true)} disabled={busy} title="Actualizar estado desde el proveedor" className="text-xs text-subtle underline-offset-2 hover:text-fg hover:underline">Actualizar</button>
+              {hasSub && (cancelled
+                ? <Button size="sm" onClick={resume} disabled={busy}>Reanudar</Button>
+                : <button onClick={cancel} disabled={busy} className="text-xs text-subtle underline-offset-2 hover:text-danger hover:underline">Cancelar</button>)}
+              {hasSub && <Button size="sm" variant="secondary" onClick={manage} disabled={busy}>Gestionar</Button>}
+            </div>
           )}
         </div>
 
@@ -374,8 +430,24 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
       </Card>
 
       {status.billingAvailable ? (
+        <>
+        {/* Monthly / annual toggle */}
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
+            {([['month', 'Mensual'], ['year', 'Anual · 2 meses gratis']] as const).map(([v, label]) => (
+              <button key={v} onClick={() => setInterval(v)}
+                className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition', interval === v ? 'bg-surface text-fg shadow-[var(--shadow-card)]' : 'text-muted hover:text-fg')}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {SELF_SERVE.map(({ tier: t, price, popular }) => (
+          {SELF_SERVE.map(({ tier: t, monthly, annual, popular }) => {
+            const price = interval === 'year' ? annual : monthly;
+            const perMonth = Math.round(annual / 12);
+            return (
             <Card key={t} className={cn('flex flex-col gap-3 p-5', popular && 'border-brand/40')}>
               <div>
                 <div className="flex items-center gap-2">
@@ -383,14 +455,22 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
                   {tier === t ? <Badge tone="brand"><Check size={11} /> Actual</Badge>
                     : popular ? <Badge tone="brand">Más popular</Badge> : null}
                 </div>
-                <p className="mt-1 text-xl font-semibold text-fg">S/{price}<span className="text-xs font-normal text-subtle"> /mes</span></p>
+                <p className="mt-1 text-xl font-semibold text-fg">S/{price}<span className="text-xs font-normal text-subtle">{interval === 'year' ? ' /año' : ' /mes'}</span></p>
+                {interval === 'year' && <p className="text-[11px] text-brand">≈ S/{perMonth}/mes · ahorras 2 meses</p>}
                 <p className="mt-0.5 text-xs text-muted">{TIER_META[t].blurb}</p>
               </div>
-              <Button className="mt-auto w-full" disabled={busy || tier === t} onClick={() => upgrade(t)}>
-                {tier === t ? 'Plan actual' : `Cambiar a ${TIER_META[t].label}`}
-              </Button>
+              {tier === t ? (
+                cancelled
+                  ? <Button className="mt-auto w-full" disabled={busy} onClick={resume}>Reanudar</Button>
+                  : <Button className="mt-auto w-full" variant="secondary" disabled>Plan actual</Button>
+              ) : (
+                <Button className="mt-auto w-full" disabled={busy} onClick={() => (hasSub ? change(t) : subscribe(t))}>
+                  {hasSub ? `Cambiar a ${TIER_META[t].label}` : `Suscribirme a ${TIER_META[t].label}`}
+                </Button>
+              )}
             </Card>
-          ))}
+            );
+          })}
           {/* Enterprise is contact-us — set up manually, no self-serve checkout. */}
           <Card className="flex flex-col gap-3 p-5">
             <div>
@@ -404,6 +484,7 @@ function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | '
             <a href={CONTACT_URL} className="mt-auto"><Button variant="secondary" className="w-full">Contáctanos</Button></a>
           </Card>
         </div>
+        </>
       ) : (
         <Card className="p-5 text-sm text-muted">
           El cobro con tarjeta aún no está configurado en este entorno. Configura las claves de facturación para habilitar las suscripciones.

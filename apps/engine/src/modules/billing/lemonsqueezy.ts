@@ -3,7 +3,7 @@ import { config } from '../../config.js';
 import { one, none } from '../../db/index.js';
 import { currentBusinessId } from '../../context.js';
 import { logger } from '../../logger.js';
-import { type BillingProvider, type CheckoutTier, billingDisabled, badPlan, tierForVariant, variantForTier } from './provider.js';
+import { type BillingProvider, type CheckoutTier, type BillingInterval, billingDisabled, badPlan, tierForVariant, variantForTier } from './provider.js';
 
 // Lemon Squeezy Merchant-of-Record billing. LS is the seller of record: it takes
 // global cards/PayPal/wallets, handles tax, and pays out to Peru. We only create
@@ -58,6 +58,26 @@ function toEpoch(iso: string | null | undefined): number | null {
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
 }
 
+// The current business's Lemon Squeezy subscription id, or a NO_SUBSCRIPTION error.
+async function currentSubscriptionId(): Promise<string> {
+  const row = await one<{ billing_subscription_id: string | null }>(
+    'SELECT billing_subscription_id FROM businesses WHERE id = $1', [currentBusinessId()]);
+  if (!row?.billing_subscription_id) {
+    throw Object.assign(new Error('No hay una suscripción activa'), { code: 'NO_SUBSCRIPTION' });
+  }
+  return row.billing_subscription_id;
+}
+
+// PATCH a subscription and apply the returned object to the current business, so
+// the plan reflects immediately without waiting for the (also-arriving) webhook.
+async function patchSubscription(id: string, attributes: Record<string, unknown>): Promise<void> {
+  const json = await lsFetch(`/subscriptions/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ data: { type: 'subscriptions', id, attributes } }),
+  });
+  if (json?.data) await syncSubscription(currentBusinessId(), json.data);
+}
+
 // Apply a subscription object (from a webhook) to the owning business.
 async function syncSubscription(businessId: number, sub: any): Promise<void> {
   const attrs = sub.attributes ?? {};
@@ -79,10 +99,10 @@ async function syncSubscription(businessId: number, sub: any): Promise<void> {
 export const lemonSqueezyProvider: BillingProvider = {
   isAvailable: configured,
 
-  async createCheckoutUrl(tier: CheckoutTier): Promise<string> {
+  async createCheckoutUrl(tier: CheckoutTier, interval: BillingInterval): Promise<string> {
     if (!configured()) throw billingDisabled();
-    const variantId = variantForTier(tier);
-    if (!variantId) throw badPlan();
+    const variantId = variantForTier(tier, interval);
+    if (!variantId) throw badPlan(); // e.g. annual not configured for this plan
     const email = await ownerEmail();
     const body = {
       data: {
@@ -106,15 +126,67 @@ export const lemonSqueezyProvider: BillingProvider = {
     return url;
   },
 
+  // Switch the existing subscription to another plan/interval. Lemon Squeezy
+  // prorates automatically — no new subscription, no double charge.
+  async changePlan(tier: CheckoutTier, interval: BillingInterval): Promise<void> {
+    if (!configured()) throw billingDisabled();
+    const variantId = variantForTier(tier, interval);
+    if (!variantId) throw badPlan();
+    const id = await currentSubscriptionId();
+    // variant_id switches the plan; cancelled:false un-cancels if it was pending.
+    await patchSubscription(id, { variant_id: Number(variantId), cancelled: false });
+  },
+
+  // Cancel at period end (LS keeps the subscription 'cancelled' + active until ends_at).
+  async cancelSubscription(): Promise<void> {
+    if (!configured()) throw billingDisabled();
+    const id = await currentSubscriptionId();
+    const json = await lsFetch(`/subscriptions/${id}`, { method: 'DELETE' });
+    if (json?.data) await syncSubscription(currentBusinessId(), json.data);
+  },
+
+  // Undo a pending cancellation before the period ends.
+  async resumeSubscription(): Promise<void> {
+    if (!configured()) throw billingDisabled();
+    const id = await currentSubscriptionId();
+    await patchSubscription(id, { cancelled: false });
+  },
+
+  // Webhook-independent reconcile: ask Lemon Squeezy for this business's
+  // subscriptions (by stored customer id, else by the owner's email) and apply
+  // the most relevant one. Lets a checkout reflect even if the webhook was missed.
+  async syncFromProvider(): Promise<boolean> {
+    if (!configured()) throw billingDisabled();
+    let query = `filter[store_id]=${encodeURIComponent(String(config.lemonSqueezyStoreId))}`;
+    // Match by the account email (always present + always on the subscription);
+    // fall back to a previously-stored customer id for legacy-token businesses.
+    const email = await ownerEmail();
+    if (email) {
+      query += `&filter[user_email]=${encodeURIComponent(email)}`;
+    } else {
+      const biz = await one<{ billing_customer_id: string | null }>(
+        'SELECT billing_customer_id FROM businesses WHERE id = $1', [currentBusinessId()]);
+      if (!biz?.billing_customer_id) return false; // nothing to match on
+      query += `&filter[customer_id]=${encodeURIComponent(biz.billing_customer_id)}`;
+    }
+    const json = await lsFetch(`/subscriptions?${query}`);
+    const subs: any[] = Array.isArray(json?.data) ? json.data : [];
+    logger.info({ businessId: currentBusinessId(), match: email ? `email:${email}` : 'customer_id', found: subs.length }, 'billing reconcile');
+    if (subs.length === 0) return false;
+    // Prefer an access-granting sub, newest first (in case of leftover duplicates).
+    const rank = (s: string) => ({ active: 0, on_trial: 0, past_due: 1, cancelled: 2, paused: 3 } as Record<string, number>)[s] ?? 9;
+    subs.sort((a, b) =>
+      rank(a.attributes?.status) - rank(b.attributes?.status) ||
+      (Date.parse(b.attributes?.created_at ?? '') || 0) - (Date.parse(a.attributes?.created_at ?? '') || 0));
+    await syncSubscription(currentBusinessId(), subs[0]);
+    return true;
+  },
+
   async createPortalUrl(): Promise<string> {
     if (!configured()) throw billingDisabled();
-    const row = await one<{ billing_subscription_id: string | null }>(
-      'SELECT billing_subscription_id FROM businesses WHERE id = $1', [currentBusinessId()]);
-    if (!row?.billing_subscription_id) {
-      throw Object.assign(new Error('No hay una suscripción activa que gestionar'), { code: 'NO_SUBSCRIPTION' });
-    }
+    const id = await currentSubscriptionId();
     // Portal URLs are time-limited, so fetch a fresh one each time.
-    const json = await lsFetch(`/subscriptions/${row.billing_subscription_id}`);
+    const json = await lsFetch(`/subscriptions/${id}`);
     const url = json?.data?.attributes?.urls?.customer_portal;
     if (!url) throw new Error('Lemon Squeezy no devolvió el portal del cliente');
     return url;

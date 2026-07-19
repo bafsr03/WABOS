@@ -17,16 +17,27 @@ beforeAll(async () => {
   process.env.LEMONSQUEEZY_VARIANT_BASICO = 'var_basico';
   process.env.LEMONSQUEEZY_VARIANT_AVANZADO = 'var_avanzado';
   process.env.LEMONSQUEEZY_VARIANT_PRO = 'var_pro';
+  process.env.LEMONSQUEEZY_VARIANT_BASICO_ANNUAL = 'var_basico_yr';
+  process.env.LEMONSQUEEZY_VARIANT_AVANZADO_ANNUAL = 'var_avanzado_yr';
+  process.env.LEMONSQUEEZY_VARIANT_PRO_ANNUAL = 'var_pro_yr';
   prov = await import('./provider.js');
   ls = await import('./lemonsqueezy.js');
 });
 
 describe('variant → tier', () => {
-  it('maps the three self-serve variants and rejects unknown ones', () => {
+  it('maps monthly + annual variants to the same tier, rejects unknown ones', () => {
     expect(prov.tierForVariant('var_basico')).toBe('basico');
-    expect(prov.tierForVariant('var_avanzado')).toBe('avanzado');
+    expect(prov.tierForVariant('var_basico_yr')).toBe('basico'); // annual → same tier
+    expect(prov.tierForVariant('var_avanzado_yr')).toBe('avanzado');
     expect(prov.tierForVariant('var_pro')).toBe('pro');
+    expect(prov.tierForVariant('var_pro_yr')).toBe('pro');
     expect(prov.tierForVariant('nope')).toBeNull(); // enterprise has no variant
+  });
+
+  it('resolves the right variant id per tier + interval', () => {
+    expect(prov.variantForTier('basico', 'month')).toBe('var_basico');
+    expect(prov.variantForTier('basico', 'year')).toBe('var_basico_yr');
+    expect(prov.variantForTier('pro', 'year')).toBe('var_pro_yr');
   });
 });
 

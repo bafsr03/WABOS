@@ -111,10 +111,29 @@ export function getStatus(): Promise<Status> {
 }
 
 export type CheckoutTier = 'basico' | 'avanzado' | 'pro';
+export type BillingInterval = 'month' | 'year';
 
-export async function startCheckout(tier: CheckoutTier): Promise<void> {
-  const { url } = await api<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ tier }) });
+export async function startCheckout(tier: CheckoutTier, interval: BillingInterval = 'month'): Promise<void> {
+  const { url } = await api<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ tier, interval }) });
   window.location.href = url;
+}
+
+// Switch an existing subscription to another plan/interval (no redirect, prorated).
+export function changePlan(tier: CheckoutTier, interval: BillingInterval = 'month'): Promise<{ ok: boolean }> {
+  return api('/api/billing/change', { method: 'POST', body: JSON.stringify({ tier, interval }) });
+}
+
+export function cancelSubscription(): Promise<{ ok: boolean }> {
+  return api('/api/billing/cancel', { method: 'POST' });
+}
+
+export function resumeSubscription(): Promise<{ ok: boolean }> {
+  return api('/api/billing/resume', { method: 'POST' });
+}
+
+// Pull the subscription straight from the provider (webhook-independent).
+export function syncBilling(): Promise<{ ok: boolean; found: boolean }> {
+  return api('/api/billing/sync', { method: 'POST' });
 }
 
 export async function openBillingPortal(): Promise<void> {

@@ -1,5 +1,5 @@
 // WABOS service worker: offline app-shell + web-push handling.
-const CACHE = 'wabos-shell-v1';
+const CACHE = 'wabos-shell-v2';
 const SHELL = ['/', '/offline'];
 
 self.addEventListener('install', (event) => {
@@ -41,8 +41,8 @@ self.addEventListener('push', (event) => {
     body: data.body || '',
     tag: data.tag || undefined,
     data: { url: data.url || '/' },
-    icon: '/icons/192',
-    badge: '/icons/96',
+    icon: '/icons/192.png',
+    badge: '/icons/96.png',
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });

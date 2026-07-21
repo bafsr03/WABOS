@@ -20,11 +20,14 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: 'WABOS',
-    statusBarStyle: 'black-translucent', // lets content sit under the iOS status bar for the glass look
+    // 'default' = dark, legible clock over the light frosted header. Content still
+    // bleeds under the status bar (viewport-fit: cover), and the header pads itself
+    // with env(safe-area-inset-top) so the title clears the clock. See Shell.tsx.
+    statusBarStyle: 'default',
   },
   icons: {
-    icon: '/icons/192',
-    apple: '/icons/180',
+    icon: '/icons/192.png',
+    apple: '/icons/180.png',
   },
 };
 

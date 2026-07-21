@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import {
   LayoutDashboard, MessageCircle, Users, ShoppingBag, Wallet, Megaphone,
   Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3, type LucideIcon,
@@ -11,7 +11,7 @@ import {
 import { api, clearToken, getToken, getStatus } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { cn } from '@/lib/cn';
-import { StatusDot, Button } from '@/components/ui/primitives';
+import { StatusDot } from '@/components/ui/primitives';
 import BusinessSwitcher from '@/components/BusinessSwitcher';
 import InstallPrompt from '@/components/InstallPrompt';
 import { unsubscribeFromPush } from '@/lib/push';
@@ -105,7 +105,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <div className="aurora pointer-events-none absolute inset-x-0 top-0 h-40" />
       <div className="flex items-center justify-between px-5 pb-2 pt-6">
         <Link href="/" onClick={onNavigate} className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-sm font-bold text-white">W</span>
+          <img src="/logo.png" alt="WABOS" width={32} height={32} className="h-8 w-8 rounded-lg object-cover" />
           <span className="font-display text-xl font-semibold tracking-tight text-fg">WAB<span className="text-brand">OS</span></span>
         </Link>
         {onNavigate && <button onClick={onNavigate} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-2 lg:hidden"><X size={18} /></button>}
@@ -152,58 +152,68 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   );
 
   const overflowActive = OVERFLOW.some((i) => active?.href === i.href);
-  const barPill = 'pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-surface/85 p-1.5 shadow-[0_10px_34px_-10px_rgba(11,11,15,0.35)] backdrop-blur-xl';
+  const barPill = 'liquid-glass pointer-events-auto flex items-center gap-0.5 rounded-full p-1.5';
+  const navSpring = { type: 'spring', stiffness: 480, damping: 34, mass: 0.8 } as const;
   const tabCls = (on: boolean) =>
-    cn('grid h-11 w-11 place-items-center rounded-full transition', on ? 'bg-brand/12 text-brand' : 'text-subtle hover:bg-surface-2 hover:text-fg');
+    cn('relative grid h-11 w-11 place-items-center rounded-full transition-colors',
+      on ? 'text-brand' : 'text-subtle hover:bg-surface-2/60 hover:text-fg');
+  // Shared inner content for every tab: the sliding highlight (only on the active
+  // tab — one layoutId="navHighlight" mounted at a time, so framer glides it from
+  // the old tab to the new one) plus a springy, popping icon.
+  const tabInner = (Icon: LucideIcon, on: boolean) => (
+    <>
+      {on && (
+        <motion.span layoutId="navHighlight" transition={navSpring}
+          className="absolute inset-0 rounded-full bg-brand/15 ring-1 ring-inset ring-brand/25" />
+      )}
+      <motion.span className="relative" whileTap={{ scale: 0.85 }} animate={{ scale: on ? 1.06 : 1 }} transition={navSpring}>
+        <Icon size={21} />
+      </motion.span>
+    </>
+  );
 
   return (
-    <div className="flex h-[100dvh] bg-bg text-fg">
+    <div className="flex h-[100dvh] overflow-hidden bg-bg text-fg">
       {/* Static sidebar (desktop) */}
       <aside className="relative hidden w-60 shrink-0 border-r border-border lg:block">{sidebar()}</aside>
 
-      {/* Content */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="glass sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border px-4 sm:px-6">
-          <h2 className="font-display text-sm font-semibold text-fg">{active?.label ?? 'WABOS'}</h2>
-          <div className="ml-auto flex items-center gap-2">
-            {active?.href !== '/payments' && (
-              <Link href="/payments" className="hidden lg:block"><Button size="sm" variant="secondary"><Plus size={14} /> Nuevo cobro</Button></Link>
-            )}
-          </div>
-        </header>
+      {/* Content — no title bar (each page renders its own PageHeader).
+          padding-top = env(safe-area-inset-top) so page content clears the iOS
+          clock; it resolves to 0 on desktop, leaving that layout unchanged. */}
+      <div className="flex min-w-0 flex-1 flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {overCap && (
           <Link href="/settings?billing=cap" className="flex items-center gap-2 border-b border-danger/20 bg-danger/10 px-4 py-2 text-xs font-medium text-danger transition hover:bg-danger/16 sm:px-6">
             <span className="grid h-4 w-4 place-items-center rounded-full bg-danger/20">!</span>
             Alcanzaste el límite de mensajes de IA de tu plan — la IA dejó de responder. Actualiza para reactivarla.
           </Link>
         )}
-        <main className="aurora min-h-0 flex-1 overflow-y-auto pb-28 lg:pb-0">{children}</main>
+        <main className="aurora min-h-0 flex-1 overflow-y-auto overscroll-contain pb-28 lg:pb-0">{children}</main>
       </div>
 
       <InstallPrompt />
 
-      {/* Floating bottom bar (mobile) — Whop-style grouped pills */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2.5 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] lg:hidden">
-        <nav className={barPill}>
-          {PRIMARY.map((item) => {
-            const Icon = item.icon;
-            return (
+      {/* Floating bottom bar (mobile) — Whop-style grouped pills. LayoutGroup lets the
+          single navHighlight glide across both pills (primary tabs ↔ "Más" button). */}
+      <LayoutGroup>
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] lg:hidden">
+          <nav className={barPill}>
+            {PRIMARY.map((item) => (
               <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={tabCls(active?.href === item.href)}>
-                <Icon size={21} />
+                {tabInner(item.icon, active?.href === item.href)}
               </Link>
-            );
-          })}
-        </nav>
-        <div className={barPill}>
-          <button onClick={() => setSheet(true)} aria-label="Más opciones" title="Más" className={tabCls(overflowActive)}>
-            <MoreHorizontal size={21} />
-          </button>
-          <Link href="/payments" aria-label="Nuevo cobro" title="Nuevo cobro"
-            className="grid h-11 w-11 place-items-center rounded-full bg-brand text-white shadow-[var(--shadow-card)] transition hover:bg-brand-strong">
-            <Plus size={21} />
-          </Link>
+            ))}
+          </nav>
+          <div className={barPill}>
+            <button onClick={() => setSheet(true)} aria-label="Más opciones" title="Más" className={tabCls(overflowActive)}>
+              {tabInner(MoreHorizontal, overflowActive)}
+            </button>
+            <Link href="/payments" aria-label="Nuevo cobro" title="Nuevo cobro"
+              className="grid h-11 w-11 place-items-center rounded-full bg-brand text-white shadow-[var(--shadow-card)] transition hover:bg-brand-strong">
+              <motion.span whileTap={{ scale: 0.85 }} transition={navSpring}><Plus size={21} /></motion.span>
+            </Link>
+          </div>
         </div>
-      </div>
+      </LayoutGroup>
 
       {/* "Más" bottom sheet (mobile) */}
       <AnimatePresence>
@@ -211,9 +221,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="fixed inset-0 z-50 lg:hidden">
             <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(false)} />
             <motion.div
-              className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-border bg-surface p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl"
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 340, damping: 34 }}>
-              <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-border-strong" />
+              className="liquid-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.6 }}
+              dragMomentum={false}
+              onDragEnd={(_, info) => { if (info.offset.y > 120 || info.velocity.y > 600) setSheet(false); }}>
+              <div className="mx-auto -mt-1 mb-3 flex h-6 w-full cursor-grab touch-none items-center justify-center active:cursor-grabbing">
+                <span className="h-1.5 w-10 rounded-full bg-border-strong" />
+              </div>
 
               <div className="mb-3"><BusinessSwitcher /></div>
 

@@ -52,7 +52,7 @@ export default function LoginPage() {
         className="glass glow-brand w-full max-w-sm rounded-2xl p-8"
       >
         <div className="flex items-center gap-2.5">
-          <span className="grid h-10 w-10 place-items-center rounded-xl brand-gradient text-lg font-bold text-white shadow-[0_6px_18px_-4px_var(--brand)]">W</span>
+          <img src="/logo.png" alt="WABOS" width={40} height={40} className="h-10 w-10 rounded-xl object-cover shadow-[0_6px_18px_-4px_var(--brand)]" />
           <span className="font-display text-2xl font-semibold tracking-tight text-fg">WAB<span className="text-brand">OS</span></span>
         </div>
         <p className="mt-3 text-sm text-muted">Inicia sesión en tu cuenta.</p>

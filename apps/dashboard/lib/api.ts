@@ -1,4 +1,8 @@
-export const ENGINE_URL = process.env.NEXT_PUBLIC_ENGINE_URL ?? 'http://localhost:4000';
+// Empty by default → the app calls /api and /ws on its own origin, and Next
+// proxies them to the engine (see next.config rewrites). This means a single
+// public URL (port 3000) is enough for phone/tunnel testing. Set an absolute URL
+// here only if you want the browser to hit the engine cross-origin directly.
+export const ENGINE_URL = process.env.NEXT_PUBLIC_ENGINE_URL ?? '';
 
 export function getToken(): string {
   if (typeof window === 'undefined') return '';

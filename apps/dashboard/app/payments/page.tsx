@@ -10,7 +10,7 @@ import { PageHeader, Card, SectionCard, Select, Input, Button, Badge, EmptyState
 import { Modal, useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
-interface Charge { id: number; contact_id: number; amount: number; currency: string; concept: string; status: string; due_at: number | null; paid_at: number | null; created_at: number; contact_name: string; contact_phone: string; method: string | null }
+interface Charge { id: number; contact_id: number; amount: number; currency: string; concept: string; status: string; due_at: number | null; paid_at: number | null; reminder_count: number; last_reminded_at: number | null; created_at: number; contact_name: string; contact_phone: string; method: string | null }
 interface PaymentNotification { id: number; source: string; provider: string | null; amount: number | null; currency: string; operation_number: string | null; sender_name: string | null; received_at: number; consumed_by_receipt_id: number | null }
 interface Receipt { id: number; media_id: number; charge_id: number | null; contact_name: string; contact_phone: string; provider: string | null; amount: number | null; currency: string | null; date: string | null; operation_number: string | null; sender_name: string | null; recipient_name: string | null; confidence: number | null; outcome: string; reasons: string[]; created_at: number; charge_amount: number | null; charge_currency: string | null; charge_concept: string | null }
 interface Contact { id: number; name: string; phone: string }
@@ -108,6 +108,11 @@ export default function PaymentsPage() {
     catch (err: any) { toast(err.message, 'error'); }
   }
 
+  async function remind(id: number) {
+    try { await api(`/api/charges/${id}/remind`, { method: 'POST', body: JSON.stringify({}) }); toast('Recordatorio enviado', 'success'); load(); }
+    catch (err: any) { toast(err.message, 'error'); }
+  }
+
   return (
     <Shell>
       <div className="mx-auto max-w-4xl p-6 lg:p-8">
@@ -161,23 +166,32 @@ export default function PaymentsPage() {
         <Card className="overflow-hidden">
           {charges.length === 0 ? (
             <div className="p-4"><EmptyState icon={<Wallet size={24} />} title="Sin cobros todavía" desc="Crea uno con “Nuevo cobro”." /></div>
-          ) : charges.map((c) => (
+          ) : charges.map((c) => {
+            const overdue = c.status === 'pending' && c.due_at !== null && c.due_at < Date.now() / 1000;
+            return (
             <div key={c.id} className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5 last:border-0">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-fg">{c.contact_name || c.contact_phone}
                   {c.concept && <span className="ml-2 text-xs font-normal text-subtle">{c.concept}</span>}</div>
-                <div className="tabular text-xs text-subtle">{new Date(c.created_at * 1000).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="tabular flex items-center gap-2 text-xs text-subtle">
+                  <span>{new Date(c.created_at * 1000).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  {c.due_at !== null && <span className={cn(overdue && 'font-medium text-danger')}>· vence {new Date(c.due_at * 1000).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}</span>}
+                  {c.reminder_count > 0 && <span className="inline-flex items-center gap-0.5"><Bell size={11} /> {c.reminder_count}</span>}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2.5">
                 <span className="tabular text-sm font-semibold text-fg">{money(c.amount, c.currency)}</span>
                 {c.status === 'paid' && c.method && <MethodBadge method={c.method} />}
-                <Badge tone={CHARGE_TONE[c.status] ?? 'neutral'}>{CHARGE_LABEL[c.status] ?? c.status}</Badge>
+                <Badge tone={overdue ? 'danger' : CHARGE_TONE[c.status] ?? 'neutral'}>{overdue ? 'Vencido' : CHARGE_LABEL[c.status] ?? c.status}</Badge>
                 {(c.status === 'pending' || c.status === 'review') && (
-                  <button onClick={() => cancelCharge(c.id)} className="text-xs text-subtle transition hover:text-danger">Cancelar</button>
+                  <>
+                    <button onClick={() => remind(c.id)} className="text-xs text-subtle transition hover:text-brand">Recordar</button>
+                    <button onClick={() => cancelCharge(c.id)} className="text-xs text-subtle transition hover:text-danger">Cancelar</button>
+                  </>
                 )}
               </div>
             </div>
-          ))}
+          );})}
         </Card>
 
         {/* Bank notifications */}

@@ -9,7 +9,7 @@ import {
   upsertContactByJid,
 } from '../modules/store.js';
 import { runAiEmployee } from '../ai/employee.js';
-import { handleInboundImage } from './media.js';
+import { handleInboundImage, handleInboundAudio } from './media.js';
 
 const AI_DEBOUNCE_MS = 4000;
 const pendingAi = new Map<number, NodeJS.Timeout>();
@@ -70,6 +70,10 @@ export async function handleInbound(upsert: { messages: WAMessage[]; type: strin
       const claimed = await handleInboundImage(msg, stored, contact, conversation)
         .catch((err) => { logger.error({ err, messageId: stored.id }, 'inbound image handling failed'); return false; });
       if (claimed) continue; // the receipt worker owns the reply — skip the AI debounce
+    } else if (extracted.type === 'audio') {
+      // Store the voice note (best-effort); it never blocks or claims the reply.
+      await handleInboundAudio(msg, stored, contact)
+        .catch((err) => logger.error({ err, messageId: stored.id }, 'inbound audio handling failed'));
     }
 
     await scheduleAiReply(conversation.id);

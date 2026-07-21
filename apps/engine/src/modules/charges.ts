@@ -1,5 +1,6 @@
 import { one, many, none, getAllSettings } from '../db/index.js';
 import { bus } from '../events.js';
+import { recordEvent } from './analytics.js';
 
 export interface Charge {
   id: number;
@@ -12,6 +13,8 @@ export interface Charge {
   due_at: number | null;
   paid_at: number | null;
   receipt_id: number | null;
+  last_reminded_at: number | null;
+  reminder_count: number;
   created_at: number;
 }
 
@@ -68,6 +71,10 @@ export interface PaymentSettings {
   recheckMaxTries: number;
   webhookSecret: string;
   handoffOnReview: boolean;
+  remindersEnabled: boolean;
+  reminderOffsetsHours: string; // raw "24,72"; parsed by reminders.ts
+  overdueAfterHours: number;
+  reminderTemplate: string;
 }
 
 export async function getPaymentSettings(): Promise<PaymentSettings> {
@@ -94,6 +101,10 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
     recheckMaxTries: Number(g('payments_recheck_max_tries', '4')) || 4,
     webhookSecret: g('payments_webhook_secret', ''),
     handoffOnReview: g('payments_handoff_on_review', '1') === '1',
+    remindersEnabled: g('payments_reminders_enabled', '0') === '1',
+    reminderOffsetsHours: g('payments_reminder_offsets_hours', '24,72'),
+    overdueAfterHours: Number(g('payments_overdue_after_hours', '168')) || 168,
+    reminderTemplate: g('payments_reminder_template', 'Hola 👋 Te recordamos que tienes un pago pendiente de {{currency}} {{amount}} ({{concept}}). Cuando lo realices, envíanos tu comprobante por aquí. ¡Gracias!'),
   };
 }
 
@@ -124,6 +135,7 @@ export async function createCharge(input: {
     VALUES ((SELECT business_id FROM contacts WHERE id = $1), $1, $2, $3, $4, $5, $6)
     RETURNING *
   `, [input.contactId, input.amount, input.currency ?? 'PEN', input.concept ?? '', input.dueAt ?? null, input.createdBy ?? 'dashboard']))!;
+  recordEvent('charge.created', { contactId: charge.contact_id, amount: charge.amount, meta: { createdBy: charge.created_by } });
   await emitChargeUpdated(charge.id);
   return charge;
 }
@@ -156,9 +168,37 @@ export async function setChargeStatus(id: number, status: Charge['status']) {
   await emitChargeUpdated(id);
 }
 
+// Businesses that have at least one pending charge with a due date — the set the
+// reminder scheduler needs to sweep. Global (no business scope) on purpose.
+export async function businessesWithDueCharges(): Promise<number[]> {
+  const rows = await many<{ business_id: number }>(
+    `SELECT DISTINCT business_id FROM charges WHERE status = 'pending' AND due_at IS NOT NULL`,
+  );
+  return rows.map((r) => r.business_id);
+}
+
+// Pending, dated charges for the current business — candidates for a reminder or
+// expiry. Scoped by business_id via the caller's context.
+export async function listDueCharges(businessId: number): Promise<Charge[]> {
+  return many<Charge>(
+    `SELECT * FROM charges WHERE business_id = $1 AND status = 'pending' AND due_at IS NOT NULL ORDER BY due_at`,
+    [businessId],
+  );
+}
+
+export async function markReminded(id: number) {
+  await none(
+    `UPDATE charges SET reminder_count = reminder_count + 1, last_reminded_at = (extract(epoch from now())::bigint) WHERE id = $1`,
+    [id],
+  );
+  await emitChargeUpdated(id);
+}
+
 export async function markChargePaid(chargeId: number, receiptId: number) {
   await none(`UPDATE charges SET status = 'paid', paid_at = (extract(epoch from now())::bigint), receipt_id = $1 WHERE id = $2`,
     [receiptId, chargeId]);
+  const charge = await getCharge(chargeId);
+  if (charge) recordEvent('charge.paid', { contactId: charge.contact_id, amount: charge.amount, meta: { method: 'manual' } });
   await emitChargeUpdated(chargeId);
 }
 

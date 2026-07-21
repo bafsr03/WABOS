@@ -17,6 +17,7 @@ import {
   type Charge, type Receipt, type PaymentSettings,
 } from '../modules/charges.js';
 import { findMatchingNotification, consumeNotification } from '../modules/payment-notifications.js';
+import { recordEvent } from '../modules/analytics.js';
 
 const ACK_MESSAGE = 'Recibimos tu comprobante, lo estamos validando ✅';
 
@@ -32,6 +33,7 @@ function renderTemplate(template: string, charge: Charge): string {
 }
 
 async function sendToReview(receipt: Receipt, reasons: string[], charge: Charge | null, settings: PaymentSettings) {
+  recordEvent('receipt.review', { contactId: receipt.contact_id, meta: { reasons } });
   await setReceiptOutcome(receipt.id, 'review', reasons, charge ? charge.id : undefined);
   if (charge && charge.status === 'pending') await setChargeStatus(charge.id, 'review');
   if (settings.handoffOnReview) await setConversationMode(receipt.conversation_id, 'human'); // let the owner take over
@@ -179,6 +181,8 @@ async function confirmPaymentAtomically(
         [receipt.id, charge.id],
       );
     });
+    recordEvent('charge.paid', { contactId: charge.contact_id, amount: charge.amount, meta: { method } });
+    recordEvent('receipt.verified', { contactId: charge.contact_id, amount: charge.amount, meta: { method } });
     await emitChargeUpdated(charge.id);
     return { ok: true };
   } catch (err: any) {
@@ -232,6 +236,7 @@ export async function approveReceipt(receiptId: number): Promise<{ ok: boolean; 
     throw err;
   }
   await markChargePaid(charge.id, receipt.id);
+  recordEvent('receipt.verified', { contactId: receipt.contact_id, amount: charge.amount, meta: { method: 'manual' } });
   await sendText({
     conversationId: receipt.conversation_id,
     text: renderTemplate((await getPaymentSettings()).confirmationTemplate, charge),

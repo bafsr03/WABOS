@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — App nativa (build iOS + Android con Capacitor)</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--brand:#5b4bff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#5b21b6);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1040px;margin:0 auto}.hero h1{margin:0;font-size:32px}.hero p{margin:10px 0 0;color:#ddd6fe;max-width:820px}
+.hero .pill{display:inline-block;margin-top:14px;font-size:12.5px;font-weight:700;background:rgba(255,255,255,.14);padding:5px 12px;border-radius:999px}
+.layout{max-width:1040px;margin:0 auto;display:grid;grid-template-columns:240px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);border-color:var(--brand)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:12.5px}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}th{background:#f1f5f9}
+td:first-child{white-space:nowrap;font-weight:600;color:var(--brand)}
+.callout{border-left:4px solid var(--brand);background:#f5f3ff;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.wa{border-color:var(--wa);background:#f0fdf4}
+.card{border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;background:var(--card)}
+.card h3{margin-top:0}
+.os{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;margin-right:8px}
+.os.a{background:#ecfdf5;color:#047857}.os.i{background:#eff6ff;color:#1d4ed8}
+.diagram{background:#0f172a;color:#cbd5e1;padding:16px;border-radius:12px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;white-space:pre;overflow:auto}
+.step{counter-increment:s;position:relative;padding-left:34px;margin:14px 0}
+.step::before{content:counter(s);position:absolute;left:0;top:-2px;width:24px;height:24px;background:var(--brand);color:#fff;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700}
+.steps{counter-reset:s}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1040px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="mobile-testing.html">PWA</a>
+  <a href="mobile-native-build.html" class="active">App nativa</a>
+  <a href="v2-roadmap.html">v2</a>
+</div>
+
+<div class="hero">
+  <div class="wrap">
+    <h1>📦 App nativa — build para iOS y Android</h1>
+    <p>Empaqueta WABOS como apps reales para la App Store y Google Play con <strong>Capacitor</strong>, con notificaciones push nativas (APNs/FCM). El proyecto vive en <code>apps/mobile</code>.</p>
+    <span class="pill">Carga el dashboard desplegado (server.url) → los cambios web se publican sin re-subir a la tienda</span>
+  </div>
+</div>
+
+<div class="layout">
+<nav class="toc">
+  <a href="#como-funciona">Cómo funciona</a>
+  <a href="#requisitos">Requisitos</a>
+  <a href="#configurar">1 · Apuntar a tu dashboard</a>
+  <a href="#plataformas">2 · Agregar iOS/Android</a>
+  <a href="#correr">3 · Correr en el dispositivo</a>
+  <a href="#push">4 · Push nativo (Firebase)</a>
+  <a href="#iconos">5 · Íconos y splash</a>
+  <a href="#publicar">6 · Publicar en las tiendas</a>
+  <a href="#actualizar">Actualizar la app</a>
+  <a href="#troubleshooting">Solución de problemas</a>
+</nav>
+
+<main>
+
+<h2 id="como-funciona">Cómo funciona</h2>
+<p>La app nativa es una cáscara <strong>Capacitor</strong> que <strong>carga tu dashboard desplegado</strong>
+(la web Next.js) dentro de un WebView nativo, más plugins nativos para lo que un navegador no puede hacer bien:
+push confiable (APNs/FCM), barra de estado tipo <em>glass</em>, splash, y el botón atrás de Android.</p>
+<div class="diagram">apps/mobile (Capacitor)  ── carga ──▶  tu dashboard desplegado (server.url)
+   ├─ ios/       (Xcode)               + push nativo (APNs vía FCM)
+   └─ android/   (Android Studio)      + barra de estado, splash, botón atrás
+
+El dashboard trae un "puente nativo" (components/NativeBridge.tsx) que se activa
+SOLO dentro de la app (Capacitor.isNativePlatform()); en un navegador normal no hace nada.</div>
+<div class="callout"><strong>Por qué server.url y no empaquetar:</strong> WABOS es un inbox en vivo — siempre
+necesita conexión. Cargar la web desplegada significa que <strong>cada cambio de la web se publica al
+instante</strong>, sin recompilar ni volver a pasar por revisión de la tienda. Solo recompilas cuando cambian
+cosas nativas (plugins, permisos, íconos).</div>
+
+<h2 id="requisitos">Requisitos</h2>
+<table>
+  <thead><tr><th>Para…</th><th>Necesitas</th></tr></thead>
+  <tbody>
+    <tr><td>iOS</td><td>Mac + <strong>Xcode</strong> + CocoaPods (<code>sudo gem install cocoapods</code>) + cuenta Apple Developer ($99/año) para publicar</td></tr>
+    <tr><td>Android</td><td><strong>Android Studio</strong> (incluye el SDK) + una cuenta Google Play ($25 única vez) para publicar</td></tr>
+    <tr><td>Push</td><td>Un proyecto de <strong>Firebase</strong> (gratis) + una llave APNs de Apple (para iOS)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="configurar">1 · Apunta la app a tu dashboard</h2>
+<p>La app carga la URL que le des en <code>WABOS_APP_URL</code>. Úsala con tu dominio de producción, o con un
+túnel de Cloudflare para probar (ver la <a href="mobile-testing.html">guía PWA</a>).</p>
+<pre><code># Instala dependencias del monorepo si aún no lo hiciste
+pnpm install
+
+# Elige a dónde apunta la app (producción o túnel de pruebas)
+export WABOS_APP_URL=https://app.wabos.pe
+# export WABOS_APP_URL=https://&lt;tu&gt;.trycloudflare.com   # para probar</code></pre>
+<div class="callout warn">El dashboard y el motor deben estar accesibles por <strong>HTTPS</strong> desde el
+teléfono. Igual que la PWA, un <code>http://IP-local</code> no sirve.</div>
+
+<h2 id="plataformas">2 · Agrega las plataformas nativas</h2>
+<p>Estas carpetas (<code>ios/</code>, <code>android/</code>) se generan localmente y están en
+<code>.gitignore</code> por defecto. Desde <code>apps/mobile</code>:</p>
+<pre><code>cd apps/mobile
+
+# iOS (requiere Mac + Xcode + CocoaPods)
+pnpm add:ios
+
+# Android (requiere Android Studio / SDK)
+pnpm add:android
+
+# Copia la config + web a los proyectos nativos
+WABOS_APP_URL=$WABOS_APP_URL pnpm sync</code></pre>
+<p><code>pnpm sync</code> es <code>cap sync</code>: reaplica <code>capacitor.config.ts</code> (incluida tu
+<code>WABOS_APP_URL</code>) y los plugins a ambos proyectos. Ejecútalo cada vez que cambies la config o agregues
+un plugin.</p>
+
+<h2 id="correr">3 · Corre en un dispositivo</h2>
+<div class="card">
+  <h3><span class="os i">iOS</span></h3>
+  <div class="steps">
+    <div class="step">Abre el proyecto: <code>pnpm open:ios</code> (abre Xcode).</div>
+    <div class="step">En Xcode, selecciona el target <strong>App</strong> → pestaña <strong>Signing &amp; Capabilities</strong> → elige tu <strong>Team</strong> (tu Apple ID). Xcode genera el perfil de firma.</div>
+    <div class="step">Conecta un iPhone (o elige un simulador), presiona <strong>▶ Run</strong>.</div>
+    <div class="step">La primera vez en un iPhone físico: en el teléfono, Ajustes → General → VPN y gestión de dispositivos → confía en tu perfil de desarrollador.</div>
+  </div>
+</div>
+<div class="card">
+  <h3><span class="os a">Android</span></h3>
+  <div class="steps">
+    <div class="step">Abre el proyecto: <code>pnpm open:android</code> (abre Android Studio).</div>
+    <div class="step">Deja que Gradle sincronice. Conecta un teléfono con <strong>depuración USB</strong> activada (o crea un emulador).</div>
+    <div class="step">Presiona <strong>▶ Run</strong>.</div>
+  </div>
+</div>
+<p>Deberías ver WABOS a pantalla completa, cargando tu dashboard, con la barra de estado integrada y el botón
+atrás de Android funcionando.</p>
+
+<h2 id="push">4 · Notificaciones push nativas (Firebase)</h2>
+<p>El push nativo va por <strong>Firebase Cloud Messaging (FCM)</strong>, que entrega a Android directo y a iOS
+vía APNs. Sin esto la app funciona igual, pero no llegan notificaciones nativas (queda apagado, como la PWA sin
+llaves VAPID).</p>
+
+<h3>a) Proyecto Firebase</h3>
+<div class="steps">
+  <div class="step">Crea un proyecto en <a href="https://console.firebase.google.com">console.firebase.google.com</a>.</div>
+  <div class="step"><strong>Android:</strong> agrega una app Android con el package <code>pe.wabos.app</code>, descarga <code>google-services.json</code> y colócalo en <code>apps/mobile/android/app/google-services.json</code>.</div>
+  <div class="step"><strong>iOS:</strong> agrega una app iOS con el bundle id <code>pe.wabos.app</code>, descarga <code>GoogleService-Info.plist</code> y arrástralo dentro de <code>apps/mobile/ios/App/App/</code> en Xcode.</div>
+  <div class="step"><strong>iOS — APNs:</strong> en Apple Developer crea una <em>APNs Auth Key</em> (.p8) y súbela en Firebase → Configuración del proyecto → Cloud Messaging → Apple app configuration. En Xcode, target App → Signing &amp; Capabilities → <strong>+ Capability → Push Notifications</strong> (y <em>Background Modes → Remote notifications</em>).</div>
+</div>
+
+<h3>b) Credenciales del motor (envío)</h3>
+<p>En Firebase → Configuración del proyecto → <strong>Cuentas de servicio</strong> → <em>Generar nueva clave
+privada</em> (descarga un JSON). Copia tres valores a <code>apps/engine/.env</code>:</p>
+<pre><code>FCM_PROJECT_ID=tu-proyecto           # "project_id" del JSON
+FCM_CLIENT_EMAIL=firebase-adminsdk-...@tu-proyecto.iam.gserviceaccount.com   # "client_email"
+FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"   # "private_key" (con los \n)</code></pre>
+<p>Reinicia el motor. En el arranque registra <code>web push dispatcher started</code> (ahora también cubre
+FCM). El motor envía a <strong>ambos</strong> transportes: web-push (navegadores/PWA) y FCM (apps nativas).</p>
+<div class="callout wa">No hace falta tocar código del motor: el remitente FCM (<code>modules/fcm.ts</code>) y el
+almacén de tokens (<code>device_tokens</code>) ya están integrados en <code>sendPush()</code>. El puente del
+dashboard registra el token del dispositivo automáticamente tras iniciar sesión.</div>
+
+<h3>c) Probar</h3>
+<p>Abre la app, inicia sesión, acepta el permiso de notificaciones. Luego dispara un evento (un cliente escribe,
+o un comprobante entra a revisión) — debe llegar una notificación nativa. Los eventos que disparan push:
+mensaje nuevo entrante, comprobante por revisar, y pago confirmado.</p>
+
+<h2 id="iconos">5 · Íconos y pantalla de splash</h2>
+<p>Pon un <code>icon.png</code> (1024×1024) y un <code>splash.png</code> (2732×2732) en
+<code>apps/mobile/resources/</code> y genera todos los tamaños:</p>
+<pre><code>cd apps/mobile
+npx @capacitor/assets generate --iconBackgroundColor '#5b4bff' --splashBackgroundColor '#5b4bff'</code></pre>
+<p>El color de marca es <strong>Electric Indigo <code>#5b4bff</code></strong> (definido también en
+<code>capacitor.config.ts</code> para el splash).</p>
+
+<h2 id="publicar">6 · Publicar en las tiendas</h2>
+<div class="card">
+  <h3><span class="os i">App Store</span></h3>
+  <div class="steps">
+    <div class="step">En Xcode: Product → Archive → distribuir a App Store Connect.</div>
+    <div class="step">En <a href="https://appstoreconnect.apple.com">App Store Connect</a>, crea la ficha (nombre, capturas, privacidad) y envía a revisión.</div>
+    <div class="step">Apple exige funcionalidad nativa real (la tenemos: push + integración nativa), así que no cae en la regla “solo una web”.</div>
+  </div>
+</div>
+<div class="card">
+  <h3><span class="os a">Google Play</span></h3>
+  <div class="steps">
+    <div class="step">En Android Studio: Build → Generate Signed Bundle / APK → <strong>Android App Bundle (.aab)</strong> (crea/usa un keystore y <strong>guárdalo</strong> — lo necesitas para cada actualización).</div>
+    <div class="step">Sube el <code>.aab</code> en <a href="https://play.google.com/console">Play Console</a>, completa la ficha y publica.</div>
+  </div>
+</div>
+
+<h2 id="actualizar">Actualizar la app</h2>
+<table>
+  <thead><tr><th>Cambiaste…</th><th>Qué hacer</th></tr></thead>
+  <tbody>
+    <tr><td>Solo la web (dashboard)</td><td><strong>Nada en las tiendas.</strong> Despliega la web; la app carga la versión nueva sola.</td></tr>
+    <tr><td>capacitor.config / plugins / permisos</td><td><code>pnpm sync</code> → recompila y sube una versión nueva a la tienda.</td></tr>
+    <tr><td>Cambió <code>WABOS_APP_URL</code></td><td><code>WABOS_APP_URL=… pnpm sync</code> y recompila.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="troubleshooting">Solución de problemas</h2>
+<ul>
+  <li><strong>La app abre en blanco</strong> — <code>WABOS_APP_URL</code> no estaba puesto al hacer <code>pnpm sync</code>, o el dashboard no es accesible por HTTPS. Verás la pantalla de fallback “Configura la URL…”. Reexporta la variable y vuelve a sincronizar.</li>
+  <li><strong>iOS no compila / falta Pods</strong> — instala CocoaPods (<code>sudo gem install cocoapods</code>) y corre <code>pnpm sync</code> otra vez.</li>
+  <li><strong>Android: “SDK location not found”</strong> — abre el proyecto una vez en Android Studio para que escriba <code>local.properties</code>, o define <code>ANDROID_HOME</code>.</li>
+  <li><strong>No llegan push nativas</strong> — confirma: (1) <code>google-services.json</code> / <code>GoogleService-Info.plist</code> en su lugar; (2) capacidad Push + APNs key subida a Firebase (iOS); (3) <code>FCM_*</code> en el <code>.env</code> del motor y motor reiniciado; (4) iniciaste sesión en la app y aceptaste el permiso.</li>
+  <li><strong>El botón atrás cierra la app</strong> — es lo esperado en la raíz; dentro de una vista hace <em>history.back()</em>.</li>
+  <li><strong>Cambié la web pero la app muestra lo viejo</strong> — el WebView cachea; fuerza cierre de la app y reábrela, o despliega con un cache-bust.</li>
+</ul>
+
+</main>
+</div>
+
+<footer>WABOS — WhatsApp Business Operating System · guía de build de la app nativa (Capacitor)</footer>
+</body>
+</html>

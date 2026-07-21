@@ -1,6 +1,7 @@
 import { one, many, none } from '../db/index.js';
 import { bus } from '../events.js';
 import { currentBusinessId } from '../context.js';
+import { recordEvent } from './analytics.js';
 
 export interface Contact {
   id: number; jid: string; phone: string; name: string; notes: string; created_at: number;
@@ -88,6 +89,10 @@ export async function insertMessage(msg: {
     [ts, unreadDelta, msg.conversationId]);
 
   const row = (await one<Message>('SELECT * FROM messages WHERE id = $1', [inserted.id]))!;
+  recordEvent(msg.direction === 'in' ? 'message.in' : 'message.out', {
+    meta: { conversationId: msg.conversationId, fromAi: Boolean(msg.fromAi), type: msg.type ?? 'text' },
+  });
+  if (msg.direction === 'out' && msg.fromAi) recordEvent('ai.reply', { meta: { conversationId: msg.conversationId } });
   bus.emitEvent({ type: 'message.new', conversationId: msg.conversationId, message: row });
   bus.emitEvent({ type: 'conversation.updated', conversation: await getConversation(msg.conversationId) });
   return row;

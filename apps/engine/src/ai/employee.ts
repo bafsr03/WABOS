@@ -152,8 +152,8 @@ export async function runAiEmployee(conversationId: number, routeDepth = 0, deli
   const routable = await getRoutableAgents(agent.id);
   const ctx: ToolContext = { conversation, handedOff: false, routable, routedToAgentId: null };
   const messages: Anthropic.MessageParam[] = [...turns];
-  const tools = buildToolDefinitions(routable);
   const s = await getAllSettings();
+  const tools = buildToolDefinitions(routable, { canCharge: s.payments_ai_charges_enabled === '1' });
   let replyText = '';
 
   // Cache the stable per-agent block so repeat turns read it at ~0.1x instead of

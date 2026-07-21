@@ -11,12 +11,19 @@ import { createReceipt, getPaymentSettings, listPendingCharges, type MediaRow } 
 import { enqueueJob, pokePoller } from '../jobs/queue.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
+  'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'aac',
+  'audio/amr': 'amr',
+  'audio/wav': 'wav',
 };
 
 function unwrapImage(message: proto.IMessage | null | undefined): proto.Message.IImageMessage | null {
@@ -25,6 +32,30 @@ function unwrapImage(message: proto.IMessage | null | undefined): proto.Message.
   if (message.ephemeralMessage) return unwrapImage(message.ephemeralMessage.message);
   if (message.viewOnceMessage) return unwrapImage(message.viewOnceMessage.message);
   return null;
+}
+
+function unwrapAudio(message: proto.IMessage | null | undefined): proto.Message.IAudioMessage | null {
+  if (!message) return null;
+  if (message.audioMessage) return message.audioMessage;
+  if (message.ephemeralMessage) return unwrapAudio(message.ephemeralMessage.message);
+  if (message.viewOnceMessage) return unwrapAudio(message.viewOnceMessage.message);
+  return null;
+}
+
+// Content-addressed storage: write the buffer under mediaDir/<year>/<month>/<sha>.<ext>
+// (deduped by sha256) and insert a media row. Returns the new media id.
+async function storeMedia(buffer: Buffer, mime: string, messageId: number, ext: string): Promise<number> {
+  const sha256 = createHash('sha256').update(buffer).digest('hex');
+  const now = new Date();
+  const relDir = path.join(String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
+  const relPath = path.join(relDir, `${sha256}.${ext}`);
+  const absPath = path.join(config.mediaDir, relPath);
+  fs.mkdirSync(path.dirname(absPath), { recursive: true });
+  if (!fs.existsSync(absPath)) fs.writeFileSync(absPath, buffer);
+  const { id } = (await one<{ id: number }>(`
+    INSERT INTO media (message_id, mime, path, size_bytes, sha256) VALUES ($1, $2, $3, $4, $5) RETURNING id
+  `, [messageId, mime, relPath, buffer.length, sha256]))!;
+  return id;
 }
 
 // Downloads and stores an inbound image, then queues it for receipt
@@ -57,17 +88,7 @@ export async function handleInboundImage(
   }
 
   const mime = image.mimetype ?? 'image/jpeg';
-  const sha256 = createHash('sha256').update(buffer).digest('hex');
-  const now = new Date();
-  const relDir = path.join(String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
-  const relPath = path.join(relDir, `${sha256}.${EXT_BY_MIME[mime] ?? 'jpg'}`);
-  const absPath = path.join(config.mediaDir, relPath);
-  fs.mkdirSync(path.dirname(absPath), { recursive: true });
-  if (!fs.existsSync(absPath)) fs.writeFileSync(absPath, buffer);
-
-  const { id: mediaId } = (await one<{ id: number }>(`
-    INSERT INTO media (message_id, mime, path, size_bytes, sha256) VALUES ($1, $2, $3, $4, $5) RETURNING id
-  `, [stored.id, mime, relPath, buffer.length, sha256]))!;
+  const mediaId = await storeMedia(buffer, mime, stored.id, EXT_BY_MIME[mime] ?? 'jpg');
 
   const receipt = await createReceipt({
     mediaId,
@@ -86,6 +107,38 @@ export async function handleInboundImage(
   });
   pokePoller();
   logger.info({ mediaId, receiptId: receipt.id, contactId: contact.id }, 'inbound image queued for receipt verification');
+  return true;
+}
+
+// Downloads and stores an inbound voice note / audio message. Store-only (no
+// transcription yet) — it makes the audio playable in the inbox and available
+// for future features. Returns true when stored.
+export async function handleInboundAudio(msg: WAMessage, stored: Message, contact: Contact): Promise<boolean> {
+  const audio = unwrapAudio(msg.message);
+  if (!audio) return false;
+
+  const declaredSize = Number(audio.fileLength ?? 0);
+  if (declaredSize > MAX_AUDIO_BYTES) {
+    logger.warn({ messageId: stored.id, declaredSize }, 'inbound audio too large, skipping download');
+    return false;
+  }
+
+  const buffer = await downloadMediaMessage(msg, 'buffer', {});
+  if (buffer.length > MAX_AUDIO_BYTES) {
+    logger.warn({ messageId: stored.id, size: buffer.length }, 'inbound audio too large after download');
+    return false;
+  }
+
+  const mime = (audio.mimetype ?? 'audio/ogg').split(';')[0]; // strip "; codecs=opus"
+  const mediaId = await storeMedia(buffer, mime, stored.id, EXT_BY_MIME[mime] ?? 'ogg');
+  bus.emitInternal({
+    type: 'media.received',
+    mediaId,
+    messageId: stored.id,
+    conversationId: stored.conversation_id,
+    contactId: contact.id,
+  });
+  logger.info({ mediaId, messageId: stored.id }, 'inbound audio stored');
   return true;
 }
 

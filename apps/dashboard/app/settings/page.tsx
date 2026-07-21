@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, type LucideIcon } from 'lucide-react';
+import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -199,6 +199,42 @@ export default function SettingsPage() {
               <Switch checked={settings.payments_auto_confirm === '1'} onChange={(v) => set('payments_auto_confirm', v ? '1' : '0')} label="Auto-confirmar" />
             </div>
             <div className="mt-4"><Button>Guardar pagos</Button></div>
+          </SectionCard>
+        </form>
+
+        {/* Collections: reminders + AI charges */}
+        <form onSubmit={save}>
+          <SectionCard title="Cobranza automática" desc="WABOS recuerda los pagos pendientes y marca los vencidos por ti.">
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-4 py-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-fg"><Bell size={14} /> Enviar recordatorios de pago</div>
+                <p className="text-xs text-muted">Para cobros con fecha de vencimiento, WABOS envía recordatorios por WhatsApp según el calendario de horas.</p>
+              </div>
+              <Switch checked={settings.payments_reminders_enabled === '1'} onChange={(v) => set('payments_reminders_enabled', v ? '1' : '0')} label="Recordatorios" />
+            </div>
+            {settings.payments_reminders_enabled === '1' && (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Horas tras el vencimiento" hint="Separadas por coma. Ej. 24,72 recuerda al día y a los 3 días.">
+                  <Input value={settings.payments_reminder_offsets_hours ?? '24,72'} onChange={(e) => set('payments_reminder_offsets_hours', e.target.value)} placeholder="24,72" />
+                </Field>
+                <Field label="Marcar vencido tras (horas)" hint="Pasado este tiempo el cobro pasa a 'Vencido'.">
+                  <Input type="number" min="1" value={settings.payments_overdue_after_hours ?? '168'} onChange={(e) => set('payments_overdue_after_hours', e.target.value)} placeholder="168" />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Mensaje del recordatorio" hint="Usa {{amount}}, {{currency}} y {{concept}}.">
+                    <Textarea rows={2} value={settings.payments_reminder_template ?? ''} onChange={(e) => set('payments_reminder_template', e.target.value)} placeholder="Hola 👋 Te recordamos que tienes un pago pendiente de {{currency}} {{amount}} ({{concept}})…" />
+                  </Field>
+                </div>
+              </div>
+            )}
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-4 py-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-fg"><Wallet size={14} /> Permitir que la IA genere cobros</div>
+                <p className="text-xs text-muted">La IA podrá registrar un cobro durante la conversación y compartir tus datos de Yape/Plin cuando cierre una venta.</p>
+              </div>
+              <Switch checked={settings.payments_ai_charges_enabled === '1'} onChange={(v) => set('payments_ai_charges_enabled', v ? '1' : '0')} label="IA cobra" />
+            </div>
+            <div className="mt-4"><Button>Guardar cobranza</Button></div>
           </SectionCard>
         </form>
 

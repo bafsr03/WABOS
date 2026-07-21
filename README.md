@@ -4,7 +4,7 @@
 
 WABOS is a **multi-tenant** WhatsApp Business platform: users register an account, link a WhatsApp Business number via QR (Baileys), get every conversation in a realtime inbox, and let purpose-built **AI agents** (Claude) answer customers using the business profile, FAQs, catalog, and a structured knowledge base — plus CRM, throttled tag-segmented broadcasts, and a payment-verification pipeline.
 
-📖 **Full manual: [docs/MANUAL.md](docs/MANUAL.md)** · **v2 build status & roadmap: [docs/v2-roadmap.html](docs/v2-roadmap.html)**
+📖 **Full manual: [docs/MANUAL.md](docs/MANUAL.md)** · **v2 build status & roadmap: [docs/v2-roadmap.html](docs/v2-roadmap.html)** · **📱 Mobile: [PWA install & test](docs/mobile-testing.html) · [native app build (iOS/Android)](docs/mobile-native-build.html)**
 
 ## Architecture
 

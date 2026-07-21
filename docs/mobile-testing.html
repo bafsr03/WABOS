@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Instalar y probar la app móvil (Android / iPhone)</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--brand:#5b4bff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#5b21b6);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1040px;margin:0 auto}.hero h1{margin:0;font-size:32px}.hero p{margin:10px 0 0;color:#ddd6fe;max-width:820px}
+.hero .pill{display:inline-block;margin-top:14px;font-size:12.5px;font-weight:700;background:rgba(255,255,255,.14);padding:5px 12px;border-radius:999px}
+.layout{max-width:1040px;margin:0 auto;display:grid;grid-template-columns:230px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);border-color:var(--brand)}
+main{min-width:0}
+main h2{font-size:23px;margin:38px 0 10px;padding-top:8px;border-top:1px solid var(--line)}main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:12.5px}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}th{background:#f1f5f9}
+td:first-child{white-space:nowrap;font-weight:600;color:var(--brand)}
+.callout{border-left:4px solid var(--brand);background:#f5f3ff;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.wa{border-color:var(--wa);background:#f0fdf4}
+.card{border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;background:var(--card)}
+.card h3{margin-top:0}
+.os{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;margin-right:8px}
+.os.a{background:#ecfdf5;color:#047857}.os.i{background:#eff6ff;color:#1d4ed8}
+.diagram{background:#0f172a;color:#cbd5e1;padding:16px;border-radius:12px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;white-space:pre;overflow:auto}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1040px;margin:0 auto}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="MANUAL.md">Manual</a>
+  <a href="v2-roadmap.html">v2</a>
+  <a href="mobile-testing.html" class="active">App móvil</a>
+</div>
+
+<div class="hero">
+  <div class="wrap">
+    <h1>📱 Instalar y probar la app móvil</h1>
+    <p>Cómo instalar WABOS y dejarlo funcionando por completo (incluidas las notificaciones push) en un iPhone y un Android real, antes de publicarlo.</p>
+    <span class="pill">Es una PWA — no se descarga de la App Store ni de Google Play</span>
+  </div>
+</div>
+
+<div class="layout">
+<nav class="toc">
+  <a href="#que-es">Qué es (y qué no)</a>
+  <a href="#https">Por qué necesitas HTTPS</a>
+  <a href="#prereq">Prerrequisitos</a>
+  <a href="#pasos">Paso a paso</a>
+  <a href="#instalar">Instalar en el teléfono</a>
+  <a href="#checklist">Checklist de pruebas</a>
+  <a href="#troubleshooting">Solución de problemas</a>
+  <a href="#produccion">Producción</a>
+</nav>
+
+<main>
+
+<div class="callout wa" id="que-es">
+  <strong>Léelo primero:</strong> la “app móvil” de WABOS es una <strong>PWA</strong> (Progressive Web App),
+  no una app nativa. <strong>No hay nada que descargar de la App Store ni de Google Play.</strong>
+  Se instala directamente desde el navegador del teléfono (“Agregar a inicio”). Una vez instalada abre a
+  pantalla completa, con su propio ícono, una barra de navegación tipo <em>glass</em> y notificaciones push —
+  se siente como una app de tienda para el uso diario, pero sin revisión de tienda, sin la cuota de
+  <code>$99/año</code> de Apple y con actualizaciones instantáneas.
+</div>
+
+<h2 id="https">Por qué no basta con abrir la IP de tu laptop en el teléfono</h2>
+<p>Las PWA requieren un <strong>contexto seguro</strong>. Los <em>service workers</em> (offline + lo que
+recibe las push) y la API de Notificaciones <strong>solo funcionan sobre HTTPS</strong>, o sobre
+<code>http://localhost</code>.</p>
+<ul>
+  <li>En tu laptop, <code>http://localhost:3000</code> es contexto seguro → todo funciona.</li>
+  <li>En tu <strong>teléfono</strong>, <code>http://192.168.x.x:3000</code> <strong>no lo es</strong> → sin instalación, sin push.</li>
+</ul>
+<p>Por eso, para probar en el teléfono necesitas una <strong>URL pública HTTPS</strong>. Lo más fácil (y ya
+usado en este proyecto para los webhooks de facturación) es un <strong>túnel de Cloudflare</strong>: sin cuenta,
+sin configuración, un comando. Correremos <strong>dos</strong> túneles: uno para el motor y otro para el dashboard.</p>
+<div class="diagram">Teléfono  ──HTTPS──▶  Cloudflare  ──▶  tu laptop
+                                     ├─ dashboard :3000  (la app que instalas)
+                                     └─ engine    :4000  (API + WhatsApp + push)</div>
+
+<h2 id="prereq">Prerrequisitos (una sola vez)</h2>
+<ol>
+  <li><strong>Instala cloudflared</strong> (omite si ya lo tienes):
+    <pre><code>brew install cloudflared</code></pre>
+  </li>
+  <li><strong>Genera las llaves de web-push (VAPID)</strong> — la push está <em>apagada</em> hasta que existan:
+    <pre><code>cd ~/Desktop/WABOS/apps/engine
+npx web-push generate-vapid-keys</code></pre>
+    Copia las dos llaves que imprime en <code>apps/engine/.env</code>:
+    <pre><code>VAPID_PUBLIC_KEY=BAbc...           # la "Public Key"
+VAPID_PRIVATE_KEY=xyz...           # la "Private Key"
+VAPID_SUBJECT=mailto:tu@dominio.com</code></pre>
+  </li>
+</ol>
+
+<h2 id="pasos">Paso a paso</h2>
+<p>Abre <strong>cinco pestañas de terminal</strong>. Deja cada una corriendo.</p>
+
+<h3>Tab 1 — Postgres (arranca primero)</h3>
+<pre><code>cd ~/Desktop/WABOS/apps/engine && pnpm pg:dev</code></pre>
+
+<h3>Tab 2 — Motor (engine)</h3>
+<pre><code>cd ~/Desktop/WABOS/apps/engine && pnpm dev</code></pre>
+<p>Espera <code>API listening on http://localhost:4000</code>.</p>
+
+<h3>Tab 3 — Dashboard</h3>
+<pre><code>cd ~/Desktop/WABOS/apps/dashboard && pnpm dev</code></pre>
+
+<h3>Tab 4 — Túnel del motor</h3>
+<pre><code>cloudflared tunnel --url http://localhost:4000</code></pre>
+<p>Imprime una URL como <code>https://cold-lake-1234.trycloudflare.com</code>. Llámala <strong><code>ENGINE_URL</code></strong>.</p>
+
+<h3>Tab 5 — Túnel del dashboard</h3>
+<pre><code>cloudflared tunnel --url http://localhost:3000</code></pre>
+<p>Imprime otra URL, p. ej. <code>https://green-sky-5678.trycloudflare.com</code>. Llámala
+<strong><code>APP_URL</code></strong> — este es el enlace que abres en tus teléfonos.</p>
+
+<h3>Apunta la app al túnel del motor</h3>
+<p>El dashboard (corriendo en tu teléfono) debe alcanzar el motor por su URL <strong>pública</strong>, no
+<code>localhost</code>. Edita <code>apps/dashboard/.env.local</code>:</p>
+<pre><code>NEXT_PUBLIC_ENGINE_URL=https://cold-lake-1234.trycloudflare.com   # tu ENGINE_URL</code></pre>
+<p>Luego <strong>reinicia la Tab 3</strong> (el dashboard) para que tome el cambio.</p>
+<div class="callout">CORS ya es permisivo en desarrollo (el motor deja <code>ALLOWED_ORIGIN</code> sin definir), así
+que no necesitas configurar nada más para que el teléfono hable con el motor.</div>
+
+<h3>Conecta un número de WhatsApp</h3>
+<p>En tu laptop, abre <code>APP_URL</code>, inicia sesión (o regístrate) y ve a <strong>Conexión</strong> →
+escanea el QR desde el teléfono del negocio (WhatsApp → Dispositivos vinculados). Es el mismo flujo de siempre;
+no cambia para móvil.</p>
+
+<h2 id="instalar">Instalar en el teléfono</h2>
+
+<div class="card">
+  <h3><span class="os a">Android</span> Chrome</h3>
+  <ol>
+    <li>Abre <strong><code>APP_URL</code></strong> en <strong>Chrome</strong>.</li>
+    <li>Inicia sesión. En un momento aparece el banner <strong>“Instalar”</strong> de WABOS sobre la barra
+      inferior — tócalo → <strong>Instalar</strong>. (O usa el menú ⋮ de Chrome → <strong>Instalar app / Agregar a pantalla de inicio</strong>.)</li>
+    <li>Abre WABOS desde tu pantalla de inicio — arranca a pantalla completa.</li>
+    <li>Toca <strong>“Notificaciones”</strong> en el banner (o el diálogo) y <strong>Permitir</strong>.</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3><span class="os i">iPhone</span> Safari (tiene que ser Safari, no Chrome)</h3>
+  <ol>
+    <li>Abre <strong><code>APP_URL</code></strong> en <strong>Safari</strong>.</li>
+    <li>Inicia sesión.</li>
+    <li>Toca el ícono <strong>Compartir</strong> (□↑) → baja → <strong>Agregar a inicio</strong> → <strong>Agregar</strong>.
+      <em>(iOS solo instala PWA desde el menú Compartir de Safari — el banner dentro de la app también muestra esta pista.)</em></li>
+    <li><strong>Abre WABOS desde el ícono de la pantalla de inicio</strong> (no desde Safari). Esto importa: iOS
+      solo permite notificaciones para una PWA abierta desde el inicio.</li>
+    <li>Toca <strong>“Notificaciones”</strong> y <strong>Permitir</strong>. <em>(Requiere iOS 16.4 o superior.)</em></li>
+  </ol>
+</div>
+
+<h2 id="checklist">Checklist de pruebas</h2>
+<p>Con WABOS instalado en el teléfono y un cliente escribiendo a tu número conectado:</p>
+<table>
+  <thead><tr><th>#</th><th>Qué probar</th><th>Cómo</th><th>Resultado esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Instalación / standalone</td><td>Abrir desde el ícono de inicio</td><td>Pantalla completa, sin barras del navegador, nav glass abajo</td></tr>
+    <tr><td>2</td><td>Push: mensaje nuevo</td><td>Que el cliente escriba con la app en segundo plano</td><td>Notificación “Nuevo mensaje”; al tocarla abre el inbox</td></tr>
+    <tr><td>3</td><td>Push: comprobante por revisar</td><td>El cliente envía una captura Yape/Plin de un cobro</td><td>Notificación “Comprobante por revisar”</td></tr>
+    <tr><td>4</td><td>Push: pago confirmado</td><td>Aprobar / auto-verificar ese comprobante</td><td>Notificación “Pago confirmado ✅”</td></tr>
+    <tr><td>5</td><td>Recordatorios</td><td>En <strong>Ajustes → Cobranza automática</strong> activa recordatorios (offset p. ej. <code>0</code>) y crea un cobro con vencimiento en el pasado</td><td>El cliente recibe un recordatorio por WhatsApp; el cobro muestra un 🔔, y pasa a <strong>Vencido</strong> tras la ventana</td></tr>
+    <tr><td>6</td><td>Cobros por IA</td><td>En <strong>Ajustes → Cobranza automática</strong> activa “Permitir que la IA genere cobros”, luego como cliente de prueba pide comprar algo</td><td>La IA registra un cobro y comparte tus datos de Yape/Plin</td></tr>
+    <tr><td>7</td><td>Inventario</td><td>En <strong>Catálogo</strong>, pon el stock de un producto en 0 con seguimiento activado</td><td>La IA deja de ofrecerlo; muestra <strong>Agotado</strong></td></tr>
+    <tr><td>8</td><td>Analítica</td><td>Abre <strong>Analítica</strong> tras algo de actividad</td><td>Ingresos, conversión, tiempo de respuesta y búsquedas se llenan</td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><strong>Los recordatorios y los cobros por IA vienen APAGADOS por defecto</strong> —
+actívalos primero en Ajustes (filas 5 y 6), o parecerá que no hacen nada.</div>
+
+<h2 id="troubleshooting">Solución de problemas</h2>
+<ul>
+  <li><strong>No aparece “Instalar” / no hay push en Android</strong> — no estás en HTTPS. Confirma que abriste
+    la <strong><code>APP_URL</code></strong> (el enlace <code>trycloudflare.com</code>), no <code>localhost</code> ni una IP.</li>
+  <li><strong>El iPhone no ofrece notificaciones</strong> — debes (a) estar en iOS 16.4+, (b) haber
+    <strong>Agregado a inicio</strong>, y (c) abrirlo <strong>desde el ícono de inicio</strong>. Las notificaciones desde una pestaña de Safari no están soportadas.</li>
+  <li><strong>La app carga pero sin datos / “Request failed”</strong> — <code>NEXT_PUBLIC_ENGINE_URL</code> sigue
+    apuntando a <code>localhost</code>, o no reiniciaste el dashboard tras editarlo. Debe ser el túnel <strong><code>ENGINE_URL</code></strong>.</li>
+  <li><strong>Next.js dev bloquea el origen del túnel</strong> — si los assets no cargan desde el túnel, agrega el
+    host del túnel a <code>apps/dashboard/next.config.ts</code>:
+    <pre><code>const nextConfig: NextConfig = { allowedDevOrigins: ['*.trycloudflare.com'] };</code></pre>
+    y reinicia el dashboard.</li>
+  <li><strong>Cambiaron las URLs del túnel</strong> — cloudflared genera una <strong>URL nueva en cada reinicio</strong>.
+    Si reinicias la Tab 4 o 5, actualiza <code>NEXT_PUBLIC_ENGINE_URL</code> (y vuelve a abrir la nueva <code>APP_URL</code> en los teléfonos).</li>
+  <li><strong>La push sigue en silencio tras activarla</strong> — confirma que las llaves VAPID están en
+    <code>apps/engine/.env</code> y que <strong>reiniciaste el motor</strong>. Al arrancar, el motor registra
+    <code>web push dispatcher started</code> (bien) o <code>web push not configured</code> (faltan llaves).</li>
+  <li><strong>Versión vieja atascada en el teléfono</strong> — un service worker cachea el shell. Desliza para
+    refrescar, o desinstala y vuelve a agregar a inicio, para forzar la actualización.</li>
+</ul>
+
+<h2 id="produccion">Ir a producción (más adelante)</h2>
+<p>Para usuarios reales no usas túneles — despliegas:</p>
+<ul>
+  <li><strong>Dashboard</strong> → Vercel (Next.js estático). Pon <code>NEXT_PUBLIC_ENGINE_URL</code> al dominio
+    HTTPS público del motor y reconstruye.</li>
+  <li><strong>Motor</strong> → un host persistente (Render/Railway/Fly/VPS) — <strong>no</strong> serverless, porque
+    mantiene sockets de WhatsApp (Baileys) de larga vida. Define <code>ALLOWED_ORIGIN</code> al dominio del
+    dashboard, más las mismas <code>VAPID_*</code> y <code>DATABASE_URL</code> que usas ahora.</li>
+</ul>
+<p>Ambos deben ser HTTPS (lo serán por defecto en esas plataformas), así que la instalación + push funcionan
+igual que a través del túnel.</p>
+
+</main>
+</div>
+
+<footer>WABOS — WhatsApp Business Operating System · guía de prueba de la app móvil (PWA)</footer>
+</body>
+</html>

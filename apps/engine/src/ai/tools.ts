@@ -4,6 +4,25 @@ import { currentBusinessId } from '../context.js';
 import { setConversationMode, type Conversation, type Contact } from '../modules/store.js';
 import { setConversationAgent, type RoutableAgent } from '../modules/agents.js';
 import { searchKnowledge } from '../modules/knowledge.js';
+import { createCharge, getPaymentSettings } from '../modules/charges.js';
+import { recordEvent } from '../modules/analytics.js';
+
+const CREATE_CHARGE_TOOL: Anthropic.Tool = {
+  name: 'create_charge',
+  description:
+    'Register a payment the customer owes and get the business payment details (Yape/Plin) to share with them. ' +
+    'Use it when a purchase is agreed and it is time to collect. After calling it, tell the customer the amount and ' +
+    'the Yape/Plin name and number returned, and ask them to send the payment screenshot here so it can be verified.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      amount: { type: 'number', description: 'Amount to charge, e.g. 50 for S/ 50.00' },
+      concept: { type: 'string', description: 'Short description of what is being charged, e.g. "2 polos azules"' },
+      due_in_hours: { type: 'number', description: 'Optional: hours from now until the payment is due (used for reminders).' },
+    },
+    required: ['amount'],
+  },
+};
 
 const BASE_TOOLS: Anthropic.Tool[] = [
   {
@@ -56,11 +75,12 @@ const BASE_TOOLS: Anthropic.Tool[] = [
 // to, append a self-describing route_to_agent tool whose schema enumerates those
 // agents (slug + what each handles) so the model routes in-context — no separate
 // classifier call. With no siblings, only the base tools are offered.
-export function buildToolDefinitions(routable: RoutableAgent[]): Anthropic.Tool[] {
-  if (routable.length === 0) return BASE_TOOLS;
+export function buildToolDefinitions(routable: RoutableAgent[], opts: { canCharge?: boolean } = {}): Anthropic.Tool[] {
+  const base = opts.canCharge ? [...BASE_TOOLS, CREATE_CHARGE_TOOL] : BASE_TOOLS;
+  if (routable.length === 0) return base;
   const roster = routable.map((a) => `- ${a.slug}: ${a.description || a.name}`).join('\n');
   return [
-    ...BASE_TOOLS,
+    ...base,
     {
       name: 'route_to_agent',
       description:
@@ -89,11 +109,18 @@ export async function executeTool(name: string, input: any, ctx: ToolContext): P
   switch (name) {
     case 'search_catalog': {
       const q = `%${String(input.query ?? '').trim()}%`;
+      // Hide out-of-stock items when the product tracks stock, so the AI never
+      // offers something the business can't sell. Untracked items (stock NULL or
+      // track_stock=0) are always available.
       const rows = await many<{ name: string; description: string; price: number; currency: string }>(
-        'SELECT name, description, price, currency FROM products WHERE business_id = $1 AND active = 1 AND (name ILIKE $2 OR description ILIKE $2) LIMIT 8',
+        `SELECT name, description, price, currency FROM products
+         WHERE business_id = $1 AND active = 1 AND (name ILIKE $2 OR description ILIKE $2)
+           AND NOT (track_stock = 1 AND COALESCE(stock, 0) <= 0)
+         LIMIT 8`,
         [currentBusinessId(), q],
       );
-      if (rows.length === 0) return 'No products matched that search.';
+      recordEvent('catalog.search', { contactId: ctx.conversation.contact_id, meta: { query: String(input.query ?? '').slice(0, 80), hits: rows.length } });
+      if (rows.length === 0) return 'No products matched that search (or matching products are out of stock).';
       return rows.map((p) => `- ${p.name}: ${p.currency} ${p.price.toFixed(2)}${p.description ? ` — ${p.description}` : ''}`).join('\n');
     }
     case 'search_knowledge': {
@@ -103,6 +130,7 @@ export async function executeTool(name: string, input: any, ctx: ToolContext): P
     }
     case 'handoff_to_human': {
       ctx.handedOff = true;
+      recordEvent('handoff', { contactId: ctx.conversation.contact_id, meta: { reason: String(input.reason ?? '').slice(0, 120) } });
       await setConversationMode(ctx.conversation.id, 'human');
       return 'Conversation transferred to a human agent. Say goodbye politely and let the customer know a person will reply soon.';
     }
@@ -116,6 +144,24 @@ export async function executeTool(name: string, input: any, ctx: ToolContext): P
       await setConversationAgent(ctx.conversation.id, target.id);
       ctx.routedToAgentId = target.id;
       return `Conversation routed to "${target.name}". Do not reply further; they will take over.`;
+    }
+    case 'create_charge': {
+      const amount = Number(input.amount);
+      if (!Number.isFinite(amount) || amount <= 0) return 'Invalid amount. Ask the customer to confirm the price and try again.';
+      const concept = String(input.concept ?? '').trim();
+      const dueInHours = Number(input.due_in_hours);
+      const dueAt = Number.isFinite(dueInHours) && dueInHours > 0
+        ? Math.floor(Date.now() / 1000) + Math.round(dueInHours * 3600)
+        : null;
+      const charge = await createCharge({ contactId: ctx.conversation.contact_id, amount, concept, dueAt, createdBy: 'ai' });
+      const s = await getPaymentSettings();
+      const cur = charge.currency === 'PEN' ? 'S/' : charge.currency;
+      const details: string[] = [];
+      if (s.yapeName || s.yapePhone) details.push(`Yape: ${s.yapeName || ''}${s.yapePhone ? ` (${s.yapePhone})` : ''}`.trim());
+      if (s.plinName || s.plinPhone) details.push(`Plin: ${s.plinName || ''}${s.plinPhone ? ` (${s.plinPhone})` : ''}`.trim());
+      const pay = details.length ? details.join(' · ') : 'the business has not configured Yape/Plin yet — hand off to a human to arrange payment';
+      return `Charge created for ${cur} ${amount.toFixed(2)}${concept ? ` (${concept})` : ''}. ` +
+        `Share these payment details with the customer and ask for the payment screenshot: ${pay}.`;
     }
     case 'tag_customer': {
       const tag = String(input.tag ?? '').trim().toLowerCase();

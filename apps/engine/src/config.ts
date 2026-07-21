@@ -60,6 +60,17 @@ export const config = {
   // model. Halves blended cost while keeping quality where it closes sales.
   aiModelDefault: process.env.AI_MODEL_DEFAULT ?? 'claude-haiku-4-5',
   aiModelSales: process.env.AI_MODEL_SALES ?? 'claude-sonnet-5',
+  // Web push (VAPID). Empty keys = push disabled (subscribe endpoint returns 503).
+  // Generate a pair once with `npx web-push generate-vapid-keys`.
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+  vapidSubject: process.env.VAPID_SUBJECT ?? 'mailto:no-reply@wabos.pe',
+  // Firebase Cloud Messaging for native (Capacitor iOS/Android) push. Values come
+  // from a Firebase service-account JSON. Empty = native push disabled. The private
+  // key's newlines may be escaped as \n in the env var; we unescape at load.
+  fcmProjectId: process.env.FCM_PROJECT_ID ?? '',
+  fcmClientEmail: process.env.FCM_CLIENT_EMAIL ?? '',
+  fcmPrivateKey: (process.env.FCM_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
   rootDir,
   dataDir,
   mediaDir: path.join(dataDir, 'media'),

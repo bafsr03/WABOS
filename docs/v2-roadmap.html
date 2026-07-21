@@ -66,8 +66,8 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
 </nav>
 <main>
 
-<h2 id="status">✅ v2 build status <span class="badge-done">updated 2026-07-16</span></h2>
-<div class="callout"><b>Multi-tenancy is live.</b> WABOS now runs on <b>Postgres</b>, with real user accounts, self-serve registration, <b>per-business WhatsApp connections</b>, and plan-tier limits. STAND 120 (the original tenant) runs on the new stack unchanged; a second business can register, get fully-isolated data, and link its own number. The whole v2 headline (§0 and §1 below) shipped.</div>
+<h2 id="status">✅ v2 build status <span class="badge-done">updated 2026-07-20</span></h2>
+<div class="callout"><b>Multi-tenancy is live — and §2/§3 landed too.</b> WABOS runs on <b>Postgres</b>, with real user accounts, self-serve registration, <b>per-business WhatsApp connections</b>, and plan-tier limits. On top of that, the <b>Collections</b> layer (payment reminders, overdue tracking, AI-created charges), <b>inventory</b> (out-of-stock auto-skip), an <b>analytics</b> dashboard, <b>audio media</b> storage, and an installable <b>mobile app</b> (PWA + a Capacitor iOS/Android shell with native push) all shipped. STAND 120 runs on the new stack unchanged.</div>
 
 <table class="status">
 <thead><tr><th>Area</th><th>Status</th><th>What shipped</th></tr></thead>
@@ -82,6 +82,11 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
 <tr><td>D4 · Plan gating</td><td><span class="st-done">Done</span></td><td>Per-tier caps (free = 1 number / 500 contacts / 2 agents) enforced on create → <code>402</code>; CORS lockable via <code>ALLOWED_ORIGIN</code>; per-business webhook resolution by secret.</td></tr>
 <tr><td>Sign in with Google</td><td><span class="st-done">Done</span></td><td>Google Identity Services button + server-side ID-token verification (jose JWKS) → find-or-create user/business. Needs a <code>GOOGLE_CLIENT_ID</code>.</td></tr>
 <tr><td>Account &amp; data deletion</td><td><span class="st-done">Done</span></td><td><code>DELETE /api/account</code> purges the user + all owned businesses (data, agents, settings, socket + creds); dashboard danger zone. Privacy/GDPR-style requirement.</td></tr>
+<tr><td>§2 · Collections</td><td><span class="st-done">Done</span></td><td>Payment <b>reminders</b> + <b>overdue</b> tracking (charges <code>due_at</code>/<code>expired</code> now driven by <code>workers/collections.ts</code>); pure rules in <code>modules/reminders.ts</code>; AI <code>create_charge</code> tool (opt-in) that bills in-chat and shares Yape/Plin details; dashboard <b>Cobranza automática</b> settings + overdue/remind actions.</td></tr>
+<tr><td>§3 · Inventory</td><td><span class="st-done">Done</span></td><td><code>products.stock</code>/<code>track_stock</code>; <code>search_catalog</code> auto-hides tracked out-of-stock items; dashboard <b>Catálogo</b> stock + Agotado/low-stock badges.</td></tr>
+<tr><td>§3 · Analytics</td><td><span class="st-done">Done</span></td><td><code>events</code> table + fire-and-forget <code>recordEvent</code> instrumented across the pipeline; <code>GET /api/analytics</code> (revenue, conversion, median response time, popular searches); dashboard <b>Analítica</b> page.</td></tr>
+<tr><td>§3 · Media</td><td><span class="st-done">Done</span></td><td>Inbound <b>audio</b> is now downloaded + stored (was only labeled), via <code>handleInboundAudio</code> sharing the content-addressed media store.</td></tr>
+<tr><td>§3 · Mobile app</td><td><span class="st-done">Done</span></td><td>Installable <b>PWA</b> (manifest, service worker, offline shell, web-push/VAPID, iOS glass status bar, install prompt) + a <b>Capacitor</b> shell (<code>apps/mobile</code>) that wraps the dashboard into iOS/Android store apps with <b>native push</b> (APNs/FCM). Push disabled cleanly until keys are set.</td></tr>
 </tbody>
 </table>
 
@@ -95,10 +100,12 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
 
 <h3>Still deferred (post-v2)</h3>
 <ul>
+<li><b>Billing for us — operator subscriptions via Culqi/Izipay/Mercado Pago</b> (§2 layer 2). The customer-facing Collections layer shipped; recurring card billing for our own plans is still pending.</li>
 <li><b>Stripe billing</b> + AI-message metering/overage (caps exist; hard-metering needs billing design).</li>
 <li><b>Multi-workspace switcher UI</b> — the model supports one account owning many businesses (via <code>X-Business-Id</code>); the dashboard picker isn't built yet.</li>
 <li><b>Worker-per-tenant fleet</b> + DB-backed Baileys creds — needed only at large scale; the single-process connection manager covers the first tens of tenants.</li>
 <li><b>Apple sign-in</b> — needs a paid Apple Developer account + an HTTPS domain (can't run on localhost).</li>
+<li><b>Native app store submission</b> — the Capacitor iOS/Android shell is built; publishing needs the Apple/Google accounts + Firebase push setup (see <a href="mobile-native-build.html">native build guide</a>).</li>
 <li><b>Official WhatsApp Cloud API adapter</b> (§5).</li>
 </ul>
 
@@ -139,20 +146,20 @@ pnpm dev                           # engine (:4000) + dashboard (:3000)</code></
 </ol>
 <div class="callout warn"><b>Ban isolation is a multi-tenancy requirement, not just an ops nicety.</b> One tenant's banned number must never take down another's. Keep each tenant's <code>auth/</code> and send-queue fully separated regardless of which shape you pick.</div>
 
-<h2 id="payments">2. Payments — Yape / Plin / cards <span class="pri next">v2 core</span></h2>
+<h2 id="payments">2. Payments — Yape / Plin / cards <span class="badge-done">✅ Collections shipped</span></h2>
 <p>Peru-first. Two layers:</p>
 <ul>
-<li><b>Collections for the client's customers:</b> the AI verifies Yape/Plin receipts (image → confirmation), sends payment reminders, tracks overdue. Ties into the existing Collections employee.</li>
-<li><b>Billing for us (the operator):</b> recurring card via Culqi/Izipay, plus Yape/Plin for smaller plans. Automate the subscription lifecycle described in <a href="owner-manual.html#cobranza">Owner §8</a>.</li>
+<li><b>Collections for the client's customers</b> <span class="badge-done">✅ shipped</span> — the AI verifies Yape/Plin receipts (image → confirmation, already live in V1), <b>sends payment reminders</b>, <b>tracks overdue</b>, and can <b>create charges in-chat</b>. See <a href="#status">build status → §2 Collections</a>.</li>
+<li><b>Billing for us (the operator)</b> <span class="pri next">still pending</span> — recurring card via Culqi/Izipay, plus Yape/Plin for smaller plans. Automate the subscription lifecycle described in <a href="owner-manual.html#cobranza">Owner §8</a>.</li>
 </ul>
-<p>Add-on integrations to sequence: Culqi, Izipay, Mercado Pago; later Stripe for cross-border.</p>
+<p>Add-on integrations to sequence (for the operator-billing layer): Culqi, Izipay, Mercado Pago; later Stripe for cross-border.</p>
 
-<h2 id="more">3. Inventory · analytics · mobile <span class="pri next">v2</span></h2>
+<h2 id="more">3. Inventory · analytics · mobile <span class="badge-done">✅ shipped</span></h2>
 <ul>
-<li><b>Inventory sync</b> — stock counts feeding the catalog; the AI stops offering out-of-stock items automatically.</li>
-<li><b>Analytics dashboards</b> — sales, response times, conversion rates, popular products, retention, revenue (the WABOS Analytics module from the vision). Instrument events now so the data exists later.</li>
-<li><b>Mobile app</b> — the inbox is where owners live; a native/PWA app for replies + notifications drives daily engagement and cuts churn.</li>
-<li><b>Media handling</b> — download and store images/audio (V1 only labels them). Needed for receipt verification and richer catalog.</li>
+<li><b>Inventory sync</b> <span class="badge-done">✅</span> — per-product stock; the AI auto-stops offering out-of-stock items (<code>search_catalog</code> filter). Dashboard shows Agotado/low-stock badges.</li>
+<li><b>Analytics dashboards</b> <span class="badge-done">✅</span> — an <code>events</code> stream feeds a dashboard with revenue, response times, conversion, and popular searches (<code>GET /api/analytics</code> → <b>Analítica</b> page).</li>
+<li><b>Mobile app</b> <span class="badge-done">✅</span> — an installable <b>PWA</b> plus a <b>Capacitor</b> iOS/Android shell (<code>apps/mobile</code>) with native push. Guides: <a href="mobile-testing.html">PWA install/test</a> · <a href="mobile-native-build.html">native build</a>.</li>
+<li><b>Media handling</b> <span class="badge-done">✅ audio</span> — inbound voice notes are downloaded + stored (images already were, for receipts). Store-only for now; transcription later.</li>
 </ul>
 
 <h2 id="foundations">4. Build-it-right foundations (apply throughout)</h2>

@@ -28,7 +28,10 @@ import {
   listReceipts, getMedia,
 } from '../modules/charges.js';
 import { approveReceipt, rejectReceipt, rekickPendingReceipts } from '../workers/receipt-verifier.js';
+import { remindNow } from '../workers/collections.js';
 import { insertNotification, listNotifications } from '../modules/payment-notifications.js';
+import { getAnalytics } from '../modules/analytics.js';
+import { saveSubscription, removeSubscription, isPushConfigured, vapidPublicKey, saveDeviceToken, removeDeviceToken } from '../modules/push.js';
 import { getPaymentSettings } from '../modules/charges.js';
 import { featureFlags, getPlanTier, isFeatureEnabled, assertWithinLimit, getAiUsage } from '../modules/entitlements.js';
 import { createCheckoutSession, createPortalSession, handleWebhook, isBillingAvailable, changePlan, cancelSubscription, resumeSubscription, syncSubscriptionFromProvider } from '../modules/billing/index.js';
@@ -513,9 +516,13 @@ export async function buildApi() {
       description: z.string().default(''),
       price: z.number().nonnegative(),
       currency: z.string().default('PEN'),
+      stock: z.number().int().nullable().optional(),
+      trackStock: z.boolean().optional(),
+      imagePath: z.string().nullable().optional(),
     }).parse(req.body);
-    const row = await one('INSERT INTO products (business_id, name, description, price, currency) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [currentBusinessId(), body.name, body.description, body.price, body.currency]);
+    const row = await one(
+      'INSERT INTO products (business_id, name, description, price, currency, stock, track_stock, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [currentBusinessId(), body.name, body.description, body.price, body.currency, body.stock ?? null, body.trackStock ? 1 : 0, body.imagePath ?? null]);
     return reply.code(201).send(row);
   });
 
@@ -527,18 +534,35 @@ export async function buildApi() {
       price: z.number().nonnegative().optional(),
       currency: z.string().optional(),
       active: z.boolean().optional(),
+      stock: z.number().int().nullable().optional(),
+      trackStock: z.boolean().optional(),
+      imagePath: z.string().nullable().optional(),
     }).parse(req.body);
     const current = await one<any>('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
     if (!current) return { error: 'Not found' };
-    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5 WHERE id = $6',
+    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5, stock = $6, track_stock = $7, image_path = $8 WHERE id = $9',
       [
         body.name ?? current.name,
         body.description ?? current.description,
         body.price ?? current.price,
         body.currency ?? current.currency,
         body.active === undefined ? current.active : body.active ? 1 : 0,
+        body.stock === undefined ? current.stock : body.stock,
+        body.trackStock === undefined ? current.track_stock : body.trackStock ? 1 : 0,
+        body.imagePath === undefined ? current.image_path : body.imagePath,
         id,
       ]);
+    return one('SELECT * FROM products WHERE id = $1', [id]);
+  });
+
+  // Quick stock adjustment (delta or absolute) without touching the rest of the product.
+  app.post('/api/products/:id/stock', async (req, reply) => {
+    const id = Number((req.params as any).id);
+    const body = z.object({ delta: z.number().int().optional(), set: z.number().int().optional() }).parse(req.body ?? {});
+    const current = await one<any>('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
+    if (!current) return reply.code(404).send({ error: 'Not found' });
+    const next = body.set !== undefined ? body.set : Math.max(0, (current.stock ?? 0) + (body.delta ?? 0));
+    await none('UPDATE products SET stock = $1, track_stock = 1 WHERE id = $2', [next, id]);
     return one('SELECT * FROM products WHERE id = $1', [id]);
   });
 
@@ -746,6 +770,12 @@ export async function buildApi() {
     return { ok: true };
   });
 
+  app.post('/api/charges/:id/remind', async (req, reply) => {
+    const result = await remindNow(Number((req.params as any).id));
+    if (!result.ok) return reply.code(409).send({ error: result.error });
+    return { ok: true };
+  });
+
   app.get('/api/receipts', async (req) => {
     const query = z.object({
       outcome: z.enum(['pending', 'auto_verified', 'review', 'rejected', 'not_receipt', 'manual_verified', 'manual_rejected']).optional(),
@@ -775,6 +805,43 @@ export async function buildApi() {
   });
 
   app.get('/api/payment-notifications', async () => listNotifications(50));
+
+  app.get('/api/analytics', async (req) => {
+    const query = z.object({ range: z.coerce.number().int().min(1).max(365).default(30) }).parse(req.query ?? {});
+    return getAnalytics(query.range);
+  });
+
+  // ---- web push ---------------------------------------------------------------
+  app.get('/api/push/vapid', async () => ({ enabled: isPushConfigured(), publicKey: vapidPublicKey() }));
+
+  app.post('/api/push/subscribe', async (req, reply) => {
+    if (!isPushConfigured()) return reply.code(503).send({ error: 'Push not configured' });
+    const body = z.object({
+      endpoint: z.string().url(),
+      keys: z.object({ p256dh: z.string(), auth: z.string() }),
+    }).parse(req.body);
+    await saveSubscription(body);
+    return { ok: true };
+  });
+
+  app.post('/api/push/unsubscribe', async (req) => {
+    const body = z.object({ endpoint: z.string() }).parse(req.body ?? {});
+    await removeSubscription(body.endpoint);
+    return { ok: true };
+  });
+
+  // Native (Capacitor) push: register/unregister an FCM/APNs device token.
+  app.post('/api/push/register-device', async (req) => {
+    const body = z.object({ platform: z.enum(['ios', 'android']), token: z.string().min(1) }).parse(req.body);
+    await saveDeviceToken(body.platform, body.token);
+    return { ok: true };
+  });
+
+  app.post('/api/push/unregister-device', async (req) => {
+    const body = z.object({ token: z.string() }).parse(req.body ?? {});
+    await removeDeviceToken(body.token);
+    return { ok: true };
+  });
 
   // ---- payment-notification webhook (per-business secret, NOT dashboard token) ----
   app.post('/api/webhooks/payment', async (req, reply) => {

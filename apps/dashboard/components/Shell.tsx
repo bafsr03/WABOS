@@ -6,13 +6,16 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard, MessageCircle, Users, ShoppingBag, Wallet, Megaphone,
-  Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, type LucideIcon,
+  Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3, type LucideIcon,
 } from 'lucide-react';
 import { api, clearToken, getToken, getStatus } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { cn } from '@/lib/cn';
 import { StatusDot, Button } from '@/components/ui/primitives';
 import BusinessSwitcher from '@/components/BusinessSwitcher';
+import InstallPrompt from '@/components/InstallPrompt';
+import { unsubscribeFromPush } from '@/lib/push';
+import { unregisterNativePush } from '@/lib/native';
 
 interface NavItem { href: string; label: string; icon: LucideIcon }
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -28,6 +31,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   { group: 'Ingresos', items: [
     { href: '/payments', label: 'Cobros', icon: Wallet },
     { href: '/broadcasts', label: 'Campañas', icon: Megaphone },
+    { href: '/analytics', label: 'Analítica', icon: BarChart3 },
   ] },
   { group: 'Sistema', items: [
     { href: '/connect', label: 'Conexión', icon: Smartphone },
@@ -44,6 +48,7 @@ const PRIMARY: NavItem[] = [
 ];
 const OVERFLOW: NavItem[] = [
   { href: '/contacts', label: 'Contactos', icon: Users },
+  { href: '/analytics', label: 'Analítica', icon: BarChart3 },
   { href: '/knowledge', label: 'Conocimiento', icon: BookOpen },
   { href: '/agents', label: 'Agentes IA', icon: Bot },
   { href: '/voice', label: 'ADN de voz', icon: Sparkles },
@@ -80,6 +85,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Signing out also pauses the WhatsApp socket, but keeps the link + all data;
   // logging back in resumes with the same number (see login → /api/session/open).
   async function signOut() {
+    await unsubscribeFromPush().catch(() => {});
+    await unregisterNativePush().catch(() => {});
     await api('/api/session/close', { method: 'POST' }).catch(() => {});
     clearToken();
     router.replace('/login');
@@ -172,6 +179,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         )}
         <main className="aurora min-h-0 flex-1 overflow-y-auto pb-28 lg:pb-0">{children}</main>
       </div>
+
+      <InstallPrompt />
 
       {/* Floating bottom bar (mobile) — Whop-style grouped pills */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2.5 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] lg:hidden">

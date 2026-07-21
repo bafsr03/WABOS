@@ -5,6 +5,7 @@ import { currentBusinessId, runWithBusiness } from '../context.js';
 import { enqueueJob } from '../jobs/queue.js';
 import { getSock } from '../wa/connection.js';
 import { getOrCreateConversation, insertMessage, type Contact } from './store.js';
+import { recordEvent } from './analytics.js';
 
 // Throttle hard: one message every 6–12 s. WhatsApp bans spammy patterns.
 const nextSendDelaySec = () => 6 + Math.random() * 6;
@@ -110,6 +111,7 @@ export async function broadcastSendJob(payload: { broadcastId: number }): Promis
     });
     await none("UPDATE broadcast_recipients SET status = 'sent' WHERE broadcast_id = $1 AND contact_id = $2", [broadcastId, recipient.contact_id]);
     await none('UPDATE broadcasts SET sent = sent + 1 WHERE id = $1', [broadcastId]);
+    recordEvent('broadcast.sent', { contactId: recipient.contact_id, meta: { broadcastId } });
   } catch (err) {
     logger.error({ err, contact: recipient.phone }, 'broadcast send failed');
     await none("UPDATE broadcast_recipients SET status = 'failed', error = $1 WHERE broadcast_id = $2 AND contact_id = $3", [String(err), broadcastId, recipient.contact_id]);

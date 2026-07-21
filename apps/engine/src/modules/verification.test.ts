@@ -22,11 +22,16 @@ const settings: PaymentSettings = {
   recheckMaxTries: 4,
   webhookSecret: '',
   handoffOnReview: true,
+  remindersEnabled: false,
+  reminderOffsetsHours: '24,72',
+  overdueAfterHours: 168,
+  reminderTemplate: 'Recordatorio: {{currency}} {{amount}}',
 };
 
 const charge: Charge = {
   id: 1, contact_id: 1, amount: 150, currency: 'PEN', concept: 'Pedido #12',
   status: 'pending', created_by: 'dashboard', due_at: null, paid_at: null, receipt_id: null,
+  last_reminded_at: null, reminder_count: 0,
   created_at: Math.floor(NOW.getTime() / 1000),
 };
 

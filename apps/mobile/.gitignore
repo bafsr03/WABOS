@@ -1,0 +1,11 @@
+# Capacitor-generated native projects — regenerated with `cap add ios|android`.
+# Commit these once you start customizing signing/icons; ignored by default so the
+# repo stays lean and platform-agnostic.
+/ios
+/android
+
+# Deps
+node_modules
+
+# Capacitor
+.capacitor

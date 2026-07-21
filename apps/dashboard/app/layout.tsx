@@ -1,8 +1,10 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/Toast';
 import { ConfirmProvider } from '@/components/ui/Modal';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import NativeBridge from '@/components/NativeBridge';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -13,6 +15,25 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'WABOS — WhatsApp Business OS',
   description: 'Maneja tu negocio sin salir de WhatsApp',
+  applicationName: 'WABOS',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'WABOS',
+    statusBarStyle: 'black-translucent', // lets content sit under the iOS status bar for the glass look
+  },
+  icons: {
+    icon: '/icons/192',
+    apple: '/icons/180',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#5b4bff',
+  viewportFit: 'cover', // so env(safe-area-inset-*) has real values on notched iPhones
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster>
           <ConfirmProvider>{children}</ConfirmProvider>
         </Toaster>
+        <ServiceWorkerRegister />
+        <NativeBridge />
       </body>
     </html>
   );

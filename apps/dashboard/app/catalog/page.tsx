@@ -7,11 +7,14 @@ import {
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Switch } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
-interface Product { id: number; name: string; description: string; price: number; currency: string; active: number }
+interface Product { id: number; name: string; description: string; price: number; currency: string; active: number; stock: number | null; track_stock: number; image_path: string | null }
+
+const isOutOfStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) <= 0;
+const isLowStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 3;
 
 type View = { mode: 'list' } | { mode: 'edit'; product: Product | null };
 type FilterId = 'all' | 'active' | 'draft';
@@ -176,7 +179,10 @@ function ListView({ products, onNew, onOpen, onDelete }: {
                 <p className={cn('line-clamp-2 text-sm font-medium text-fg', !p.active && 'opacity-60')}>{p.name}</p>
                 <p className="mt-0.5 truncate text-xs text-muted">{p.description || money(p)}</p>
               </div>
-              <div className="hidden shrink-0 sm:block">
+              <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                {isOutOfStock(p) ? <Badge tone="danger">Agotado</Badge>
+                  : isLowStock(p) ? <Badge tone="warn">Quedan {p.stock}</Badge>
+                  : p.track_stock === 1 ? <Badge tone="neutral">{p.stock} en stock</Badge> : null}
                 <Badge tone={p.active ? 'success' : 'neutral'}>{p.active ? 'Activo' : 'Borrador'}</Badge>
               </div>
               <button
@@ -208,6 +214,8 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
   const [description, setDescription] = useState(product?.description ?? '');
   const [price, setPrice] = useState(product ? String(product.price) : '');
   const [active, setActive] = useState(product ? !!product.active : true);
+  const [trackStock, setTrackStock] = useState(product ? product.track_stock === 1 : false);
+  const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -218,16 +226,17 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
     setSaving(true);
     setError('');
     try {
+      const stockPayload = { trackStock, stock: trackStock ? Math.max(0, Math.floor(Number(stock) || 0)) : null };
       if (isNew) {
         await api('/api/products', {
           method: 'POST',
-          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0 }),
+          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0, ...stockPayload }),
         });
         toast('Producto agregado', 'success');
       } else {
         await api(`/api/products/${product!.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0, active }),
+          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0, active, ...stockPayload }),
         });
         toast('Cambios guardados', 'success');
       }
@@ -296,6 +305,22 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
               <Input value={price} onChange={(e) => setPrice(e.target.value)} type="number" step="0.1" min="0" placeholder="0.00" className="pl-9" />
             </div>
           </Field>
+        </Card>
+
+        {/* Inventario */}
+        <Card className="space-y-4 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-fg">Controlar inventario</p>
+              <p className="mt-0.5 text-xs text-muted">Cuando el stock llega a 0, el Empleado IA deja de ofrecer este producto.</p>
+            </div>
+            <Switch checked={trackStock} onChange={setTrackStock} label="Inventario" />
+          </div>
+          {trackStock && (
+            <Field label="Stock disponible" hint="Unidades en existencia.">
+              <Input value={stock} onChange={(e) => setStock(e.target.value)} type="number" step="1" min="0" placeholder="0" />
+            </Field>
+          )}
         </Card>
 
         {error && <p className="text-sm text-danger">{error}</p>}

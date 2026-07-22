@@ -4,6 +4,8 @@ import { processReceiptJob, onReceiptJobDead } from './receipt-verifier.js';
 import { paymentEmailPollJob, startEmailPolling } from './payment-email-poller.js';
 import { runStyleAnalysis } from './style-worker.js';
 import { startCollectionsScheduler } from './collections.js';
+import { startDigestScheduler } from './digest.js';
+import { startBackupScheduler } from './backup.js';
 import { startPushDispatcher } from '../modules/push.js';
 
 // Workers are in-process modules that consume durable jobs. To add one:
@@ -25,5 +27,7 @@ export async function registerWorkers() {
   await resumeBroadcasts();
   await startEmailPolling();
   startCollectionsScheduler();
+  startDigestScheduler();
+  startBackupScheduler();
   startPushDispatcher();
 }

@@ -17,6 +17,7 @@ import {
   type Charge, type Receipt, type PaymentSettings,
 } from '../modules/charges.js';
 import { findMatchingNotification, consumeNotification } from '../modules/payment-notifications.js';
+import { createSaleFromCharge } from '../modules/sales.js';
 import { recordEvent } from '../modules/analytics.js';
 
 const ACK_MESSAGE = 'Recibimos tu comprobante, lo estamos validando ✅';
@@ -183,6 +184,8 @@ async function confirmPaymentAtomically(
     });
     recordEvent('charge.paid', { contactId: charge.contact_id, amount: charge.amount, meta: { method } });
     recordEvent('receipt.verified', { contactId: charge.contact_id, amount: charge.amount, meta: { method } });
+    // Unify revenue: the verified charge becomes a sale in the register (idempotent).
+    await createSaleFromCharge(charge.id, receipt.provider ?? 'yape');
     await emitChargeUpdated(charge.id);
     return { ok: true };
   } catch (err: any) {

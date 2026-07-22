@@ -5,7 +5,7 @@ import { getConversation, insertMessage } from '../modules/store.js';
 
 interface SendJob {
   businessId: number;
-  conversationId: number;
+  conversationId: number | null; // null = system message (e.g. owner digest): not threaded into the inbox
   jid: string;
   text: string;
   fromAi: boolean;
@@ -43,13 +43,17 @@ async function processQueue(businessId: number) {
       const sent = await sock.sendMessage(job.jid, { text: job.text });
       // The queue drains outside the original request context, so re-enter the
       // job's business before writing (insertMessage scopes by currentBusinessId).
-      await runWithBusiness(businessId, () => insertMessage({
-        waMessageId: sent?.key?.id ?? null,
-        conversationId: job.conversationId,
-        direction: 'out',
-        text: job.text,
-        fromAi: job.fromAi,
-      }));
+      // System sends (conversationId null, e.g. the owner digest) are not logged
+      // to a conversation, so they never appear in the customer inbox.
+      if (job.conversationId != null) {
+        await runWithBusiness(businessId, () => insertMessage({
+          waMessageId: sent?.key?.id ?? null,
+          conversationId: job.conversationId!,
+          direction: 'out',
+          text: job.text,
+          fromAi: job.fromAi,
+        }));
+      }
       job.resolve(true);
     } catch (err) {
       logger.error({ err, jid: job.jid, businessId }, 'failed to send message');
@@ -76,6 +80,27 @@ export async function sendText(opts: {
       text: opts.text,
       fromAi: opts.fromAi ?? false,
       humanized: opts.humanized ?? true,
+      resolve,
+    });
+    void processQueue(businessId);
+  });
+}
+
+// Send a system message (e.g. the daily digest) from the business number to an
+// arbitrary phone — the owner's personal number. Not threaded into any
+// conversation, so it never shows up in the customer inbox. `phone` is digits
+// only (no +); it's normalized to a WhatsApp JID.
+export async function sendOwnerText(businessId: number, phone: string, text: string): Promise<boolean> {
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return false;
+  return new Promise((resolve) => {
+    queueFor(businessId).queue.push({
+      businessId,
+      conversationId: null,
+      jid: `${digits}@s.whatsapp.net`,
+      text,
+      fromAi: false,
+      humanized: false,
       resolve,
     });
     void processQueue(businessId);

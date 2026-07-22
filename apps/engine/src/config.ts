@@ -71,6 +71,11 @@ export const config = {
   fcmProjectId: process.env.FCM_PROJECT_ID ?? '',
   fcmClientEmail: process.env.FCM_CLIENT_EMAIL ?? '',
   fcmPrivateKey: (process.env.FCM_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+  // Automated data backups. Empty dir = backups disabled (nothing scheduled). When
+  // set, a verified JSON snapshot of all data tables is written daily; older ones
+  // past the retention count are pruned.
+  backupDir: process.env.BACKUP_DIR ?? '',
+  backupRetention: Number(process.env.BACKUP_RETENTION ?? 14),
   rootDir,
   dataDir,
   mediaDir: path.join(dataDir, 'media'),

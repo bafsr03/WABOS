@@ -16,7 +16,9 @@ export type EventType =
   | 'charge.paid'
   | 'receipt.verified'
   | 'receipt.review'
-  | 'broadcast.sent';
+  | 'broadcast.sent'
+  | 'sale.recorded'
+  | 'expense.recorded';
 
 export function recordEvent(
   type: EventType,
@@ -32,7 +34,12 @@ export function recordEvent(
 
 export interface AnalyticsSummary {
   rangeDays: number;
-  revenue: number;              // sum of paid charges in range
+  revenue: number;              // gross sales (POS + WhatsApp), unified from the sales table
+  netSales: number;             // gross - card/processor fees
+  fees: number;                 // total processor fees paid
+  cogs: number;                 // cost of goods sold (from cost snapshots)
+  expenses: number;             // cash-ledger expenses in range
+  netProfit: number;            // netSales - cogs - expenses
   chargesCreated: number;
   chargesPaid: number;
   conversionPct: number | null; // paid / created
@@ -42,10 +49,25 @@ export interface AnalyticsSummary {
   medianResponseSeconds: number | null; // median AI response latency
   revenueByDay: { day: string; amount: number }[];
   messagesByDay: { day: string; incoming: number; outgoing: number }[];
+  topProducts: { name: string; qty: number; revenue: number }[]; // real best-sellers from sale line items
+  salesByMethod: { method: string; total: number; net: number; fees: number; count: number }[];
   topSearches: { query: string; count: number }[];
 }
 
 const DAY = 86_400;
+
+// Local-day bucket in the business timezone (default America/Lima), so daily
+// charts and "today" match the shopkeeper's clock, not UTC. tz is sanitized
+// before interpolation (never free user text).
+async function bizTimezone(): Promise<string> {
+  const row = await one<{ value: string }>(
+    "SELECT value FROM settings WHERE business_id = $1 AND key = 'business_timezone'",
+    [currentBusinessId()],
+  );
+  return row?.value || 'America/Lima';
+}
+const dayBucket = (col: string, tz: string) =>
+  `to_char(to_timestamp(${col}) AT TIME ZONE '${tz.replace(/[^A-Za-z0-9_/+-]/g, '')}', 'YYYY-MM-DD')`;
 
 // Count events of a given type in the window (business-scoped).
 async function countEvents(type: EventType, since: number): Promise<number> {
@@ -61,10 +83,23 @@ export async function getAnalytics(rangeDays = 30): Promise<AnalyticsSummary> {
   const now = Math.floor(Date.now() / 1000);
   const since = now - rangeDays * DAY;
 
-  const revenueRow = await one<{ total: number | null }>(
-    `SELECT COALESCE(SUM(amount), 0) AS total FROM events WHERE business_id = $1 AND type = 'charge.paid' AND created_at >= $2`,
+  const tz = await bizTimezone();
+
+  // Money is read from the register (sales/cash_movements), not the event log, so
+  // the numbers are truthful. Sales unify POS + WhatsApp (a paid charge becomes a
+  // sale), so revenue is a single figure with no double counting.
+  const salesRow = await one<{ gross: number; net: number; fees: number; cogs: number }>(
+    `SELECT COALESCE(SUM(total),0)::float8 AS gross, COALESCE(SUM(net),0)::float8 AS net,
+            COALESCE(SUM(fee_amount),0)::float8 AS fees, COALESCE(SUM(cost_total),0)::float8 AS cogs
+     FROM sales WHERE business_id = $1 AND status = 'completed' AND sold_at >= $2`,
     [biz, since],
   );
+  const expensesRow = await one<{ total: number }>(
+    `SELECT COALESCE(SUM(amount),0)::float8 AS total FROM cash_movements
+     WHERE business_id = $1 AND kind = 'expense' AND sold_at >= $2`,
+    [biz, since],
+  );
+
   const [chargesCreated, chargesPaid, messagesIn, aiReplies, handoffs] = await Promise.all([
     countEvents('charge.created', since),
     countEvents('charge.paid', since),
@@ -73,17 +108,35 @@ export async function getAnalytics(rangeDays = 30): Promise<AnalyticsSummary> {
     countEvents('handoff', since),
   ]);
 
-  // Daily revenue: bucket paid amounts by local day.
+  // Daily revenue: bucket completed sales by local (business-timezone) day.
   const revenueByDay = await many<{ day: string; amount: number }>(
-    `SELECT to_char(to_timestamp(created_at), 'YYYY-MM-DD') AS day, COALESCE(SUM(amount),0)::float8 AS amount
-     FROM events WHERE business_id = $1 AND type = 'charge.paid' AND created_at >= $2
+    `SELECT ${dayBucket('sold_at', tz)} AS day, COALESCE(SUM(total),0)::float8 AS amount
+     FROM sales WHERE business_id = $1 AND status = 'completed' AND sold_at >= $2
      GROUP BY day ORDER BY day`,
+    [biz, since],
+  );
+
+  // Real best-sellers from actual line items (replaces the old search proxy).
+  const topProducts = await many<{ name: string; qty: number; revenue: number }>(
+    `SELECT si.name AS name, SUM(si.qty)::float8 AS qty, SUM(si.line_total)::float8 AS revenue
+     FROM sale_items si JOIN sales s ON s.id = si.sale_id
+     WHERE s.business_id = $1 AND s.status = 'completed' AND s.sold_at >= $2
+     GROUP BY si.name ORDER BY qty DESC LIMIT 8`,
+    [biz, since],
+  );
+
+  // Payment-method breakdown, incl. fees paid per method (makes card cost visible).
+  const salesByMethod = await many<{ method: string; total: number; net: number; fees: number; count: number }>(
+    `SELECT payment_method AS method, COALESCE(SUM(total),0)::float8 AS total,
+            COALESCE(SUM(net),0)::float8 AS net, COALESCE(SUM(fee_amount),0)::float8 AS fees, COUNT(*)::int AS count
+     FROM sales WHERE business_id = $1 AND status = 'completed' AND sold_at >= $2
+     GROUP BY payment_method ORDER BY total DESC`,
     [biz, since],
   );
 
   // Daily message volume, incoming vs outgoing.
   const messagesByDay = await many<{ day: string; incoming: number; outgoing: number }>(
-    `SELECT to_char(to_timestamp(created_at), 'YYYY-MM-DD') AS day,
+    `SELECT ${dayBucket('created_at', tz)} AS day,
             COUNT(*) FILTER (WHERE type = 'message.in')::int  AS incoming,
             COUNT(*) FILTER (WHERE type = 'message.out')::int AS outgoing
      FROM events WHERE business_id = $1 AND type IN ('message.in','message.out') AND created_at >= $2
@@ -91,7 +144,7 @@ export async function getAnalytics(rangeDays = 30): Promise<AnalyticsSummary> {
     [biz, since],
   );
 
-  // Popular products proxy: most frequent catalog searches.
+  // What customers ask about (kept as a demand signal, no longer masquerading as sales).
   const topSearches = await many<{ query: string; count: number }>(
     `SELECT lower(meta->>'query') AS query, COUNT(*)::int AS count
      FROM events WHERE business_id = $1 AND type = 'catalog.search' AND created_at >= $2
@@ -115,9 +168,20 @@ export async function getAnalytics(rangeDays = 30): Promise<AnalyticsSummary> {
     [biz, since],
   );
 
+  const gross = salesRow?.gross ?? 0;
+  const netSales = salesRow?.net ?? 0;
+  const cogs = salesRow?.cogs ?? 0;
+  const expenses = expensesRow?.total ?? 0;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
   return {
     rangeDays,
-    revenue: Number(revenueRow?.total ?? 0),
+    revenue: round2(gross),
+    netSales: round2(netSales),
+    fees: round2(salesRow?.fees ?? 0),
+    cogs: round2(cogs),
+    expenses: round2(expenses),
+    netProfit: round2(netSales - cogs - expenses),
     chargesCreated,
     chargesPaid,
     conversionPct: chargesCreated > 0 ? Math.round((chargesPaid / chargesCreated) * 100) : null,
@@ -127,6 +191,8 @@ export async function getAnalytics(rangeDays = 30): Promise<AnalyticsSummary> {
     medianResponseSeconds: respRow?.median != null ? Math.round(respRow.median) : null,
     revenueByDay,
     messagesByDay,
+    topProducts,
+    salesByMethod,
     topSearches,
   };
 }

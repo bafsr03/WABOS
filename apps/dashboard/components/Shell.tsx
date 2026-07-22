@@ -6,7 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import {
   LayoutDashboard, MessageCircle, Users, ShoppingBag, Wallet, Megaphone,
-  Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3, type LucideIcon,
+  Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3,
+  Receipt, Coins, type LucideIcon,
 } from 'lucide-react';
 import { api, clearToken, getToken, getStatus } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
@@ -28,6 +29,10 @@ const NAV: { group: string; items: NavItem[] }[] = [
     { href: '/agents', label: 'Agentes IA', icon: Bot },
     { href: '/voice', label: 'ADN de voz', icon: Sparkles },
   ] },
+  { group: 'Caja', items: [
+    { href: '/sales', label: 'Punto de venta', icon: Receipt },
+    { href: '/cashflow', label: 'Caja', icon: Coins },
+  ] },
   { group: 'Ingresos', items: [
     { href: '/payments', label: 'Cobros', icon: Wallet },
     { href: '/broadcasts', label: 'Campañas', icon: Megaphone },
@@ -44,9 +49,11 @@ const PRIMARY: NavItem[] = [
   { href: '/', label: 'Resumen', icon: LayoutDashboard },
   { href: '/inbox', label: 'Inbox', icon: MessageCircle },
   { href: '/catalog', label: 'Catálogo', icon: ShoppingBag },
-  { href: '/payments', label: 'Cobros', icon: Wallet },
+  { href: '/sales', label: 'Punto de venta', icon: Receipt },
 ];
 const OVERFLOW: NavItem[] = [
+  { href: '/payments', label: 'Cobros', icon: Wallet },
+  { href: '/cashflow', label: 'Caja', icon: Coins },
   { href: '/contacts', label: 'Contactos', icon: Users },
   { href: '/analytics', label: 'Analítica', icon: BarChart3 },
   { href: '/knowledge', label: 'Conocimiento', icon: BookOpen },
@@ -207,7 +214,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSheet(true)} aria-label="Más opciones" title="Más" className={tabCls(overflowActive)}>
               {tabInner(MoreHorizontal, overflowActive)}
             </button>
-            <Link href="/payments" aria-label="Nuevo cobro" title="Nuevo cobro"
+            <Link href="/sales" aria-label="Nueva venta" title="Nueva venta"
               className="grid h-11 w-11 place-items-center rounded-full bg-brand text-white shadow-[var(--shadow-card)] transition hover:bg-brand-strong">
               <motion.span whileTap={{ scale: 0.85 }} transition={navSpring}><Plus size={21} /></motion.span>
             </Link>

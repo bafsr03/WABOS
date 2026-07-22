@@ -1,6 +1,7 @@
 import { one, many, none, getAllSettings } from '../db/index.js';
 import { bus } from '../events.js';
 import { recordEvent } from './analytics.js';
+import { createSaleFromCharge } from './sales.js';
 
 export interface Charge {
   id: number;
@@ -199,6 +200,9 @@ export async function markChargePaid(chargeId: number, receiptId: number) {
     [receiptId, chargeId]);
   const charge = await getCharge(chargeId);
   if (charge) recordEvent('charge.paid', { contactId: charge.contact_id, amount: charge.amount, meta: { method: 'manual' } });
+  // Unify revenue: a paid charge becomes a sale in the register (idempotent).
+  const receipt = await getReceipt(receiptId);
+  await createSaleFromCharge(chargeId, receipt?.provider ?? 'yape');
   await emitChargeUpdated(chargeId);
 }
 

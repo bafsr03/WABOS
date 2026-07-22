@@ -21,6 +21,9 @@ afterAll(async () => { await db.pool.end(); await dropTempSchema(schema); });
 
 beforeEach(async () => {
   await db.none('DELETE FROM events');
+  await db.none('DELETE FROM sale_items');
+  await db.none('DELETE FROM sales');
+  await db.none('DELETE FROM cash_movements');
   await db.none('DELETE FROM messages');
   await db.none('DELETE FROM conversations');
   await db.none('DELETE FROM contacts');
@@ -30,13 +33,20 @@ const insertEvent = (type: string, amount: number | null, meta: object = {}) =>
   db.none('INSERT INTO events (business_id, type, amount, meta) VALUES (1, $1, $2, $3)', [type, amount, JSON.stringify(meta)]);
 
 describe('getAnalytics', () => {
-  it('aggregates revenue, conversion, searches and response time', async () => {
+  it('aggregates revenue from the register, conversion, searches and response time', async () => {
     await insertEvent('charge.created', 100);
     await insertEvent('charge.created', 50);
     await insertEvent('charge.paid', 100, { method: 'bank_match' });
     await insertEvent('catalog.search', null, { query: 'polo azul' });
     await insertEvent('catalog.search', null, { query: 'polo azul' });
     await insertEvent('catalog.search', null, { query: 'gorra' });
+
+    // Revenue now comes from the register: a real sale of 100 (POS), with line items.
+    const sale = (await db.one<{ id: number }>(
+      `INSERT INTO sales (business_id, total, subtotal, net, cost_total, payment_method, status) VALUES (1,100,100,100,40,'cash','completed') RETURNING id`,
+    ))!;
+    await db.none(`INSERT INTO sale_items (sale_id, name, qty, unit_price, unit_cost, line_total) VALUES ($1,'Polo azul',3,20,10,60)`, [sale.id]);
+    await db.none(`INSERT INTO cash_movements (business_id, kind, amount) VALUES (1,'expense',15)`);
 
     // Seed a conversation with an inbound then an AI reply 30s later.
     const contact = await store.upsertContactByJid('51999000009@s.whatsapp.net', 'C');
@@ -47,6 +57,11 @@ describe('getAnalytics', () => {
 
     const a = await analytics.getAnalytics(30);
     expect(a.revenue).toBe(100);
+    expect(a.cogs).toBe(40);
+    expect(a.expenses).toBe(15);
+    expect(a.netProfit).toBe(45); // netSales 100 - cogs 40 - expenses 15
+    expect(a.topProducts[0]).toEqual({ name: 'Polo azul', qty: 3, revenue: 60 });
+    expect(a.salesByMethod[0].method).toBe('cash');
     expect(a.chargesCreated).toBe(2);
     expect(a.chargesPaid).toBe(1);
     expect(a.conversionPct).toBe(50);

@@ -31,6 +31,11 @@ import { approveReceipt, rejectReceipt, rekickPendingReceipts } from '../workers
 import { remindNow } from '../workers/collections.js';
 import { insertNotification, listNotifications } from '../modules/payment-notifications.js';
 import { getAnalytics } from '../modules/analytics.js';
+import { createSale, voidSale, listSales, getDaySummary, getSalesSettings } from '../modules/sales.js';
+import { addCashMovement, listCashMovements, getCashPosition } from '../modules/ledger.js';
+import { composeDigest } from '../modules/digest.js';
+import { sendDigestNow } from '../workers/digest.js';
+import { runBackup, latestBackup } from '../workers/backup.js';
 import { saveSubscription, removeSubscription, isPushConfigured, vapidPublicKey, saveDeviceToken, removeDeviceToken } from '../modules/push.js';
 import { getPaymentSettings } from '../modules/charges.js';
 import { featureFlags, getPlanTier, isFeatureEnabled, assertWithinLimit, getAiUsage } from '../modules/entitlements.js';
@@ -516,13 +521,15 @@ export async function buildApi() {
       description: z.string().default(''),
       price: z.number().nonnegative(),
       currency: z.string().default('PEN'),
+      cost: z.number().nonnegative().nullable().optional(),
+      sku: z.string().nullable().optional(),
       stock: z.number().int().nullable().optional(),
       trackStock: z.boolean().optional(),
       imagePath: z.string().nullable().optional(),
     }).parse(req.body);
     const row = await one(
-      'INSERT INTO products (business_id, name, description, price, currency, stock, track_stock, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [currentBusinessId(), body.name, body.description, body.price, body.currency, body.stock ?? null, body.trackStock ? 1 : 0, body.imagePath ?? null]);
+      'INSERT INTO products (business_id, name, description, price, currency, cost, sku, stock, track_stock, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+      [currentBusinessId(), body.name, body.description, body.price, body.currency, body.cost ?? null, body.sku ?? null, body.stock ?? null, body.trackStock ? 1 : 0, body.imagePath ?? null]);
     return reply.code(201).send(row);
   });
 
@@ -534,19 +541,23 @@ export async function buildApi() {
       price: z.number().nonnegative().optional(),
       currency: z.string().optional(),
       active: z.boolean().optional(),
+      cost: z.number().nonnegative().nullable().optional(),
+      sku: z.string().nullable().optional(),
       stock: z.number().int().nullable().optional(),
       trackStock: z.boolean().optional(),
       imagePath: z.string().nullable().optional(),
     }).parse(req.body);
     const current = await one<any>('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
     if (!current) return { error: 'Not found' };
-    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5, stock = $6, track_stock = $7, image_path = $8 WHERE id = $9',
+    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5, cost = $6, sku = $7, stock = $8, track_stock = $9, image_path = $10 WHERE id = $11',
       [
         body.name ?? current.name,
         body.description ?? current.description,
         body.price ?? current.price,
         body.currency ?? current.currency,
         body.active === undefined ? current.active : body.active ? 1 : 0,
+        body.cost === undefined ? current.cost : body.cost,
+        body.sku === undefined ? current.sku : body.sku,
         body.stock === undefined ? current.stock : body.stock,
         body.trackStock === undefined ? current.track_stock : body.trackStock ? 1 : 0,
         body.imagePath === undefined ? current.image_path : body.imagePath,
@@ -809,6 +820,114 @@ export async function buildApi() {
   app.get('/api/analytics', async (req) => {
     const query = z.object({ range: z.coerce.number().int().min(1).max(365).default(30) }).parse(req.query ?? {});
     return getAnalytics(query.range);
+  });
+
+  // ---- register: sales + cash ledger -----------------------------------------
+  // Today's local date (business timezone) when no explicit day is given.
+  const todayInBusinessTz = async () => {
+    const { timezone } = await getSalesSettings();
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  };
+  const dayQuery = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
+
+  app.get('/api/sales', async (req) => {
+    const { day } = dayQuery.parse(req.query ?? {});
+    return listSales(day ?? await todayInBusinessTz());
+  });
+
+  app.get('/api/sales/day-summary', async (req) => {
+    const { day } = dayQuery.parse(req.query ?? {});
+    return getDaySummary(day ?? await todayInBusinessTz());
+  });
+
+  app.post('/api/sales', async (req, reply) => {
+    const body = z.object({
+      items: z.array(z.object({
+        productId: z.number().int().nullable().optional(),
+        name: z.string().min(1),
+        qty: z.number().positive(),
+        unitPrice: z.number().nonnegative(),
+        unitCost: z.number().nonnegative().nullable().optional(),
+      })).min(1),
+      paymentMethod: z.string().min(1),
+      discount: z.number().nonnegative().optional(),
+      note: z.string().optional(),
+      contactId: z.number().int().nullable().optional(),
+    }).parse(req.body);
+    const sale = await createSale({ ...body, channel: 'pos' });
+    return reply.code(201).send(sale);
+  });
+
+  app.post('/api/sales/:id/void', async (req, reply) => {
+    const res = await voidSale(Number((req.params as any).id));
+    if (!res.ok) return reply.code(400).send(res);
+    return res;
+  });
+
+  app.get('/api/cash-movements', async (req) => {
+    const { day } = dayQuery.parse(req.query ?? {});
+    return listCashMovements(day ?? await todayInBusinessTz());
+  });
+
+  app.post('/api/cash-movements', async (req, reply) => {
+    const body = z.object({
+      kind: z.enum(['expense', 'income', 'adjustment']),
+      amount: z.number().positive(),
+      method: z.string().optional(),
+      category: z.string().optional(),
+      note: z.string().optional(),
+    }).parse(req.body);
+    const row = await addCashMovement(body);
+    return reply.code(201).send(row);
+  });
+
+  app.get('/api/cash/position', async (req) => {
+    const { day } = dayQuery.parse(req.query ?? {});
+    return getCashPosition(day ?? await todayInBusinessTz());
+  });
+
+  app.get('/api/sales/payment-methods', async () => (await getSalesSettings()).paymentMethods);
+
+  // ---- daily digest (Cierre de día) ------------------------------------------
+  app.get('/api/digest/preview', async () => composeDigest(await todayInBusinessTz()));
+
+  app.post('/api/digest/send-now', async (_req, reply) => {
+    const res = await sendDigestNow();
+    return reply.send(res);
+  });
+
+  // ---- backups + data export -------------------------------------------------
+  // Operator-level latest-backup status (no file paths leaked to tenants).
+  app.get('/api/backups/latest', async () => {
+    const b = await latestBackup();
+    if (!b) return { configured: !!config.backupDir, latest: null };
+    return { configured: !!config.backupDir, latest: { size_bytes: b.size_bytes, total_rows: b.total_rows, status: b.status, created_at: b.created_at } };
+  });
+  app.post('/api/backups/run', async (_req, reply) => reply.send(await runBackup()));
+
+  // Per-business data export (self-serve). JSON bundle of the tenant's own rows.
+  const EXPORT_TABLES = ['products', 'contacts', 'sales', 'cash_movements', 'charges'] as const;
+  app.get('/api/export', async () => {
+    const biz = currentBusinessId();
+    const bundle: Record<string, any[]> = {};
+    for (const t of EXPORT_TABLES) bundle[t] = await many(`SELECT * FROM ${t} WHERE business_id = $1 ORDER BY id`, [biz]);
+    bundle.sale_items = await many(
+      `SELECT si.* FROM sale_items si JOIN sales s ON s.id = si.sale_id WHERE s.business_id = $1 ORDER BY si.id`, [biz]);
+    return { exportedAt: Date.now(), businessId: biz, ...bundle };
+  });
+
+  // One table as CSV (for a spreadsheet).
+  app.get('/api/export.csv', async (req, reply) => {
+    const { table } = z.object({ table: z.enum(EXPORT_TABLES) }).parse(req.query ?? {});
+    const rows = await many(`SELECT * FROM ${table} WHERE business_id = $1 ORDER BY id`, [currentBusinessId()]);
+    const cols = rows.length ? Object.keys(rows[0]) : [];
+    const esc = (v: any) => {
+      const s = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [cols.join(','), ...rows.map((r: any) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+    return reply.header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${table}.csv"`).send(csv);
   });
 
   // ---- web push ---------------------------------------------------------------

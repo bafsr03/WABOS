@@ -10,6 +10,11 @@ import { Sparkline } from '@/components/ui/Sparkline';
 interface Analytics {
   rangeDays: number;
   revenue: number;
+  netSales: number;
+  fees: number;
+  cogs: number;
+  expenses: number;
+  netProfit: number;
   chargesCreated: number;
   chargesPaid: number;
   conversionPct: number | null;
@@ -19,8 +24,12 @@ interface Analytics {
   medianResponseSeconds: number | null;
   revenueByDay: { day: string; amount: number }[];
   messagesByDay: { day: string; incoming: number; outgoing: number }[];
+  topProducts: { name: string; qty: number; revenue: number }[];
+  salesByMethod: { method: string; total: number; net: number; fees: number; count: number }[];
   topSearches: { query: string; count: number }[];
 }
+
+const METHOD_LABELS: Record<string, string> = { cash: 'Efectivo', yape: 'Yape', plin: 'Plin', card: 'Tarjeta' };
 
 const money = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -47,6 +56,8 @@ export default function AnalyticsPage() {
   const hasData = data && (data.revenue > 0 || data.messagesIn > 0 || data.chargesCreated > 0);
   const maxMsgs = data ? Math.max(1, ...data.messagesByDay.map((d) => d.incoming + d.outgoing)) : 1;
   const maxSearch = data ? Math.max(1, ...data.topSearches.map((s) => s.count)) : 1;
+  const maxProductQty = data ? Math.max(1, ...data.topProducts.map((p) => p.qty)) : 1;
+  const maxMethodTotal = data ? Math.max(1, ...data.salesByMethod.map((m) => m.total)) : 1;
 
   return (
     <Shell>
@@ -72,15 +83,15 @@ export default function AnalyticsPage() {
           <>
             {/* KPI tiles */}
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <StatCard label="Ingresos" value={money(data.revenue)} icon={<Wallet size={18} />}
-                sub={`${data.chargesPaid} cobro${data.chargesPaid === 1 ? '' : 's'} pagado${data.chargesPaid === 1 ? '' : 's'}`}
+              <StatCard label="Ventas" value={money(data.revenue)} icon={<Wallet size={18} />}
+                sub={`neto ${money(data.netSales)}`}
                 chart={<Sparkline data={data.revenueByDay.map((d) => d.amount)} />} />
-              <StatCard label="Conversión" value={data.conversionPct === null ? '—' : `${data.conversionPct}%`} icon={<TrendingUp size={18} />}
-                accent="accent" sub={`${data.chargesPaid}/${data.chargesCreated} cobros`} />
+              <StatCard label="Ganancia neta" value={money(data.netProfit)} icon={<TrendingUp size={18} />}
+                accent="accent" sub={`gastos ${money(data.expenses)} · costo ${money(data.cogs)}`} />
+              <StatCard label="Comisiones" value={money(data.fees)} icon={<Wallet size={18} />}
+                sub="tarjeta y otros" />
               <StatCard label="Respuesta IA" value={formatDuration(data.medianResponseSeconds)} icon={<Clock size={18} />}
                 sub="mediana" />
-              <StatCard label="Mensajes recibidos" value={data.messagesIn.toLocaleString('es-PE')} icon={<MessageCircle size={18} />}
-                sub={`${data.aiReplies.toLocaleString('es-PE')} respuestas IA`} />
             </div>
 
             {/* Revenue over time */}
@@ -116,9 +127,50 @@ export default function AnalyticsPage() {
               )}
             </SectionCard>
 
-            {/* Secondary row */}
+            {/* Real best-sellers + payment methods */}
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <SectionCard title="Búsquedas más frecuentes" desc="Lo que tus clientes preguntan"
+              <SectionCard title="Productos más vendidos" desc="Por unidades vendidas (ventas reales)">
+                {data.topProducts.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted">Aún no hay ventas registradas.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {data.topProducts.map((p) => (
+                      <div key={p.name} className="flex items-center gap-3 text-sm">
+                        <span className="w-32 shrink-0 truncate text-fg" title={p.name}>{p.name}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+                          <div className="h-full rounded-full bg-brand" style={{ width: `${(p.qty / maxProductQty) * 100}%` }} />
+                        </div>
+                        <span className="tabular w-8 shrink-0 text-right text-xs text-muted">{p.qty}</span>
+                        <span className="tabular w-16 shrink-0 text-right text-xs text-fg">{money(p.revenue)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard title="Métodos de pago" desc="Cómo te pagan tus clientes">
+                {data.salesByMethod.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted">Aún no hay ventas registradas.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {data.salesByMethod.map((m) => (
+                      <div key={m.method} className="flex items-center gap-3 text-sm">
+                        <span className="w-20 shrink-0 truncate text-fg">{METHOD_LABELS[m.method] ?? m.method}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+                          <div className="h-full rounded-full bg-brand" style={{ width: `${(m.total / maxMethodTotal) * 100}%` }} />
+                        </div>
+                        <span className="tabular w-20 shrink-0 text-right text-xs text-fg">{money(m.total)}</span>
+                        {m.fees > 0 && <span className="tabular w-16 shrink-0 text-right text-[11px] text-danger" title="Comisiones">−{money(m.fees)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+
+            {/* Demand signal + IA */}
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <SectionCard title="Búsquedas más frecuentes" desc="Lo que tus clientes preguntan (demanda)"
                 actions={<Search size={15} className="text-subtle" />}>
                 {data.topSearches.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted">Aún no hay búsquedas registradas.</p>

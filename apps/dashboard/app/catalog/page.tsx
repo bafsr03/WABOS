@@ -11,7 +11,7 @@ import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Sw
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
-interface Product { id: number; name: string; description: string; price: number; currency: string; active: number; stock: number | null; track_stock: number; image_path: string | null }
+interface Product { id: number; name: string; description: string; price: number; currency: string; cost: number | null; sku: string | null; active: number; stock: number | null; track_stock: number; image_path: string | null }
 
 const isOutOfStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) <= 0;
 const isLowStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 3;
@@ -213,6 +213,8 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
   const [price, setPrice] = useState(product ? String(product.price) : '');
+  const [cost, setCost] = useState(product?.cost != null ? String(product.cost) : '');
+  const [sku, setSku] = useState(product?.sku ?? '');
   const [active, setActive] = useState(product ? !!product.active : true);
   const [trackStock, setTrackStock] = useState(product ? product.track_stock === 1 : false);
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
@@ -227,16 +229,17 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
     setError('');
     try {
       const stockPayload = { trackStock, stock: trackStock ? Math.max(0, Math.floor(Number(stock) || 0)) : null };
+      const costPayload = { cost: cost.trim() === '' ? null : Math.max(0, Number(cost) || 0), sku: sku.trim() || null };
       if (isNew) {
         await api('/api/products', {
           method: 'POST',
-          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0, ...stockPayload }),
+          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0, ...costPayload, ...stockPayload }),
         });
         toast('Producto agregado', 'success');
       } else {
         await api(`/api/products/${product!.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0, active, ...stockPayload }),
+          body: JSON.stringify({ name: name.trim(), description: description.trim(), price: Number(price) || 0, active, ...costPayload, ...stockPayload }),
         });
         toast('Cambios guardados', 'success');
       }
@@ -299,11 +302,26 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
           <Field label="Descripción" hint="Tallas, colores, materiales…">
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Describe tu producto para que el Empleado IA lo recomiende mejor." />
           </Field>
-          <Field label="Precio">
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-subtle">S/</span>
-              <Input value={price} onChange={(e) => setPrice(e.target.value)} type="number" step="0.1" min="0" placeholder="0.00" className="pl-9" />
-            </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Precio">
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-subtle">S/</span>
+                <Input value={price} onChange={(e) => setPrice(e.target.value)} type="number" step="0.1" min="0" placeholder="0.00" className="pl-9" />
+              </div>
+            </Field>
+            <Field label="Costo">
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-subtle">S/</span>
+                <Input value={cost} onChange={(e) => setCost(e.target.value)} type="number" step="0.1" min="0" placeholder="0.00" className="pl-9" />
+              </div>
+              <p className="mt-1 text-xs text-subtle">Para calcular tu ganancia.</p>
+            </Field>
+          </div>
+          {Number(price) > 0 && Number(cost) > 0 && (
+            <p className="text-xs text-muted">Ganancia por unidad: <span className="font-medium text-success">S/ {(Number(price) - Number(cost)).toFixed(2)}</span> ({Math.round(((Number(price) - Number(cost)) / Number(price)) * 100)}% margen)</p>
+          )}
+          <Field label="SKU / código" hint="Opcional — para buscar rápido en el punto de venta.">
+            <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. POL-001" />
           </Field>
         </Card>
 

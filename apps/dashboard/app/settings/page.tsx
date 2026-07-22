@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, type LucideIcon } from 'lucide-react';
+import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, Coins, Send, Download, Database, Plus, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
+import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, getToken, getBusinessId, ENGINE_URL, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
@@ -13,12 +13,13 @@ import { useConfirm } from '@/components/ui/Modal';
 
 interface Faq { id: number; question: string; answer: string }
 
-type TabId = 'ia' | 'perfil' | 'plan' | 'pagos' | 'faqs';
+type TabId = 'ia' | 'perfil' | 'plan' | 'pagos' | 'caja' | 'faqs';
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'ia', label: 'Empleado IA', icon: Bot },
   { id: 'perfil', label: 'Perfil', icon: Store },
   { id: 'plan', label: 'Plan', icon: CreditCard },
   { id: 'pagos', label: 'Pagos', icon: Wallet },
+  { id: 'caja', label: 'Caja y reportes', icon: Coins },
   { id: 'faqs', label: 'FAQs', icon: HelpCircle },
 ];
 
@@ -287,6 +288,11 @@ export default function SettingsPage() {
           </SectionCard>
         </form>
         </div>
+        )}
+
+        {/* ── Caja y reportes ── */}
+        {tab === 'caja' && (
+          <div className="fade-up"><CajaTab settings={settings} saveOne={saveOne} toast={toast} /></div>
         )}
 
         {/* ── FAQs ── */}
@@ -569,5 +575,213 @@ function DangerZone() {
         </div>
       </div>
     </Card>
+  );
+}
+
+// Caja y reportes: the daily WhatsApp/email close ("Cierre de día") and data
+// backup/export. The digest keeps the shopkeeper informed even when they're not
+// in the app; the export/backup section answers "where is my data, really".
+interface LatestBackup { configured: boolean; latest: { size_bytes: number; total_rows: number; status: string; created_at: number } | null }
+
+function CajaTab({ settings, saveOne, toast }: {
+  settings: Record<string, string>;
+  saveOne: (key: string, value: string) => void | Promise<void>;
+  toast: (msg: string, tone?: 'success' | 'info' | 'error') => void;
+}) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [backup, setBackup] = useState<LatestBackup | null>(null);
+
+  const channel = settings.digest_channel || 'whatsapp';
+  const enabled = settings.digest_enabled === '1';
+  const wantsEmail = channel === 'email' || channel === 'both';
+
+  useEffect(() => { api<LatestBackup>('/api/backups/latest').then(setBackup).catch(() => {}); }, []);
+
+  async function showPreview() {
+    try { const d = await api<{ text: string }>('/api/digest/preview'); setPreview(d.text); }
+    catch { toast('No se pudo generar el resumen', 'error'); }
+  }
+  async function sendNow() {
+    setSending(true);
+    try {
+      const r = await api<{ delivered: string[] }>('/api/digest/send-now', { method: 'POST' });
+      toast(r.delivered.length ? `Enviado por ${r.delivered.join(' y ')}` : 'Generado (sin canal de envío activo)', r.delivered.length ? 'success' : 'info');
+    } catch { toast('No se pudo enviar', 'error'); } finally { setSending(false); }
+  }
+  async function downloadCsv(table: string) {
+    try {
+      const res = await fetch(`${ENGINE_URL}/api/export.csv?table=${table}`, {
+        headers: { Authorization: `Bearer ${getToken()}`, ...(getBusinessId() ? { 'X-Business-Id': getBusinessId() } : {}) },
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${table}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast('No se pudo descargar', 'error'); }
+  }
+
+  const fmtDate = (epoch: number) => new Date(epoch * 1000).toLocaleString('es-PE');
+  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+  return (
+    <div className="space-y-5">
+      {/* Payment methods & commissions */}
+      <MethodsEditor toast={toast} />
+
+      {/* Daily digest */}
+      <SectionCard title="Reporte diario (Cierre de día)" desc="Recibe cada noche el resumen de ventas, gastos y ganancia — por WhatsApp a tu número personal.">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-fg">Activar reporte diario</p>
+            <p className="mt-0.5 text-xs text-muted">Tu número de negocio te envía el resumen a tu WhatsApp personal.</p>
+          </div>
+          <Switch checked={enabled} onChange={(v) => saveOne('digest_enabled', v ? '1' : '0')} label="Reporte diario" />
+        </div>
+        {enabled && (
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Canal de envío">
+                <Select value={channel} onChange={(e) => saveOne('digest_channel', e.target.value)}>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Correo</option>
+                  <option value="both">Ambos</option>
+                </Select>
+              </Field>
+              <Field label="Hora de envío">
+                <Select value={settings.digest_hour || '21'} onChange={(e) => saveOne('digest_hour', e.target.value)}>
+                  {HOURS.map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+                </Select>
+              </Field>
+            </div>
+            <Field label="Tu número personal de WhatsApp" hint="Con código de país, solo dígitos. Ej. 51987654321">
+              <Input value={settings.digest_owner_phone || ''} onChange={(e) => saveOne('digest_owner_phone', e.target.value.replace(/\D/g, ''))} placeholder="51987654321" inputMode="numeric" />
+            </Field>
+            {wantsEmail && (
+              <Field label="Correo para el reporte">
+                <Input value={settings.digest_owner_email || ''} onChange={(e) => saveOne('digest_owner_email', e.target.value)} placeholder="tucorreo@ejemplo.com" type="email" />
+              </Field>
+            )}
+            <Field label="Zona horaria" hint="Define cuándo empieza y termina 'el día'.">
+              <Input value={settings.business_timezone || 'America/Lima'} onChange={(e) => saveOne('business_timezone', e.target.value)} placeholder="America/Lima" />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={showPreview}><Coins size={15} /> Ver resumen de hoy</Button>
+              <Button onClick={sendNow} disabled={sending}><Send size={15} /> {sending ? 'Enviando…' : 'Enviar ahora'}</Button>
+            </div>
+            {preview && (
+              <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-border bg-surface-2 p-4 text-xs text-fg">{preview}</pre>
+            )}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* Backup + export moved below (rendered after digest) */}
+      <SectionCard title="Respaldo y exportación" desc="Tus datos son tuyos. Descárgalos cuando quieras."
+        actions={<Database size={16} className="text-subtle" />}>
+        <div className="rounded-xl bg-surface-2 p-4">
+          {backup?.latest ? (
+            <p className="text-sm text-fg">
+              Último respaldo: <span className="font-medium">{fmtDate(backup.latest.created_at)}</span>{' '}
+              <Badge tone={backup.latest.status === 'verified' ? 'success' : 'danger'}>{backup.latest.status === 'verified' ? '✓ verificado' : 'falló'}</Badge>
+              <span className="ml-2 text-xs text-muted">{(backup.latest.size_bytes / 1024).toFixed(0)} KB · {backup.latest.total_rows.toLocaleString('es-PE')} filas</span>
+            </p>
+          ) : (
+            <p className="text-sm text-muted">{backup?.configured ? 'Aún no se ha generado un respaldo.' : 'Los respaldos automáticos se activan al configurar el servidor (BACKUP_DIR).'}</p>
+          )}
+        </div>
+        <p className="mt-4 mb-2 text-sm font-medium text-fg">Exportar mis datos</p>
+        <div className="flex flex-wrap gap-2">
+          {['sales', 'products', 'contacts', 'cash_movements'].map((t) => (
+            <Button key={t} variant="secondary" size="sm" onClick={() => downloadCsv(t)}>
+              <Download size={14} /> {({ sales: 'Ventas', products: 'Productos', contacts: 'Contactos', cash_movements: 'Movimientos' } as Record<string, string>)[t]}
+            </Button>
+          ))}
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+// Editable payment methods + commissions. The register resolves each sale's fee
+// from this list (settings key `sales_payment_methods`), so a shop can set the
+// exact card processor rate or add its own providers. Default ids stay fixed so
+// historical sales keep mapping; new methods get a slugified id.
+interface MethodRow { id: string; label: string; fee_pct: number; isDefault: boolean }
+const DEFAULT_METHOD_IDS = ['cash', 'yape', 'plin', 'card'];
+
+function MethodsEditor({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | 'error') => void }) {
+  const [rows, setRows] = useState<MethodRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    api<{ id: string; label: string; fee_pct: number }[]>('/api/sales/payment-methods')
+      .then((ms) => setRows(ms.map((m) => ({ ...m, isDefault: DEFAULT_METHOD_IDS.includes(m.id) }))))
+      .catch(() => {});
+  }, []);
+
+  const update = (i: number, patch: Partial<MethodRow>) => {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setDirty(true);
+  };
+  const remove = (i: number) => { setRows((prev) => prev.filter((_, idx) => idx !== i)); setDirty(true); };
+  const add = () => { setRows((prev) => [...prev, { id: '', label: '', fee_pct: 0, isDefault: false }]); setDirty(true); };
+
+  const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'metodo';
+
+  async function save() {
+    if (saving) return;
+    // Validate + assign stable ids. Empty labels are rejected; new ids are slugified and deduped.
+    const seen = new Set<string>();
+    const out: { id: string; label: string; fee_pct: number }[] = [];
+    for (const r of rows) {
+      const label = r.label.trim();
+      if (!label) { toast('Cada método necesita un nombre', 'error'); return; }
+      let id = r.isDefault ? r.id : (r.id || slug(label));
+      let base = id, n = 2;
+      while (seen.has(id)) id = `${base}_${n++}`;
+      seen.add(id);
+      const fee = Math.min(100, Math.max(0, Number(r.fee_pct) || 0));
+      out.push({ id, label, fee_pct: fee });
+    }
+    if (out.length === 0) { toast('Agrega al menos un método', 'error'); return; }
+    setSaving(true);
+    try {
+      await api('/api/settings', { method: 'PUT', body: JSON.stringify({ sales_payment_methods: JSON.stringify(out) }) });
+      setRows(out.map((m) => ({ ...m, isDefault: DEFAULT_METHOD_IDS.includes(m.id) })));
+      setDirty(false);
+      toast('Métodos guardados', 'success');
+    } catch { toast('No se pudo guardar', 'error'); } finally { setSaving(false); }
+  }
+
+  return (
+    <SectionCard title="Métodos de pago y comisiones" desc="Ajusta la comisión de cada método. La caja calcula el neto exacto con estos porcentajes."
+      actions={<CreditCard size={16} className="text-subtle" />}>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 px-1 text-xs font-medium text-subtle">
+          <span className="flex-1">Método</span>
+          <span className="w-28 text-right">Comisión %</span>
+          <span className="w-8" />
+        </div>
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Input value={r.label} onChange={(e) => update(i, { label: e.target.value })} placeholder="Ej. Tarjeta Visa" className="flex-1" />
+            <div className="relative w-28">
+              <Input value={String(r.fee_pct)} onChange={(e) => update(i, { fee_pct: Number(e.target.value) })} type="number" step="0.01" min="0" max="100" className="pr-7 text-right" />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-subtle">%</span>
+            </div>
+            <button onClick={() => remove(i)} title="Quitar" className="grid h-9 w-8 shrink-0 place-items-center rounded-lg text-subtle transition hover:text-danger">
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={add}><Plus size={15} /> Agregar método</Button>
+        <Button size="sm" onClick={save} disabled={!dirty || saving}><Check size={15} /> {saving ? 'Guardando…' : 'Guardar'}</Button>
+      </div>
+    </SectionCard>
   );
 }

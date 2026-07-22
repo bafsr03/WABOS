@@ -36,8 +36,13 @@ export default function SettingsPage() {
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [faqForm, setFaqForm] = useState({ question: '', answer: '' });
   const [aiAvailable, setAiAvailable] = useState(true);
-  const [tab, setTab] = useState<TabId>(() =>
-    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('billing')) ? 'plan' : 'ia');
+  const [tab, setTab] = useState<TabId>(() => {
+    if (typeof window === 'undefined') return 'ia';
+    const q = new URLSearchParams(window.location.search);
+    if (q.has('billing')) return 'plan';
+    const t = q.get('tab');
+    return TABS.some((x) => x.id === t) ? (t as TabId) : 'ia';
+  });
   const toast = useToast();
 
   const load = useCallback(() => {
@@ -77,7 +82,10 @@ export default function SettingsPage() {
   return (
     <Shell>
       <div className="mx-auto max-w-3xl space-y-5 p-6 lg:p-8">
-        <PageHeader title="Ajustes" subtitle="Perfil del negocio y configuración del Empleado IA." />
+        <PageHeader title="Ajustes" subtitle="Perfil del negocio y configuración del Empleado IA."
+          actions={
+            <Link href="/?tour=1"><Button variant="secondary" size="sm"><Sparkles size={15} /> Ver tutorial</Button></Link>
+          } />
 
         {/* Segmented tabs */}
         <div className="-mx-1 overflow-x-auto px-1 pb-1">

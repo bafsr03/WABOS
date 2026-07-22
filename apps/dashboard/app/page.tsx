@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { StatCard, Card, SectionCard, Badge, Avatar, EmptyState, Button } from '@/components/ui/primitives';
 import { Sparkline, MiniBars } from '@/components/ui/Sparkline';
+import GettingStarted from '@/components/onboarding/GettingStarted';
 
 interface Charge { id: number; amount: number; currency: string; concept: string; status: string; paid_at: number | null; created_at: number; contact_name: string; contact_phone: string }
 interface Conversation { id: number; name: string; unread_count: number; last_message: string | null; last_message_at: number }
@@ -25,6 +26,8 @@ export default function Home() {
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [reviewCount, setReviewCount] = useState(0);
   const [businessName, setBusinessName] = useState('');
+  const [waConnected, setWaConnected] = useState(false);
+  const [signal, setSignal] = useState(0);
 
   const load = useCallback(() => {
     api<Charge[]>('/api/charges').then(setCharges).catch(() => {});
@@ -36,7 +39,11 @@ export default function Home() {
   useEffect(() => {
     load();
     return connectWs((e) => {
-      if (['charge.updated', 'receipt.review_needed', 'conversation.updated', 'payment.notification'].includes(e.type)) load();
+      if (e.type === 'wa.status') setWaConnected(e.status === 'connected');
+      if (['charge.updated', 'receipt.review_needed', 'conversation.updated', 'payment.notification'].includes(e.type)) {
+        load();
+        setSignal((s) => s + 1); // nudge the checklist to re-check its steps
+      }
     });
   }, [load]);
 
@@ -68,6 +75,8 @@ export default function Home() {
           <p className="text-sm text-muted">Buen día{businessName ? ',' : ''} <span className="font-medium text-fg">{businessName || 'bienvenido'}</span> 👋</p>
           <h1 className="mt-1 font-display text-3xl font-semibold text-gradient">Resumen del negocio</h1>
         </div>
+
+        <GettingStarted waConnected={waConnected} signal={signal} />
 
         {/* KPIs */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -9,12 +9,14 @@ import {
   Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3,
   Receipt, Coins, type LucideIcon,
 } from 'lucide-react';
-import { api, clearToken, getToken, getStatus } from '@/lib/api';
+import { api, clearToken, getToken, getStatus, getFlag, setFlag } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { cn } from '@/lib/cn';
 import { StatusDot } from '@/components/ui/primitives';
 import BusinessSwitcher from '@/components/BusinessSwitcher';
 import InstallPrompt from '@/components/InstallPrompt';
+import Tour from '@/components/onboarding/Tour';
+import { TOUR_STEPS } from '@/components/onboarding/steps';
 import { unsubscribeFromPush } from '@/lib/push';
 import { unregisterNativePush } from '@/lib/native';
 
@@ -64,6 +66,11 @@ const OVERFLOW: NavItem[] = [
   { href: '/settings', label: 'Ajustes', icon: Settings },
 ];
 const WA_LABEL: Record<string, string> = { connected: 'Conectado', qr: 'Escanea QR', connecting: 'Conectando…', disconnected: 'Desconectado' };
+// data-tour anchors — shared by the desktop sidebar link and the mobile pill for
+// each destination, so the first-run tour highlights whichever is on screen.
+const TOUR_ANCHOR: Record<string, string> = {
+  '/connect': 'connect', '/catalog': 'catalog', '/sales': 'sales', '/cashflow': 'cashflow', '/inbox': 'inbox',
+};
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -72,6 +79,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [waStatus, setWaStatus] = useState('...');
   const [sheet, setSheet] = useState(false);
   const [overCap, setOverCap] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
 
   const checkCap = () => getStatus()
     .then((s) => setOverCap(s.usage.aiMessagesLimit != null && s.usage.aiMessages >= s.usage.aiMessagesLimit))
@@ -88,6 +96,23 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => { setSheet(false); }, [pathname]); // close on navigate
+
+  // First-run product tour: open on ?tour=1 (replay), or once for a new owner who
+  // hasn't completed it (localStorage gate first, then confirm against settings so
+  // it doesn't re-nag on a second device).
+  useEffect(() => {
+    if (!ready) return;
+    const replay = new URLSearchParams(window.location.search).get('tour') === '1';
+    if (replay) { setTourOpen(true); return; }
+    if (getFlag('onboarding_done')) return;
+    let cancelled = false;
+    api<Record<string, string>>('/api/settings')
+      .then((s) => { if (cancelled) return; if (s.onboarding_done === '1') setFlag('onboarding_done', true); else setTourOpen(true); })
+      .catch(() => { if (!cancelled) setTourOpen(true); });
+    return () => { cancelled = true; };
+  }, [ready]);
+
+  const endTour = () => { setFlag('onboarding_done', true); setTourOpen(false); };
 
   // Signing out also pauses the WhatsApp socket, but keeps the link + all data;
   // logging back in resumes with the same number (see login → /api/session/open).
@@ -135,7 +160,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 const isActive = active?.href === item.href;
                 const Icon = item.icon;
                 return (
-                  <Link key={item.href} href={item.href} onClick={onNavigate}
+                  <Link key={item.href} href={item.href} onClick={onNavigate} data-tour={TOUR_ANCHOR[item.href]}
                     className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition',
                       isActive ? 'bg-surface-3 text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg')}>
                     {isActive && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand" />}
@@ -199,13 +224,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
       <InstallPrompt />
 
+      <Tour steps={TOUR_STEPS} open={tourOpen} onClose={endTour} onFinish={endTour} />
+
       {/* Floating bottom bar (mobile) — Whop-style grouped pills. LayoutGroup lets the
           single navHighlight glide across both pills (primary tabs ↔ "Más" button). */}
       <LayoutGroup>
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] lg:hidden">
           <nav className={barPill}>
             {PRIMARY.map((item) => (
-              <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={tabCls(active?.href === item.href)}>
+              <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} data-tour={TOUR_ANCHOR[item.href]} className={tabCls(active?.href === item.href)}>
                 {tabInner(item.icon, active?.href === item.href)}
               </Link>
             ))}

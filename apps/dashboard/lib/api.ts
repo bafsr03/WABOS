@@ -29,6 +29,23 @@ export function setBusinessId(id: number | string) {
   localStorage.setItem('wabos_business_id', String(id));
 }
 
+// Onboarding flags (tour completed, checklist hidden). Mirrored to a settings key
+// so they persist server-side across devices, but read from localStorage first so
+// the gate resolves before the first paint (no flash, no blocking fetch).
+export function getFlag(key: string): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(`wabos_${key}`) === '1';
+}
+
+// Persist a flag locally (instant) and best-effort to settings (cross-device).
+export function setFlag(key: string, on = true) {
+  if (typeof window !== 'undefined') {
+    if (on) localStorage.setItem(`wabos_${key}`, '1');
+    else localStorage.removeItem(`wabos_${key}`);
+  }
+  api('/api/settings', { method: 'PUT', body: JSON.stringify({ [key]: on ? '1' : '' }) }).catch(() => {});
+}
+
 async function authRequest(path: string, payload: object): Promise<void> {
   const res = await fetch(`${ENGINE_URL}${path}`, {
     method: 'POST',

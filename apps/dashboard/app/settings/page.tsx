@@ -3,15 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, Coins, Send, Download, Database, Plus, type LucideIcon } from 'lucide-react';
+import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, Coins, Send, Download, Database, Plus, ChevronDown, BookOpen, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, getToken, getBusinessId, ENGINE_URL, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/Modal';
-
-interface Faq { id: number; question: string; answer: string }
 
 type TabId = 'ia' | 'perfil' | 'plan' | 'pagos' | 'caja' | 'faqs';
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
@@ -20,7 +18,17 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'plan', label: 'Plan', icon: CreditCard },
   { id: 'pagos', label: 'Pagos', icon: Wallet },
   { id: 'caja', label: 'Caja y reportes', icon: Coins },
-  { id: 'faqs', label: 'FAQs', icon: HelpCircle },
+  { id: 'faqs', label: 'Ayuda', icon: HelpCircle },
+];
+
+// Static how-to help about WABOS itself (not the store's own FAQs — those live in Conocimiento).
+const WABOS_HELP: { q: string; a: string }[] = [
+  { q: '¿Cómo conecto mi WhatsApp?', a: 'Ve a Conexión y escanea el código QR con WhatsApp → Dispositivos vinculados. Tu Empleado IA empieza a responder apenas se vincula.' },
+  { q: '¿Cómo agrego productos?', a: 'En Catálogo toca "Nuevo producto". Agrega nombre, precio, costo (para ver tu ganancia) y opcionalmente categoría, stock y SKU.' },
+  { q: '¿Cómo registro una venta?', a: 'Entra a Punto de venta, toca los productos para agregarlos al carrito, elige el método de pago y presiona Cobrar. Verás el vuelto al instante.' },
+  { q: '¿Qué es Conocimiento y para qué sirve?', a: 'Es la base con la que responde tu Empleado IA: políticas de envío, devoluciones, preguntas frecuentes e info de tu marca. Mientras más completa, mejor responde.' },
+  { q: '¿Cómo veo mis ingresos y reportes?', a: 'En Caja y reportes controlas ingresos, gastos y recibes tu cierre diario. El Resumen muestra tus ventas del día y de la semana.' },
+  { q: '¿Cómo cambio mi plan?', a: 'En Ajustes → Plan puedes ver tu plan actual, tu uso de mensajes IA y mejorar o gestionar tu suscripción.' },
 ];
 
 const PROFILE: { key: string; label: string; hint?: string; textarea?: boolean }[] = [
@@ -33,8 +41,6 @@ const PROFILE: { key: string; label: string; hint?: string; textarea?: boolean }
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const [faqs, setFaqs] = useState<Faq[]>([]);
-  const [faqForm, setFaqForm] = useState({ question: '', answer: '' });
   const [aiAvailable, setAiAvailable] = useState(true);
   const [tab, setTab] = useState<TabId>(() => {
     if (typeof window === 'undefined') return 'ia';
@@ -51,7 +57,6 @@ export default function SettingsPage() {
       delete s._aiAvailable;
       setSettings(s);
     }).catch(() => {});
-    api<Faq[]>('/api/faqs').then(setFaqs).catch(() => {});
   }, []);
   useEffect(load, [load]);
 
@@ -65,16 +70,6 @@ export default function SettingsPage() {
   async function saveOne(key: string, value: string) {
     set(key, value);
     await api('/api/settings', { method: 'PUT', body: JSON.stringify({ [key]: value }) });
-  }
-  async function addFaq(e: React.FormEvent) {
-    e.preventDefault();
-    await api('/api/faqs', { method: 'POST', body: JSON.stringify(faqForm) });
-    setFaqForm({ question: '', answer: '' });
-    load();
-  }
-  async function removeFaq(id: number) {
-    await api(`/api/faqs/${id}`, { method: 'DELETE' });
-    load();
   }
 
   const aiEnabled = settings.ai_enabled !== '0';
@@ -303,29 +298,25 @@ export default function SettingsPage() {
           <div className="fade-up"><CajaTab settings={settings} saveOne={saveOne} toast={toast} /></div>
         )}
 
-        {/* ── FAQs ── */}
+        {/* ── Ayuda (WABOS FAQs) ── */}
         {tab === 'faqs' && (
         <div className="space-y-5 fade-up">
-        {/* FAQs */}
-        <SectionCard title="Preguntas frecuentes" desc="La IA usa estas respuestas como fuente de verdad."
+        <SectionCard title="Ayuda de WABOS" desc="Cómo usar WABOS. ¿Buscas las preguntas frecuentes de TU tienda? Están en Conocimiento."
           actions={<HelpCircle size={16} className="text-subtle" />}>
-          <form onSubmit={addFaq} className="space-y-2">
-            <Input value={faqForm.question} onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })} placeholder="Pregunta, ej. ¿Hacen delivery?" />
-            <div className="flex gap-2">
-              <Input value={faqForm.answer} onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })} placeholder="Respuesta" className="flex-1" />
-              <Button disabled={!faqForm.question || !faqForm.answer}>Agregar</Button>
-            </div>
-          </form>
-          <div className="mt-4 space-y-2">
-            {faqs.map((f) => (
-              <div key={f.id} className="flex items-start justify-between gap-3 rounded-xl bg-surface-2 px-3.5 py-2.5">
-                <div className="min-w-0 text-sm">
-                  <div className="font-medium text-fg">{f.question}</div>
-                  <div className="text-xs text-muted">{f.answer}</div>
-                </div>
-                <button onClick={() => removeFaq(f.id)} className="shrink-0 text-subtle transition hover:text-danger"><Trash2 size={15} /></button>
-              </div>
+          <div className="space-y-2">
+            {WABOS_HELP.map((h) => (
+              <details key={h.q} className="group rounded-xl border border-border bg-surface-2 px-3.5 py-3">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-fg">
+                  {h.q}
+                  <ChevronDown size={16} className="shrink-0 text-subtle transition group-open:rotate-180" />
+                </summary>
+                <p className="mt-2 text-sm text-muted">{h.a}</p>
+              </details>
             ))}
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-dashed border-border px-3.5 py-3">
+            <p className="text-sm text-muted">Las preguntas frecuentes de tu tienda (las que responde tu Empleado IA) ahora viven en Conocimiento.</p>
+            <Link href="/knowledge"><Button variant="secondary" size="sm"><BookOpen size={15} /> Ir a Conocimiento</Button></Link>
           </div>
         </SectionCard>
         </div>

@@ -31,7 +31,7 @@ import { approveReceipt, rejectReceipt, rekickPendingReceipts } from '../workers
 import { remindNow } from '../workers/collections.js';
 import { insertNotification, listNotifications } from '../modules/payment-notifications.js';
 import { getAnalytics } from '../modules/analytics.js';
-import { createSale, voidSale, listSales, getDaySummary, getSalesSettings } from '../modules/sales.js';
+import { createSale, voidSale, deleteSale, listSales, getDaySummary, getSalesSettings } from '../modules/sales.js';
 import { addCashMovement, listCashMovements, getCashPosition } from '../modules/ledger.js';
 import { composeDigest } from '../modules/digest.js';
 import { sendDigestNow } from '../workers/digest.js';
@@ -523,13 +523,14 @@ export async function buildApi() {
       currency: z.string().default('PEN'),
       cost: z.number().nonnegative().nullable().optional(),
       sku: z.string().nullable().optional(),
+      category: z.string().optional(),
       stock: z.number().int().nullable().optional(),
       trackStock: z.boolean().optional(),
       imagePath: z.string().nullable().optional(),
     }).parse(req.body);
     const row = await one(
-      'INSERT INTO products (business_id, name, description, price, currency, cost, sku, stock, track_stock, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
-      [currentBusinessId(), body.name, body.description, body.price, body.currency, body.cost ?? null, body.sku ?? null, body.stock ?? null, body.trackStock ? 1 : 0, body.imagePath ?? null]);
+      'INSERT INTO products (business_id, name, description, price, currency, cost, sku, category, stock, track_stock, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+      [currentBusinessId(), body.name, body.description, body.price, body.currency, body.cost ?? null, body.sku ?? null, body.category ?? '', body.stock ?? null, body.trackStock ? 1 : 0, body.imagePath ?? null]);
     return reply.code(201).send(row);
   });
 
@@ -543,13 +544,14 @@ export async function buildApi() {
       active: z.boolean().optional(),
       cost: z.number().nonnegative().nullable().optional(),
       sku: z.string().nullable().optional(),
+      category: z.string().optional(),
       stock: z.number().int().nullable().optional(),
       trackStock: z.boolean().optional(),
       imagePath: z.string().nullable().optional(),
     }).parse(req.body);
     const current = await one<any>('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
     if (!current) return { error: 'Not found' };
-    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5, cost = $6, sku = $7, stock = $8, track_stock = $9, image_path = $10 WHERE id = $11',
+    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5, cost = $6, sku = $7, category = $8, stock = $9, track_stock = $10, image_path = $11 WHERE id = $12',
       [
         body.name ?? current.name,
         body.description ?? current.description,
@@ -558,6 +560,7 @@ export async function buildApi() {
         body.active === undefined ? current.active : body.active ? 1 : 0,
         body.cost === undefined ? current.cost : body.cost,
         body.sku === undefined ? current.sku : body.sku,
+        body.category === undefined ? current.category : body.category,
         body.stock === undefined ? current.stock : body.stock,
         body.trackStock === undefined ? current.track_stock : body.trackStock ? 1 : 0,
         body.imagePath === undefined ? current.image_path : body.imagePath,
@@ -860,6 +863,12 @@ export async function buildApi() {
 
   app.post('/api/sales/:id/void', async (req, reply) => {
     const res = await voidSale(Number((req.params as any).id));
+    if (!res.ok) return reply.code(400).send(res);
+    return res;
+  });
+
+  app.delete('/api/sales/:id', async (req, reply) => {
+    const res = await deleteSale(Number((req.params as any).id));
     if (!res.ok) return reply.code(400).send(res);
     return res;
   });

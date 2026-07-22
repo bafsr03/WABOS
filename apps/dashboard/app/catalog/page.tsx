@@ -11,7 +11,7 @@ import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Sw
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
-interface Product { id: number; name: string; description: string; price: number; currency: string; cost: number | null; sku: string | null; active: number; stock: number | null; track_stock: number; image_path: string | null }
+interface Product { id: number; name: string; description: string; price: number; currency: string; cost: number | null; sku: string | null; category: string; active: number; stock: number | null; track_stock: number; image_path: string | null }
 
 const isOutOfStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) <= 0;
 const isLowStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 3;
@@ -62,6 +62,7 @@ export default function CatalogPage() {
       ) : (
         <EditorView
           product={view.product}
+          categories={Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b))}
           onClose={() => setView({ mode: 'list' })}
           onSaved={() => { load(); setView({ mode: 'list' }); }}
           onDelete={(p) => remove(p, true)}
@@ -82,6 +83,7 @@ function ListView({ products, onNew, onOpen, onDelete }: {
 }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
+  const [cat, setCat] = useState<string>('all');
   const [sort, setSort] = useState<SortId>('recent');
 
   const counts = useMemo(() => ({
@@ -90,19 +92,25 @@ function ListView({ products, onNew, onOpen, onDelete }: {
     draft: products.filter((p) => !p.active).length,
   }), [products]);
 
+  const categories = useMemo(
+    () => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [products],
+  );
+
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let list = products.filter((p) => {
       if (filter === 'active' && !p.active) return false;
       if (filter === 'draft' && p.active) return false;
-      if (needle && !(`${p.name} ${p.description}`.toLowerCase().includes(needle))) return false;
+      if (cat !== 'all' && p.category !== cat) return false;
+      if (needle && !(`${p.name} ${p.description} ${p.category}`.toLowerCase().includes(needle))) return false;
       return true;
     });
     list = [...list];
     if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === 'price') list.sort((a, b) => b.price - a.price);
     return list;
-  }, [products, q, filter, sort]);
+  }, [products, q, filter, cat, sort]);
 
   const cycleSort = () => setSort((s) => SORTS[(SORTS.findIndex((x) => x.id === s) + 1) % SORTS.length].id);
 
@@ -154,6 +162,24 @@ function ListView({ products, onNew, onOpen, onDelete }: {
         </div>
       </div>
 
+      {/* Category chips */}
+      {categories.length > 0 && (
+        <div className="-mx-1 mb-4 flex flex-wrap gap-1.5 px-1">
+          {['all', ...categories].map((c) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium transition',
+                cat === c ? 'border-brand bg-brand/10 text-brand' : 'border-border text-muted hover:text-fg',
+              )}
+            >
+              {c === 'all' ? 'Todas las categorías' : c}
+            </button>
+          ))}
+        </div>
+      )}
+
       {shown.length === 0 ? (
         <EmptyState
           icon={<ShoppingBag size={24} />}
@@ -177,7 +203,10 @@ function ListView({ products, onNew, onOpen, onDelete }: {
               </div>
               <div className="min-w-0 flex-1">
                 <p className={cn('line-clamp-2 text-sm font-medium text-fg', !p.active && 'opacity-60')}>{p.name}</p>
-                <p className="mt-0.5 truncate text-xs text-muted">{p.description || money(p)}</p>
+                <p className="mt-0.5 truncate text-xs text-muted">
+                  {p.category && <span className="mr-1.5 rounded bg-surface-3 px-1.5 py-0.5 text-[11px] font-medium text-subtle">{p.category}</span>}
+                  {p.description || money(p)}
+                </p>
               </div>
               <div className="hidden shrink-0 items-center gap-2 sm:flex">
                 {isOutOfStock(p) ? <Badge tone="danger">Agotado</Badge>
@@ -203,8 +232,9 @@ function ListView({ products, onNew, onOpen, onDelete }: {
 
 /* ---------------------------------------------------------------- Editor */
 
-function EditorView({ product, onClose, onSaved, onDelete, toast }: {
+function EditorView({ product, categories, onClose, onSaved, onDelete, toast }: {
   product: Product | null;
+  categories: string[];
   onClose: () => void;
   onSaved: () => void;
   onDelete: (p: Product) => void;
@@ -215,6 +245,7 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
   const [price, setPrice] = useState(product ? String(product.price) : '');
   const [cost, setCost] = useState(product?.cost != null ? String(product.cost) : '');
   const [sku, setSku] = useState(product?.sku ?? '');
+  const [category, setCategory] = useState(product?.category ?? '');
   const [active, setActive] = useState(product ? !!product.active : true);
   const [trackStock, setTrackStock] = useState(product ? product.track_stock === 1 : false);
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
@@ -229,7 +260,7 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
     setError('');
     try {
       const stockPayload = { trackStock, stock: trackStock ? Math.max(0, Math.floor(Number(stock) || 0)) : null };
-      const costPayload = { cost: cost.trim() === '' ? null : Math.max(0, Number(cost) || 0), sku: sku.trim() || null };
+      const costPayload = { cost: cost.trim() === '' ? null : Math.max(0, Number(cost) || 0), sku: sku.trim() || null, category: category.trim() };
       if (isNew) {
         await api('/api/products', {
           method: 'POST',
@@ -320,9 +351,17 @@ function EditorView({ product, onClose, onSaved, onDelete, toast }: {
           {Number(price) > 0 && Number(cost) > 0 && (
             <p className="text-xs text-muted">Ganancia por unidad: <span className="font-medium text-success">S/ {(Number(price) - Number(cost)).toFixed(2)}</span> ({Math.round(((Number(price) - Number(cost)) / Number(price)) * 100)}% margen)</p>
           )}
-          <Field label="SKU / código" hint="Opcional — para buscar rápido en el punto de venta.">
-            <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. POL-001" />
-          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Categoría" hint="Opcional — agrupa y filtra en catálogo y venta.">
+              <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Ej. Polos" list="catalog-categories" />
+              <datalist id="catalog-categories">
+                {categories.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </Field>
+            <Field label="SKU / código" hint="Opcional — para buscar rápido en el punto de venta.">
+              <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. POL-001" />
+            </Field>
+          </div>
         </Card>
 
         {/* Inventario */}

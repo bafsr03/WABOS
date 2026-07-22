@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Search, Plus, Trash2, StickyNote, Tag as TagIcon, Users } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Search, Plus, Trash2, StickyNote, Tag as TagIcon, Users, MoreHorizontal, MessageCircle, Download } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { PageHeader, Card, Input, Button, Avatar, EmptyState } from '@/components/ui/primitives';
@@ -18,11 +18,34 @@ export default function ContactsPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<Contact | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+  const [actionsFor, setActionsFor] = useState<Contact | null>(null);
+  const pressTimer = useRef<number | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
 
   const load = useCallback(() => { api<Contact[]>('/api/contacts').then(setContacts).catch(() => {}); }, []);
   useEffect(load, [load]);
+
+  // Long-press (touch) opens the same action sheet as the ⋯ button (desktop).
+  const startPress = (c: Contact) => { pressTimer.current = window.setTimeout(() => setActionsFor(c), 480); };
+  const cancelPress = () => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } };
+
+  const digits = (phone: string) => phone.replace(/\D/g, '');
+  function openWhatsApp(c: Contact) {
+    window.open(`https://wa.me/${digits(c.phone)}`, '_blank');
+    setActionsFor(null);
+  }
+  function saveVCard(c: Contact) {
+    const name = c.name || `+${c.phone}`;
+    const vcf = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${name}`, `TEL;TYPE=CELL:+${digits(c.phone)}`, c.notes ? `NOTE:${c.notes.replace(/\n/g, ' ')}` : '', 'END:VCARD']
+      .filter(Boolean).join('\r\n');
+    const url = URL.createObjectURL(new Blob([vcf], { type: 'text/vcard' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${name}.vcf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    setActionsFor(null);
+  }
 
   async function addContact(e: React.FormEvent) {
     e.preventDefault();
@@ -85,7 +108,14 @@ export default function ContactsPage() {
           {filtered.length === 0 ? (
             <div className="p-4"><EmptyState icon={<Users size={24} />} title="Sin contactos" desc="Agrega uno arriba o espera a que te escriban." /></div>
           ) : filtered.map((c) => (
-            <div key={c.id} className="flex items-start gap-3 border-b border-border px-4 py-4 last:border-0">
+            <div
+              key={c.id}
+              className="flex items-start gap-3 border-b border-border px-4 py-4 last:border-0"
+              onPointerDown={() => startPress(c)}
+              onPointerUp={cancelPress}
+              onPointerLeave={cancelPress}
+              onContextMenu={(e) => { e.preventDefault(); setActionsFor(c); }}
+            >
               <Avatar name={c.name || c.phone} />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-fg">{c.name || 'Sin nombre'} <span className="tabular text-xs font-normal text-subtle">+{c.phone}</span></div>
@@ -104,6 +134,7 @@ export default function ContactsPage() {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <button onClick={() => setActionsFor(c)} className="grid h-8 w-8 place-items-center rounded-lg text-subtle transition hover:bg-surface-2 hover:text-fg" title="Acciones"><MoreHorizontal size={15} /></button>
                 <button onClick={() => { setEditing(c); setNotesDraft(c.notes); }} className="grid h-8 w-8 place-items-center rounded-lg text-subtle transition hover:bg-surface-2 hover:text-fg" title="Notas"><StickyNote size={15} /></button>
                 <button onClick={() => remove(c)} className="grid h-8 w-8 place-items-center rounded-lg text-subtle transition hover:bg-danger/12 hover:text-danger" title="Eliminar"><Trash2 size={15} /></button>
               </div>
@@ -111,6 +142,19 @@ export default function ContactsPage() {
           ))}
         </Card>
       </div>
+
+      <Modal open={!!actionsFor} onClose={() => setActionsFor(null)} title={actionsFor?.name || (actionsFor ? `+${actionsFor.phone}` : '')}>
+        <div className="space-y-2">
+          <button onClick={() => actionsFor && openWhatsApp(actionsFor)}
+            className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-left text-sm font-medium text-fg transition hover:border-brand hover:bg-brand/5">
+            <MessageCircle size={18} className="text-brand" /> Abrir en WhatsApp
+          </button>
+          <button onClick={() => actionsFor && saveVCard(actionsFor)}
+            className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-left text-sm font-medium text-fg transition hover:border-brand hover:bg-brand/5">
+            <Download size={18} className="text-brand" /> Guardar contacto
+          </button>
+        </div>
+      </Modal>
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title={`Notas · ${editing?.name || editing?.phone || ''}`}>
         <textarea value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} rows={4} autoFocus

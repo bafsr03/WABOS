@@ -123,7 +123,7 @@ export default function InboxPage() {
         {/* conversation list */}
         <div className={cn('w-full shrink-0 flex-col border-r border-border bg-surface/50 lg:flex lg:w-80', selected ? 'hidden' : 'flex')}>
           <div className="border-b border-border px-4 py-3.5">
-            <h1 className="font-display text-base font-semibold text-fg">Conversaciones</h1>
+            <h1 className="font-display text-2xl font-semibold text-fg">Conversaciones</h1>
           </div>
           <div className="flex-1 overflow-y-auto">
             {conversations.length === 0 && (

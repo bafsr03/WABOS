@@ -189,6 +189,18 @@ export async function voidSale(id: number): Promise<{ ok: boolean; error?: strin
   return { ok: true };
 }
 
+// Hard-delete a sale. Only void sales are removable (completed sales stay so the
+// daily close stays truthful); stock was already restored when it was voided, and
+// sale_items cascade via ON DELETE CASCADE.
+export async function deleteSale(id: number): Promise<{ ok: boolean; error?: string }> {
+  const businessId = currentBusinessId();
+  const sale = await one<Sale>('SELECT * FROM sales WHERE id = $1 AND business_id = $2', [id, businessId]);
+  if (!sale) return { ok: false, error: 'Sale not found' };
+  if (sale.status !== 'void') return { ok: false, error: 'Only voided sales can be deleted' };
+  await none('DELETE FROM sales WHERE id = $1 AND business_id = $2', [id, businessId]);
+  return { ok: true };
+}
+
 // A local-day predicate: buckets a timestamp column into the business timezone so
 // "today" matches the shopkeeper's day, not UTC. tz is validated against the IANA
 // list before it reaches SQL (interpolated, so it must never be user-free text).

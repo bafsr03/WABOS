@@ -116,40 +116,43 @@ export default function Tour({ steps, open, onClose, onFinish }: {
             </>
           )}
 
-          {/* Popover */}
-          <motion.div
-            ref={popRef}
-            className="glass absolute z-[9500] w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl p-4 shadow-2xl"
-            style={{ top: pos.top, left: pos.left }}
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          >
-            <h3 className="font-display text-base font-semibold text-fg">{step.title}</h3>
-            <p className="mt-1 text-sm text-muted">{step.body}</p>
+          {/* Popover — centered via flexbox when there's no target (welcome/finish),
+              absolutely positioned beside the target otherwise. */}
+          <div className={rect ? 'contents' : 'pointer-events-none absolute inset-0 flex items-center justify-center p-3'}>
+            <motion.div
+              ref={popRef}
+              className={`glass pointer-events-auto z-[9500] w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl p-4 shadow-2xl ${rect ? 'absolute' : ''}`}
+              style={rect ? { top: pos.top, left: pos.left } : undefined}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            >
+              <h3 className="font-display text-base font-semibold text-fg">{step.title}</h3>
+              <p className="mt-1 text-sm text-muted">{step.body}</p>
 
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5">
-                {steps.map((s, i) => (
-                  <span key={s.id}
-                    className={`h-1.5 rounded-full transition-all ${i === index ? 'w-4 bg-brand' : 'w-1.5 bg-border-strong'}`} />
-                ))}
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5">
+                  {steps.map((s, i) => (
+                    <span key={s.id}
+                      className={`h-1.5 rounded-full transition-all ${i === index ? 'w-4 bg-brand' : 'w-1.5 bg-border-strong'}`} />
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {index === 0
+                    ? <Button variant="ghost" size="sm" onClick={onClose}>Saltar</Button>
+                    : <Button variant="ghost" size="sm" onClick={prev}>Atrás</Button>}
+                  <Button size="sm" onClick={next}>{index === 0 ? 'Empezar' : isLast ? 'Listo' : 'Siguiente'}</Button>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                {index === 0
-                  ? <Button variant="ghost" size="sm" onClick={onClose}>Saltar</Button>
-                  : <Button variant="ghost" size="sm" onClick={prev}>Atrás</Button>}
-                <Button size="sm" onClick={next}>{index === 0 ? 'Empezar' : isLast ? 'Listo' : 'Siguiente'}</Button>
-              </div>
-            </div>
 
-            {index > 0 && !isLast && (
-              <button onClick={onClose} className="mt-2 block w-full text-center text-xs text-subtle transition hover:text-muted">
-                Saltar recorrido
-              </button>
-            )}
-          </motion.div>
+              {index > 0 && !isLast && (
+                <button onClick={onClose} className="mt-2 block w-full text-center text-xs text-subtle transition hover:text-muted">
+                  Saltar recorrido
+                </button>
+              )}
+            </motion.div>
+          </div>
         </div>
       )}
     </AnimatePresence>

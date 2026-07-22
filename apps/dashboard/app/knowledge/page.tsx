@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, BookOpen, Check, ChevronRight, Star, Pin } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Check, ChevronRight, Star, Pin, Sparkles, HelpCircle, X } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api } from '@/lib/api';
+import { api, getFlag, setFlag } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Select, Switch } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
@@ -25,7 +25,8 @@ interface Doc {
   summary: string; content: string; keywords: string; pinned: number; active: number;
 }
 
-type View = { mode: 'list' } | { mode: 'edit'; doc: Doc | null };
+type Seed = { title?: string; kind?: Kind; summary?: string };
+type View = { mode: 'list' } | { mode: 'edit'; doc: Doc | null; seed?: Seed };
 
 export default function KnowledgePage() {
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -55,7 +56,7 @@ export default function KnowledgePage() {
           collections={collections}
           docs={docs}
           onReloadCollections={load}
-          onNew={() => setView({ mode: 'edit', doc: null })}
+          onNew={(seed) => setView({ mode: 'edit', doc: null, seed })}
           onOpen={(d) => setView({ mode: 'edit', doc: d })}
           onDelete={(d) => remove(d)}
           confirm={confirm}
@@ -64,6 +65,7 @@ export default function KnowledgePage() {
       ) : (
         <EditorView
           doc={view.doc}
+          seed={view.seed}
           collections={collections}
           onClose={() => setView({ mode: 'list' })}
           onSaved={() => { load(); setView({ mode: 'list' }); }}
@@ -77,11 +79,19 @@ export default function KnowledgePage() {
 
 /* ------------------------------------------------------------------ List */
 
+interface Faq { id: number; question: string; answer: string }
+
+const EXAMPLES: { label: string; seed: Seed }[] = [
+  { label: 'Política de envíos', seed: { title: 'Política de envíos', kind: 'policy', summary: 'Delivery en Lima 12–20h; a provincia por agencia (Shalom/Olva).' } },
+  { label: 'Devoluciones', seed: { title: 'Política de devoluciones', kind: 'policy', summary: 'Cambios dentro de 7 días con boleta y producto sin uso.' } },
+  { label: 'Sobre la marca', seed: { title: 'Sobre nuestra marca', kind: 'brand', summary: 'Quiénes somos, qué vendemos y qué nos hace diferentes.' } },
+];
+
 function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDelete, confirm, toast }: {
   collections: Collection[];
   docs: Doc[];
   onReloadCollections: () => void;
-  onNew: () => void;
+  onNew: (seed?: Seed) => void;
   onOpen: (d: Doc) => void;
   onDelete: (d: Doc) => void;
   confirm: (o: any) => Promise<boolean>;
@@ -90,6 +100,27 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
   const [filter, setFilter] = useState<number | 'all' | 'none'>('all');
   const [newCol, setNewCol] = useState('');
   const [adding, setAdding] = useState(false);
+  const [introHidden, setIntroHidden] = useState(true);
+  const [faqs, setFaqs] = useState<Faq[]>([]);
+  const [faqForm, setFaqForm] = useState({ question: '', answer: '' });
+
+  useEffect(() => { setIntroHidden(getFlag('knowledge_intro_hidden')); }, []);
+  const loadFaqs = useCallback(() => { api<Faq[]>('/api/faqs').then(setFaqs).catch(() => {}); }, []);
+  useEffect(() => { loadFaqs(); }, [loadFaqs]);
+
+  async function addFaq(e: React.FormEvent) {
+    e.preventDefault();
+    if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
+    await api('/api/faqs', { method: 'POST', body: JSON.stringify(faqForm) });
+    setFaqForm({ question: '', answer: '' });
+    loadFaqs();
+    toast('Pregunta agregada', 'success');
+  }
+  async function removeFaq(id: number) {
+    await api(`/api/faqs/${id}`, { method: 'DELETE' });
+    loadFaqs();
+  }
+  function dismissIntro() { setFlag('knowledge_intro_hidden', true); setIntroHidden(true); }
 
   const shown = useMemo(() => docs.filter((d) => {
     if (filter === 'all') return true;
@@ -122,8 +153,34 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
       <PageHeader
         title="Conocimiento"
         subtitle="Políticas de envío, guías e info de marca que el Empleado IA consulta para responder."
-        actions={<Button onClick={onNew}><Plus size={15} /> Nuevo documento</Button>}
+        actions={<Button onClick={() => onNew()}><Plus size={15} /> Nuevo documento</Button>}
       />
+
+      {/* Value / onboarding intro */}
+      {!introHidden && (
+        <Card className="onboarding-card relative mb-5 overflow-hidden p-5">
+          <button onClick={dismissIntro} aria-label="Ocultar" className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-subtle transition hover:bg-surface-2 hover:text-fg"><X size={15} /></button>
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <Sparkles size={18} className="text-brand" />
+              <h3 className="text-base font-semibold text-fg">Tu Empleado IA responde con esto</h3>
+            </div>
+            <p className="mt-1 max-w-2xl text-sm text-muted">
+              Políticas de envío y devoluciones, preguntas frecuentes e info de tu marca. Mientras más completo
+              esté, mejor y más preciso responde a tus clientes en WhatsApp — sin que tú tengas que estar ahí.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="mr-1 self-center text-xs text-subtle">Empieza con:</span>
+              {EXAMPLES.map((ex) => (
+                <button key={ex.label} onClick={() => onNew(ex.seed)}
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted transition hover:border-brand hover:text-brand">
+                  <Plus size={12} /> {ex.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Collection filter bar */}
       <div className="-mx-1 mb-4 overflow-x-auto px-1 pb-1">
@@ -154,7 +211,7 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
           icon={<BookOpen size={24} />}
           title={docs.length === 0 ? 'Base de conocimiento vacía' : 'Sin documentos aquí'}
           desc={docs.length === 0 ? 'Agrega políticas de envío, guías o info de tu marca.' : 'Esta colección no tiene documentos todavía.'}
-          action={<Button onClick={onNew}><Plus size={15} /> Nuevo documento</Button>}
+          action={<Button onClick={() => onNew()}><Plus size={15} /> Nuevo documento</Button>}
         />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">
@@ -193,14 +250,46 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
           })}
         </Card>
       )}
+
+      {/* Preguntas frecuentes — quick Q&A the Empleado IA answers verbatim */}
+      <div className="mt-8">
+        <div className="mb-2 flex items-center gap-2">
+          <HelpCircle size={16} className="text-subtle" />
+          <h2 className="text-sm font-semibold text-fg">Preguntas frecuentes</h2>
+        </div>
+        <p className="mb-3 text-xs text-muted">Respuestas cortas y directas. El Empleado IA las usa tal cual para responder rápido.</p>
+        <Card className="p-4">
+          <form onSubmit={addFaq} className="space-y-2">
+            <Input value={faqForm.question} onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })} placeholder="Pregunta, ej. ¿Hacen delivery?" />
+            <div className="flex gap-2">
+              <Input value={faqForm.answer} onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })} placeholder="Respuesta" className="flex-1" />
+              <Button disabled={!faqForm.question.trim() || !faqForm.answer.trim()}><Plus size={15} /> Agregar</Button>
+            </div>
+          </form>
+          {faqs.length > 0 && (
+            <div className="mt-3 divide-y divide-border border-t border-border">
+              {faqs.map((f) => (
+                <div key={f.id} className="flex items-start gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-fg">{f.question}</div>
+                    <div className="text-xs text-muted">{f.answer}</div>
+                  </div>
+                  <button onClick={() => removeFaq(f.id)} title="Eliminar" className="shrink-0 text-subtle transition hover:text-danger"><Trash2 size={15} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------- Editor */
 
-function EditorView({ doc, collections, onClose, onSaved, onDelete, toast }: {
+function EditorView({ doc, seed, collections, onClose, onSaved, onDelete, toast }: {
   doc: Doc | null;
+  seed?: Seed;
   collections: Collection[];
   onClose: () => void;
   onSaved: () => void;
@@ -208,10 +297,10 @@ function EditorView({ doc, collections, onClose, onSaved, onDelete, toast }: {
   toast: (msg: string, tone?: 'success' | 'info' | 'error') => void;
 }) {
   const isNew = !doc;
-  const [title, setTitle] = useState(doc?.title ?? '');
-  const [kind, setKind] = useState<Kind>(doc?.kind ?? 'policy');
+  const [title, setTitle] = useState(doc?.title ?? seed?.title ?? '');
+  const [kind, setKind] = useState<Kind>(doc?.kind ?? seed?.kind ?? 'policy');
   const [collectionId, setCollectionId] = useState<string>(doc?.collection_id ? String(doc.collection_id) : '');
-  const [summary, setSummary] = useState(doc?.summary ?? '');
+  const [summary, setSummary] = useState(doc?.summary ?? seed?.summary ?? '');
   const [content, setContent] = useState(doc?.content ?? '');
   const [keywords, setKeywords] = useState(doc?.keywords ?? '');
   const [pinned, setPinned] = useState(doc ? !!doc.pinned : false);

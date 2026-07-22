@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Wallet, Clock, ShieldCheck, MessageCircle, ArrowUpRight, Plus, QrCode } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { StatCard, Card, SectionCard, Badge, Avatar, EmptyState, Button } from '@/components/ui/primitives';
 import { Sparkline, MiniBars } from '@/components/ui/Sparkline';
 import GettingStarted from '@/components/onboarding/GettingStarted';
+import LoginForm from '@/components/auth/LoginForm';
 
 interface Charge { id: number; amount: number; currency: string; concept: string; status: string; paid_at: number | null; created_at: number; contact_name: string; contact_phone: string }
 interface Conversation { id: number; name: string; unread_count: number; last_message: string | null; last_message_at: number }
@@ -28,6 +29,10 @@ export default function Home() {
   const [businessName, setBusinessName] = useState('');
   const [waConnected, setWaConnected] = useState(false);
   const [signal, setSignal] = useState(0);
+  // Auth gate: render the login form at / (root) when there's no token, so the PWA
+  // is installable at the root path (see LoginForm). null = still checking (client).
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  useEffect(() => { setAuthed(Boolean(getToken())); }, []);
 
   const load = useCallback(() => {
     api<Charge[]>('/api/charges').then(setCharges).catch(() => {});
@@ -37,6 +42,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!authed) return; // don't fetch (and trigger a 401 redirect loop) when logged out
     load();
     return connectWs((e) => {
       if (e.type === 'wa.status') setWaConnected(e.status === 'connected');
@@ -45,7 +51,7 @@ export default function Home() {
         setSignal((s) => s + 1); // nudge the checklist to re-check its steps
       }
     });
-  }, [load]);
+  }, [load, authed]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -67,6 +73,9 @@ export default function Home() {
   const recentCharges = useMemo(() => [...charges].sort((a, b) => b.created_at - a.created_at).slice(0, 6), [charges]);
   const topUnread = useMemo(() => convos.filter((c) => c.unread_count > 0).slice(0, 5), [convos]);
   const hasSales = stats.daily.some((v) => v > 0);
+
+  if (authed === null) return null; // brief: resolving auth on the client
+  if (!authed) return <LoginForm />; // logged out → login lives at / (root) for the PWA
 
   return (
     <Shell>

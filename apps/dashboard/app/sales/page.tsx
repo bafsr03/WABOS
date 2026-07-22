@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Search, Plus, Minus, Trash2, Receipt, X, Check, ShoppingCart } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
@@ -9,7 +10,7 @@ import { PageHeader, Card, Input, Button, Badge, EmptyState, StatCard } from '@/
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
-interface Product { id: number; name: string; price: number; cost: number | null; sku: string | null; stock: number | null; track_stock: number; active: number }
+interface Product { id: number; name: string; price: number; cost: number | null; sku: string | null; category: string; stock: number | null; track_stock: number; active: number }
 interface PayMethod { id: string; label: string; fee_pct: number }
 interface Line { productId: number | null; name: string; qty: number; unitPrice: number; unitCost: number | null }
 interface Sale { id: number; total: number; net: number; fee_amount: number; payment_method: string; status: string; contact_name: string | null; channel: string; items: { name: string; qty: number; unit_price: number }[] }
@@ -30,18 +31,43 @@ export default function SalesPage() {
     api<Sale[]>('/api/sales').then(setSales).catch(() => {});
     api<DaySummary>('/api/sales/day-summary').then(setSummary).catch(() => {});
   }, []);
+  const loadProducts = useCallback(() => { api<Product[]>('/api/products').then(setProducts).catch(() => {}); }, []);
   useEffect(() => {
-    api<Product[]>('/api/products').then(setProducts).catch(() => {});
+    loadProducts();
     api<PayMethod[]>('/api/sales/payment-methods').then((m) => setMethods(m)).catch(() => {});
     loadSales();
-  }, [loadSales]);
+  }, [loadSales, loadProducts]);
+
+  // Refetch when the app returns to the foreground — a PWA frozen overnight and
+  // reopened on a new day must re-resolve "hoy" instead of showing yesterday's list.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') { loadSales(); loadProducts(); } };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('pageshow', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('pageshow', refresh);
+    };
+  }, [loadSales, loadProducts]);
 
   async function voidSale(s: Sale) {
     if (!(await confirm({ title: 'Anular venta', message: `Se anulará la venta de ${money(s.total)} y se devolverá el stock.`, confirmLabel: 'Anular', danger: true }))) return;
     await api(`/api/sales/${s.id}/void`, { method: 'POST' });
     toast('Venta anulada', 'info');
     loadSales();
-    api<Product[]>('/api/products').then(setProducts).catch(() => {});
+    loadProducts();
+  }
+
+  async function deleteSale(s: Sale) {
+    try {
+      await api(`/api/sales/${s.id}`, { method: 'DELETE' });
+      toast('Venta eliminada', 'info');
+      loadSales();
+    } catch (err: any) {
+      toast(err.message ?? 'No se pudo eliminar', 'error');
+    }
   }
 
   return (
@@ -61,7 +87,7 @@ export default function SalesPage() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <div className="lg:col-span-3"><ProductPicker products={products} onAdd={(l) => window.dispatchEvent(new CustomEvent('pos-add', { detail: l }))} /></div>
-          <div className="lg:col-span-2"><CartPanel methods={methods} onRecorded={() => { loadSales(); api<Product[]>('/api/products').then(setProducts).catch(() => {}); }} toast={toast} /></div>
+          <div className="lg:col-span-2"><CartPanel methods={methods} onRecorded={() => { loadSales(); loadProducts(); }} toast={toast} /></div>
         </div>
 
         <div className="mt-8">
@@ -70,24 +96,31 @@ export default function SalesPage() {
             <EmptyState icon={<ShoppingCart size={24} />} title="Sin ventas todavía" desc="Registra tu primera venta arriba." />
           ) : (
             <Card className="divide-y divide-border overflow-hidden">
-              {sales.map((s) => (
-                <div key={s.id} className={cn('flex items-center gap-4 px-4 py-3', s.status === 'void' && 'opacity-50')}>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-fg">
-                      {s.items.length > 0 ? s.items.map((i) => `${i.qty}× ${i.name}`).join(', ') : (s.channel === 'whatsapp' ? 'Cobro WhatsApp' : 'Venta')}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">{s.contact_name ? `${s.contact_name} · ` : ''}{methods.find((m) => m.id === s.payment_method)?.label ?? s.payment_method}</p>
-                  </div>
-                  {s.channel === 'whatsapp' && <Badge tone="neutral">WhatsApp</Badge>}
-                  {s.status === 'void' ? <Badge tone="danger">Anulada</Badge> : (
-                    <button onClick={() => voidSale(s)} title="Anular" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-subtle transition hover:bg-danger/12 hover:text-danger"><X size={15} /></button>
-                  )}
-                  <div className="w-24 shrink-0 text-right">
-                    <p className="tabular text-sm font-semibold text-fg">{money(s.total)}</p>
-                    {s.fee_amount > 0 && <p className="tabular text-xs text-muted">neto {money(s.net)}</p>}
-                  </div>
-                </div>
-              ))}
+              {sales.map((s) => {
+                const inner = (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-fg">
+                        {s.items.length > 0 ? s.items.map((i) => `${i.qty}× ${i.name}`).join(', ') : (s.channel === 'whatsapp' ? 'Cobro WhatsApp' : 'Venta')}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">{s.contact_name ? `${s.contact_name} · ` : ''}{methods.find((m) => m.id === s.payment_method)?.label ?? s.payment_method}</p>
+                    </div>
+                    {s.channel === 'whatsapp' && <Badge tone="neutral">WhatsApp</Badge>}
+                    {s.status === 'void' ? <Badge tone="danger">Anulada</Badge> : (
+                      <button onClick={() => voidSale(s)} title="Anular" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-subtle transition hover:bg-danger/12 hover:text-danger"><X size={15} /></button>
+                    )}
+                    <div className="w-24 shrink-0 text-right">
+                      <p className="tabular text-sm font-semibold text-fg">{money(s.total)}</p>
+                      {s.fee_amount > 0 && <p className="tabular text-xs text-muted">neto {money(s.net)}</p>}
+                    </div>
+                  </>
+                );
+                if (s.status !== 'void') {
+                  return <div key={s.id} className="flex items-center gap-4 px-4 py-3">{inner}</div>;
+                }
+                // Voided sales: swipe left to reveal a "Eliminar" button, then tap it to hard-delete.
+                return <VoidSaleRow key={s.id} onDelete={() => deleteSale(s)}>{inner}</VoidSaleRow>;
+              })}
             </Card>
           )}
         </div>
@@ -96,16 +129,64 @@ export default function SalesPage() {
   );
 }
 
+/* ------------------------------------------------------------ Void sale row */
+
+// A voided sale row: swipe left to reveal the "Eliminar" button, tap it to delete.
+// Deletion is deliberately a two-step (swipe → tap) so it never fires by accident.
+const REVEAL = 104;
+function VoidSaleRow({ children, onDelete }: { children: React.ReactNode; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative overflow-hidden">
+      <button
+        onClick={onDelete}
+        aria-label="Eliminar"
+        className="absolute inset-y-0 right-0 flex items-center gap-1.5 bg-danger px-5 text-sm font-medium text-white"
+      >
+        <Trash2 size={16} /> Eliminar
+      </button>
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: -REVEAL, right: 0 }}
+        dragElastic={0.06}
+        animate={{ x: open ? -REVEAL : 0 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 42 }}
+        onDragEnd={(_, info) => setOpen(info.offset.x < -REVEAL / 2)}
+        className="relative flex cursor-grab items-center bg-surface px-4 py-3 active:cursor-grabbing"
+      >
+        {/* Dim only the content (bg stays opaque so the red button never bleeds through). */}
+        <div className="flex flex-1 items-center gap-4 opacity-60">{children}</div>
+      </motion.div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------- Product picker */
 
 function ProductPicker({ products, onAdd }: { products: Product[]; onAdd: (l: Line) => void }) {
   const [q, setQ] = useState('');
+  const [cat, setCat] = useState<string>('all');
+  const [flashId, setFlashId] = useState<number | null>(null);
+
+  const categories = useMemo(
+    () => Array.from(new Set(products.filter((p) => p.active).map((p) => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [products],
+  );
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return products.filter((p) => p.active && (!needle || `${p.name} ${p.sku ?? ''}`.toLowerCase().includes(needle)));
-  }, [products, q]);
+    return products.filter((p) => p.active
+      && (cat === 'all' || p.category === cat)
+      && (!needle || `${p.name} ${p.sku ?? ''} ${p.category}`.toLowerCase().includes(needle)));
+  }, [products, q, cat]);
 
   const isOut = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) <= 0;
+
+  // Brief visual "selected" pulse on the tapped tile so it's clear it went to the cart.
+  function pick(p: Product) {
+    onAdd({ productId: p.id, name: p.name, qty: 1, unitPrice: p.price, unitCost: p.cost });
+    setFlashId(p.id);
+    window.setTimeout(() => setFlashId((cur) => (cur === p.id ? null : cur)), 450);
+  }
 
   return (
     <Card className="p-4">
@@ -113,6 +194,20 @@ function ProductPicker({ products, onAdd }: { products: Product[]; onAdd: (l: Li
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-subtle" />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto o SKU…" className="pl-10" autoFocus />
       </div>
+      {categories.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {['all', ...categories].map((c) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              className={cn('rounded-full border px-3 py-1 text-xs font-medium transition',
+                cat === c ? 'border-brand bg-brand/10 text-brand' : 'border-border text-muted hover:text-fg')}
+            >
+              {c === 'all' ? 'Todas' : c}
+            </button>
+          ))}
+        </div>
+      )}
       {shown.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted">Sin productos. Agrégalos en Catálogo.</p>
       ) : (
@@ -121,12 +216,20 @@ function ProductPicker({ products, onAdd }: { products: Product[]; onAdd: (l: Li
             <button
               key={p.id}
               disabled={isOut(p)}
-              onClick={() => onAdd({ productId: p.id, name: p.name, qty: 1, unitPrice: p.price, unitCost: p.cost })}
-              className={cn('flex flex-col items-start gap-1 rounded-xl border border-border bg-surface p-3 text-left transition hover:border-border-strong hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50')}
+              onClick={() => pick(p)}
+              className={cn(
+                'relative flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition duration-150 disabled:cursor-not-allowed disabled:opacity-50',
+                flashId === p.id
+                  ? 'scale-[.97] border-brand bg-brand/10 ring-2 ring-brand/60'
+                  : 'border-border bg-surface hover:border-border-strong hover:bg-surface-2',
+              )}
             >
               <span className="line-clamp-2 text-sm font-medium text-fg">{p.name}</span>
               <span className="tabular text-xs text-brand">{money(p.price)}</span>
               {p.track_stock === 1 && <span className="text-[11px] text-subtle">{isOut(p) ? 'Agotado' : `${p.stock} en stock`}</span>}
+              {flashId === p.id && (
+                <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-brand text-[11px] font-bold text-white">+1</span>
+              )}
             </button>
           ))}
         </div>

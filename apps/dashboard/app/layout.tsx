@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/Toast';
 import { ConfirmProvider } from '@/components/ui/Modal';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import NativeBridge from '@/components/NativeBridge';
+import OrientationLock from '@/components/OrientationLock';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -29,6 +30,11 @@ export const metadata: Metadata = {
     icon: '/icons/192.png',
     apple: '/icons/180.png',
   },
+  other: {
+    // Next's appleWebApp.capable only emits the generic `mobile-web-app-capable`;
+    // iOS Safari still needs the legacy apple- tag to launch standalone (no chrome).
+    'apple-mobile-web-app-capable': 'yes',
+  },
 };
 
 export const viewport: Viewport = {
@@ -48,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Toaster>
         <ServiceWorkerRegister />
         <NativeBridge />
+        <OrientationLock />
       </body>
     </html>
   );

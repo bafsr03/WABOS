@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Store, ArrowRight } from 'lucide-react';
 import { register } from '@/lib/api';
@@ -10,7 +9,6 @@ import { Input, Button } from '@/components/ui/primitives';
 import SocialAuth from '@/components/SocialAuth';
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,8 +22,9 @@ export default function RegisterPage() {
     setError('');
     try {
       await register(email.trim(), password, businessName.trim());
-      // New tenant → go straight to linking WhatsApp.
-      router.replace('/connect');
+      // New tenant → go straight to linking WhatsApp. Hard load (not router.replace)
+      // so an iOS standalone PWA stays fullscreen instead of dropping into Safari.
+      window.location.href = '/connect';
     } catch (err: any) {
       setError(err.message ?? 'No se pudo crear la cuenta');
     } finally {
@@ -74,7 +73,7 @@ export default function RegisterPage() {
           {loading ? 'Creando…' : <>Crear cuenta <ArrowRight size={15} /></>}
         </Button>
 
-        <SocialAuth onAuthed={() => router.replace('/connect')} onError={(msg) => setError(msg)} />
+        <SocialAuth onAuthed={() => { window.location.href = '/connect'; }} onError={(msg) => setError(msg)} />
 
         <p className="mt-4 text-center text-sm text-muted">
           ¿Ya tienes cuenta? <Link href="/login" className="font-medium text-brand hover:underline">Inicia sesión</Link>

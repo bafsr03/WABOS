@@ -133,6 +133,14 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 }
 .brand-gradient { background-color: var(--brand); background-image: none; }
 
+/* Onboarding cards: a distinct, slightly darker indigo-tinted surface so first-run
+   guidance (Primeros pasos, Conocimiento intro) stands apart from normal white cards.
+   Declared after Tailwind so it wins over the Card's default bg/border (cn = plain join). */
+.onboarding-card {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--brand) 10%, var(--surface)), var(--surface) 62%);
+  border-color: color-mix(in oklab, var(--brand) 22%, var(--border));
+}
+
 /* Aurora: faint indigo wash for page/sidebar atmosphere (very subtle). */
 .aurora { position: relative; isolation: isolate; }
 .aurora::before {
@@ -163,4 +171,21 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
   content: ""; position: absolute; inset: 0; transform: translateX(-100%);
   background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--fg) 6%, transparent), transparent);
   animation: shimmer 1.4s infinite;
+}
+
+/* ---------------------------------------------------------------------------
+   Portrait lock. iOS ignores the manifest's `orientation` and the Screen
+   Orientation API, so on a phone-sized screen turned landscape we cover the app
+   with a "rotate back" overlay — the only reliable way to keep WABOS upright.
+   Scoped to coarse-pointer (touch) devices so laptops/desktops are unaffected.
+--------------------------------------------------------------------------- */
+.orientation-lock { display: none; }
+@media (orientation: landscape) and (max-width: 1024px) and (pointer: coarse) {
+  .orientation-lock {
+    position: fixed; inset: 0; z-index: 100000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background: var(--bg); color: var(--fg-muted);
+    font: 600 15px/1.4 var(--font-inter, system-ui), sans-serif; text-align: center;
+  }
 }

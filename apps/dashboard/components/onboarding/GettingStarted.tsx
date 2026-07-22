@@ -55,8 +55,7 @@ export default function GettingStarted({ waConnected, signal = 0 }: { waConnecte
   return (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }}>
-        <Card className="relative overflow-hidden p-5">
-          <div className="aurora pointer-events-none absolute inset-x-0 top-0 h-24" />
+        <Card className="onboarding-card relative overflow-hidden p-5">
           <div className="relative flex items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold text-fg">

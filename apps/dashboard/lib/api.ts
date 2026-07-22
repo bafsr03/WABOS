@@ -117,7 +117,8 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
   });
   if (res.status === 401) {
     clearToken();
-    if (typeof window !== 'undefined') window.location.href = '/login';
+    // Root shows the login form when logged out; staying on / keeps the iOS PWA in scope.
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') window.location.href = '/';
     throw new Error('Unauthorized');
   }
   if (!res.ok) {

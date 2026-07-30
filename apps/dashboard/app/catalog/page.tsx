@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, Trash2, Search, ArrowUpDown, ImagePlus, ImageIcon, ChevronRight, ShoppingBag, Check,
+  Download, Upload, Loader2,
 } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api } from '@/lib/api';
+import { api, apiDownload, importProductsCsv, uploadProductImage } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Switch } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
@@ -58,6 +59,8 @@ export default function CatalogPage() {
           onNew={() => setView({ mode: 'edit', product: null })}
           onOpen={(p) => setView({ mode: 'edit', product: p })}
           onDelete={(p) => remove(p)}
+          onChanged={load}
+          toast={toast}
         />
       ) : (
         <EditorView
@@ -75,16 +78,51 @@ export default function CatalogPage() {
 
 /* ------------------------------------------------------------------ List */
 
-function ListView({ products, onNew, onOpen, onDelete }: {
+function ListView({ products, onNew, onOpen, onDelete, onChanged, toast }: {
   products: Product[];
   onNew: () => void;
   onOpen: (p: Product) => void;
   onDelete: (p: Product) => void;
+  onChanged: () => void;
+  toast: (msg: string, tone?: 'success' | 'info' | 'error') => void;
 }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
   const [cat, setCat] = useState<string>('all');
   const [sort, setSort] = useState<SortId>('recent');
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
+
+  async function onExport() {
+    try { await apiDownload('/api/products/export.csv', 'inventario.csv'); }
+    catch (err: any) { toast(err.message ?? 'No se pudo exportar', 'error'); }
+  }
+  async function onTemplate() {
+    try { await apiDownload('/api/products/template.csv', 'plantilla-inventario.csv'); }
+    catch (err: any) { toast(err.message ?? 'No se pudo descargar la plantilla', 'error'); }
+  }
+  async function onImportFile(file: File) {
+    setImporting(true);
+    try {
+      const csv = await file.text();
+      const res = await importProductsCsv(csv);
+      const parts = [];
+      if (res.created) parts.push(`${res.created} nuevos`);
+      if (res.updated) parts.push(`${res.updated} actualizados`);
+      const summary = parts.length ? parts.join(', ') : 'Sin cambios';
+      if (res.errors.length) {
+        toast(`${summary}. ${res.errors.length} fila(s) con error (ej. fila ${res.errors[0].row}: ${res.errors[0].message})`, 'error');
+      } else {
+        toast(`Inventario importado: ${summary}`, 'success');
+      }
+      onChanged();
+    } catch (err: any) {
+      toast(err.message ?? 'No se pudo importar el archivo', 'error');
+    } finally {
+      setImporting(false);
+      if (importInput.current) importInput.current.value = '';
+    }
+  }
 
   const counts = useMemo(() => ({
     all: products.length,
@@ -121,6 +159,23 @@ function ListView({ products, onNew, onOpen, onDelete }: {
         subtitle="El Empleado IA usa este catálogo para responder y recomendar."
         actions={<Button onClick={onNew}><Plus size={15} /> Nuevo producto</Button>}
       />
+
+      {/* Bulk import / export */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          ref={importInput}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImportFile(f); }}
+        />
+        <Button variant="secondary" size="sm" onClick={() => importInput.current?.click()} disabled={importing}>
+          {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+          {importing ? 'Importando…' : 'Importar CSV'}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onTemplate}><Download size={15} /> Descargar plantilla</Button>
+        <Button variant="ghost" size="sm" onClick={onExport} disabled={products.length === 0}><Download size={15} /> Exportar</Button>
+      </div>
 
       {/* Search + sort */}
       <div className="mb-4 flex items-center gap-2">
@@ -198,8 +253,10 @@ function ListView({ products, onNew, onOpen, onDelete }: {
               onKeyDown={(e) => { if (e.key === 'Enter') onOpen(p); }}
               className="group flex cursor-pointer items-center gap-4 px-4 py-3.5 transition hover:bg-surface-2"
             >
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-border bg-surface-2 text-subtle">
-                <ImageIcon size={20} />
+              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-surface-2 text-subtle">
+                {p.image_path
+                  ? <img src={p.image_path} alt={p.name} className="h-full w-full object-cover" loading="lazy" />
+                  : <ImageIcon size={20} />}
               </div>
               <div className="min-w-0 flex-1">
                 <p className={cn('line-clamp-2 text-sm font-medium text-fg', !p.active && 'opacity-60')}>{p.name}</p>
@@ -249,10 +306,29 @@ function EditorView({ product, categories, onClose, onSaved, onDelete, toast }: 
   const [active, setActive] = useState(product ? !!product.active : true);
   const [trackStock, setTrackStock] = useState(product ? product.track_stock === 1 : false);
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
+  const [image, setImage] = useState<string | null>(product?.image_path ?? null);
+  const [uploading, setUploading] = useState(false);
+  const imgInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const isNew = !product;
+
+  async function onPickImage(file: File) {
+    if (isNew || !product) { toast('Guarda el producto primero para agregar una foto', 'info'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast('La imagen supera 5 MB', 'error'); return; }
+    setUploading(true);
+    try {
+      const res = await uploadProductImage(product.id, file);
+      setImage(res.imagePath);
+      toast('Imagen actualizada', 'success');
+    } catch (err: any) {
+      toast(err.message ?? 'No se pudo subir la imagen', 'error');
+    } finally {
+      setUploading(false);
+      if (imgInput.current) imgInput.current.value = '';
+    }
+  }
 
   async function save() {
     if (!name.trim() || saving) return;
@@ -315,14 +391,39 @@ function EditorView({ product, categories, onClose, onSaved, onDelete, toast }: 
           </div>
         </Card>
 
-        {/* Media (decorativo) */}
+        {/* Media */}
         <Card className="p-4">
-          <p className="mb-2 text-sm font-medium text-fg">Media</p>
-          <div className="grid place-items-center gap-2 rounded-xl border border-dashed border-border-strong px-6 py-10 text-center">
-            <ImagePlus size={26} className="text-subtle" />
-            <p className="text-sm font-medium text-brand">Agregar imágenes</p>
-            <p className="text-xs text-subtle">Próximamente — carga de fotos de producto</p>
-          </div>
+          <p className="mb-2 text-sm font-medium text-fg">Foto del producto</p>
+          <input
+            ref={imgInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void onPickImage(f); }}
+          />
+          {image ? (
+            <div className="flex items-center gap-4">
+              <img src={image} alt={name || 'Producto'} className="h-24 w-24 shrink-0 rounded-xl border border-border object-cover" />
+              <div className="flex flex-col gap-2">
+                <Button variant="secondary" size="sm" onClick={() => imgInput.current?.click()} disabled={uploading}>
+                  {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />}
+                  {uploading ? 'Subiendo…' : 'Cambiar foto'}
+                </Button>
+                <p className="text-xs text-subtle">PNG, JPG o WEBP · máx. 5 MB</p>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => (isNew ? toast('Guarda el producto primero para agregar una foto', 'info') : imgInput.current?.click())}
+              disabled={uploading}
+              className="grid w-full place-items-center gap-2 rounded-xl border border-dashed border-border-strong px-6 py-10 text-center transition hover:border-brand disabled:opacity-60"
+            >
+              {uploading ? <Loader2 size={26} className="animate-spin text-subtle" /> : <ImagePlus size={26} className="text-subtle" />}
+              <span className="text-sm font-medium text-brand">{uploading ? 'Subiendo…' : 'Agregar foto'}</span>
+              <span className="text-xs text-subtle">{isNew ? 'Guarda el producto primero' : 'PNG, JPG o WEBP · máx. 5 MB'}</span>
+            </button>
+          )}
         </Card>
 
         {/* Detalles */}

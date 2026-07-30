@@ -1,0 +1,83 @@
+# WABOS — combined deploy (ROLE=all). This is what you launch with: one engine
+# process runs the store API + WhatsApp + every worker, exactly like local dev.
+# To move to the split backends later, use docker-compose.split.yml instead
+# (see docs/deploy-vps.md). Only Caddy is exposed publicly; everything else talks
+# over the internal Docker network.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wabos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: wabos
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wabos -d wabos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  engine:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: "${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}"
+    image: wabos
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ROLE: all
+      PORT: "4000"
+      NODE_ENV: production
+      DATABASE_URL: postgres://wabos:${POSTGRES_PASSWORD}@postgres:5432/wabos
+    volumes:
+      - wa_auth:/app/apps/engine/auth   # WhatsApp session credentials (per business)
+      - wa_data:/app/apps/engine/data   # WhatsApp media + local data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard:
+    image: wabos
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@wabos/dashboard", "start"]
+    environment:
+      NODE_ENV: production
+      ENGINE_ORIGIN: http://engine:4000
+      WA_ORIGIN: http://engine:4000
+    depends_on:
+      - engine
+
+  web:
+    image: wabos
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@wabos/web", "start"]
+    environment:
+      NODE_ENV: production
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      MARKETING_DOMAIN: ${MARKETING_DOMAIN:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - dashboard
+      - web
+
+volumes:
+  pgdata:
+  wa_auth:
+  wa_data:
+  caddy_data:
+  caddy_config:

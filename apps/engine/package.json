@@ -13,7 +13,8 @@
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx src/db/seed.ts",
     "sqlite-to-pg": "tsx scripts/sqlite-to-pg.ts",
-    "create-user": "tsx scripts/create-user.ts"
+    "create-user": "tsx scripts/create-user.ts",
+    "grant": "tsx scripts/grant-plan.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

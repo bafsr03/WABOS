@@ -96,6 +96,14 @@ export function resetPassword(token: string, password: string): Promise<void> {
   return postJson('/api/auth/reset', { token, password });
 }
 
+// Change password while logged in (verifies the current one server-side).
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return api('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
 // Permanently delete the account + all its data, then clear the local session.
 export async function deleteAccount(): Promise<void> {
   await api('/api/account', { method: 'DELETE' });
@@ -206,4 +214,43 @@ export async function fetchMediaUrl(mediaId: number): Promise<string> {
   });
   if (!res.ok) throw new Error(`Media request failed (${res.status})`);
   return URL.createObjectURL(await res.blob());
+}
+
+// ---- inventory import / export ----------------------------------------------
+// Downloads under /api are behind the bearer token, so a plain <a href> won't
+// authenticate. Fetch the bytes with the auth header, then trigger a save.
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const businessId = getBusinessId();
+  const res = await fetch(`${ENGINE_URL}${path}`, {
+    headers: { Authorization: `Bearer ${getToken()}`, ...(businessId ? { 'X-Business-Id': businessId } : {}) },
+  });
+  if (!res.ok) throw new Error(`La descarga falló (${res.status})`);
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export interface ImportResult { created: number; updated: number; errors: { row: number; message: string }[] }
+
+export function importProductsCsv(csv: string): Promise<ImportResult> {
+  return api('/api/products/import', { method: 'POST', body: JSON.stringify({ csv }) });
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => { const s = String(reader.result); resolve(s.slice(s.indexOf(',') + 1)); };
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadProductImage(productId: number, file: File): Promise<{ imagePath: string }> {
+  const data = await fileToBase64(file);
+  return api(`/api/products/${productId}/image`, {
+    method: 'POST',
+    body: JSON.stringify({ contentType: file.type, data }),
+  });
 }

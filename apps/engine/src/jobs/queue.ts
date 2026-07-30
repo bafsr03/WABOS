@@ -25,6 +25,7 @@ export type DeadJobHandler = (payload: any, job: Job) => void;
 const POLL_INTERVAL_MS = 5000;
 
 let handlers: Record<string, JobHandler> = {};
+let handledTypes: string[] = [];
 let onDead: DeadJobHandler | undefined;
 let draining = false;
 let started = false;
@@ -43,14 +44,18 @@ export function pokePoller() {
 
 async function claimNextJob(): Promise<Job | undefined> {
   const now = Math.floor(Date.now() / 1000);
+  // Only claim job types this process registered a handler for. Under the split
+  // the store and whatsapp backends poll the same jobs table but each owns a
+  // disjoint set of types, so a store job is never claimed by whatsapp (or vice
+  // versa) and left to die with "no handler".
   return one<Job>(`
     UPDATE jobs SET status = 'running', updated_at = (extract(epoch from now())::bigint)
     WHERE id = (
-      SELECT id FROM jobs WHERE status = 'queued' AND run_at <= $1
+      SELECT id FROM jobs WHERE status = 'queued' AND run_at <= $1 AND type = ANY($2)
       ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1
     )
     RETURNING *
-  `, [now]);
+  `, [now, handledTypes]);
 }
 
 async function drain() {
@@ -97,9 +102,12 @@ export async function startJobPoller(jobHandlers: Record<string, JobHandler>, de
   if (started) throw new Error('job poller already started');
   started = true;
   handlers = jobHandlers;
+  handledTypes = Object.keys(jobHandlers);
   onDead = deadJobHandler;
-  // Jobs left running by a crash/restart go back to the queue.
-  await none(`UPDATE jobs SET status = 'queued', updated_at = (extract(epoch from now())::bigint) WHERE status = 'running'`);
+  // Jobs left running by a crash/restart go back to the queue — but only the ones
+  // this process handles, so restarting one backend doesn't requeue the other's
+  // in-flight jobs.
+  await none(`UPDATE jobs SET status = 'queued', updated_at = (extract(epoch from now())::bigint) WHERE status = 'running' AND type = ANY($1)`, [handledTypes]);
   setInterval(() => void drain(), POLL_INTERVAL_MS).unref();
   void drain();
 }

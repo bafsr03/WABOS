@@ -2,6 +2,8 @@ import { logger } from '../logger.js';
 import { getSock } from './connection.js';
 import { currentBusinessId, runWithBusiness } from '../context.js';
 import { getConversation, insertMessage } from '../modules/store.js';
+import { runsWhatsapp } from '../roles.js';
+import { remoteSend, remoteSendOwner } from '../modules/wa-client.js';
 
 interface SendJob {
   businessId: number;
@@ -70,6 +72,17 @@ export async function sendText(opts: {
   humanized?: boolean;
 }): Promise<boolean> {
   const businessId = currentBusinessId();
+  // Store role has no socket: hand the send to the whatsapp backend, which owns
+  // the anti-ban queue and will thread + log the outgoing message itself.
+  if (!runsWhatsapp) {
+    return remoteSend({
+      businessId,
+      conversationId: opts.conversationId,
+      text: opts.text,
+      fromAi: opts.fromAi ?? false,
+      humanized: opts.humanized ?? true,
+    });
+  }
   const conversation = await getConversation(opts.conversationId);
   if (!conversation) return false;
   return new Promise((resolve) => {
@@ -93,6 +106,7 @@ export async function sendText(opts: {
 export async function sendOwnerText(businessId: number, phone: string, text: string): Promise<boolean> {
   const digits = phone.replace(/\D/g, '');
   if (!digits) return false;
+  if (!runsWhatsapp) return remoteSendOwner({ businessId, phone: digits, text });
   return new Promise((resolve) => {
     queueFor(businessId).queue.push({
       businessId,

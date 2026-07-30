@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, Coins, Send, Download, Database, Plus, ChevronDown, BookOpen, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
-import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, getToken, getBusinessId, ENGINE_URL, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
+import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, changePassword, getToken, getBusinessId, ENGINE_URL, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
@@ -169,6 +169,8 @@ export default function SettingsPage() {
             </div>
           </SectionCard>
         </form>
+
+        <ChangePassword toast={toast} />
 
         <DangerZone />
         </div>
@@ -574,6 +576,51 @@ function DangerZone() {
         </div>
       </div>
     </Card>
+  );
+}
+
+// Change the account password from inside the app (logged-in flow). Accounts that
+// only ever used Google sign-in won't know a current password — they set one via
+// the "forgot password" link on the login screen instead.
+function ChangePassword({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | 'error') => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (next.length < 8) { toast('La nueva contraseña debe tener al menos 8 caracteres', 'error'); return; }
+    if (next !== confirm) { toast('Las contraseñas no coinciden', 'error'); return; }
+    setBusy(true);
+    try {
+      await changePassword(current, next);
+      toast('Contraseña actualizada', 'success');
+      setCurrent(''); setNext(''); setConfirm('');
+    } catch (err: any) {
+      toast(err?.message ?? 'No se pudo cambiar la contraseña', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <SectionCard title="Contraseña" desc="Cambia la contraseña con la que inicias sesión.">
+        <div className="space-y-4">
+          <Field label="Contraseña actual">
+            <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+          </Field>
+          <Field label="Nueva contraseña" hint="Mínimo 8 caracteres">
+            <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
+          </Field>
+          <Field label="Confirmar nueva contraseña">
+            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+          </Field>
+          <Button disabled={busy || !current || !next || !confirm}>{busy ? 'Guardando…' : 'Cambiar contraseña'}</Button>
+        </div>
+      </SectionCard>
+    </form>
   );
 }
 

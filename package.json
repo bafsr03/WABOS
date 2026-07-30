@@ -13,5 +13,16 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "argon2",
+      "better-sqlite3",
+      "esbuild",
+      "sharp",
+      "protobufjs",
+      "@whiskeysockets/baileys"
+    ]
   }
 }

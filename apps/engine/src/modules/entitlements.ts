@@ -21,14 +21,14 @@ export type PlanTier = keyof typeof FEATURE_MATRIX;
 // Structural per-tier caps. `contacts`/`agents` are enforced on the create
 // endpoints; `aiMessagesPerMonth` is the hard cap on auto-replies; `numbers` is
 // informational (a WhatsApp number == a workspace/subscription, not enforced here).
-export interface PlanLimits { numbers: number; contacts: number; agents: number; aiMessagesPerMonth: number }
+export interface PlanLimits { numbers: number; contacts: number; agents: number; products: number; aiMessagesPerMonth: number }
 const INF = Number.POSITIVE_INFINITY;
 const LIMITS: Record<string, PlanLimits> = {
-  free: { numbers: 1, contacts: 100, agents: 1, aiMessagesPerMonth: 200 },
-  basico: { numbers: 1, contacts: 1000, agents: 1, aiMessagesPerMonth: 1000 },
-  avanzado: { numbers: 1, contacts: 5000, agents: 3, aiMessagesPerMonth: 3000 },
-  pro: { numbers: 2, contacts: 20000, agents: 5, aiMessagesPerMonth: 6000 },
-  enterprise: { numbers: INF, contacts: INF, agents: INF, aiMessagesPerMonth: INF },
+  free: { numbers: 1, contacts: 100, agents: 1, products: 20, aiMessagesPerMonth: 200 },
+  basico: { numbers: 1, contacts: 1000, agents: 1, products: 200, aiMessagesPerMonth: 1000 },
+  avanzado: { numbers: 1, contacts: 5000, agents: 3, products: 1000, aiMessagesPerMonth: 3000 },
+  pro: { numbers: 2, contacts: 20000, agents: 5, products: 5000, aiMessagesPerMonth: 6000 },
+  enterprise: { numbers: INF, contacts: INF, agents: INF, products: INF, aiMessagesPerMonth: INF },
 };
 
 export async function getLimits(): Promise<PlanLimits> {
@@ -38,7 +38,7 @@ export async function getLimits(): Promise<PlanLimits> {
 
 // Throws a 402-flavored error when creating another row of `kind` would exceed
 // the tier cap. Call before an INSERT on a capped resource.
-export async function assertWithinLimit(kind: 'contacts' | 'agents'): Promise<void> {
+export async function assertWithinLimit(kind: 'contacts' | 'agents' | 'products'): Promise<void> {
   const limit = (await getLimits())[kind];
   if (limit === INF) return;
   // Test contacts don't count against the plan (they're not real CRM contacts).

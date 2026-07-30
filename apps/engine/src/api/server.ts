@@ -8,9 +8,11 @@ import { logger } from '../logger.js';
 import { bus, type WabosEvent } from '../events.js';
 import { one, many, none, getAllSettings, getSetting, setSetting } from '../db/index.js';
 import { DEFAULT_BUSINESS_ID, runWithBusiness, currentBusinessId } from '../context.js';
-import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses, createBusinessForUser, requestPasswordReset, resetPassword } from '../modules/auth.js';
+import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses, createBusinessForUser, requestPasswordReset, resetPassword, changePassword } from '../modules/auth.js';
 import { sendPasswordReset } from '../modules/mailer.js';
-import { getWaState, logoutWhatsApp, changeNumber, pauseWhatsApp, reconnectWhatsApp, purgeConnection } from '../wa/connection.js';
+import { waState, waLogout, waChangeNumber, waSessionOpen, waSessionClose, waPurge } from '../wa/state.js';
+import { registerInternalRoutes } from '../wa/internal-routes.js';
+import { runsWhatsapp } from '../roles.js';
 import { sendText } from '../wa/outbound.js';
 import { isAiAvailable } from '../ai/employee.js';
 import {
@@ -39,6 +41,7 @@ import { runBackup, latestBackup } from '../workers/backup.js';
 import { saveSubscription, removeSubscription, isPushConfigured, vapidPublicKey, saveDeviceToken, removeDeviceToken } from '../modules/push.js';
 import { getPaymentSettings } from '../modules/charges.js';
 import { featureFlags, getPlanTier, isFeatureEnabled, assertWithinLimit, getAiUsage } from '../modules/entitlements.js';
+import { isAdminUser, getAdminOverview } from '../modules/admin.js';
 import { createCheckoutSession, createPortalSession, handleWebhook, isBillingAvailable, changePlan, cancelSubscription, resumeSubscription, syncSubscriptionFromProvider } from '../modules/billing/index.js';
 import { startAgentTest, sendTestMessage, deleteTestConversation } from '../modules/agent-testing.js';
 import {
@@ -50,15 +53,24 @@ import {
   createImport, getLatestImport, getActiveImport, stopImport, startOnDemandBackfill,
 } from '../modules/history-import.js';
 import { mediaAbsolutePath } from '../wa/media.js';
+import { templateCsv, importProductsCsv, PRODUCT_CSV_COLUMNS } from '../modules/products-csv.js';
+import { isStorageConfigured, uploadProductImage } from '../modules/storage.js';
 import fs from 'node:fs';
 
 // Builds the fully-wired Fastify instance WITHOUT binding a port, so tests can
 // drive it via app.inject(). startApi() below is the production entrypoint.
 export async function buildApi() {
-  const app = Fastify({ logger: false });
+  // 12 MB body limit: a 5 MB product image base64-encodes to ~6.7 MB, plus CSV
+  // imports. Default is 1 MB, which those would exceed.
+  const app = Fastify({ logger: false, bodyLimit: 12 * 1024 * 1024 });
   // Production locks the origin to the dashboard URL; dev leaves it permissive.
   await app.register(cors, { origin: config.allowedOrigin || true });
   await app.register(websocket);
+
+  // The whatsapp backend exposes an internal, key-gated surface (send + session
+  // control) that the store backend calls over the Docker network. No-op traffic
+  // in ROLE=all (the store code takes the local path instead).
+  if (runsWhatsapp) registerInternalRoutes(app);
 
   // Parse JSON as usual but keep the raw bytes on the request — the billing
   // webhook needs the exact payload to verify its signature.
@@ -173,6 +185,24 @@ export async function buildApi() {
     return { user: await getUser(uid), businesses: await listUserBusinesses(uid) };
   });
 
+  // Change password for the logged-in user (verifies the current one). Authed —
+  // goes through the onRequest hook, so (req as any).uid is set.
+  app.post('/api/auth/change-password', async (req, reply) => {
+    const uid = (req as any).uid as number | undefined;
+    if (!uid) return reply.code(401).send({ error: 'Unauthorized' });
+    const body = z.object({
+      current_password: z.string().min(1),
+      new_password: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres'),
+    }).parse(req.body);
+    try {
+      await changePassword(uid, body.current_password, body.new_password);
+      return { ok: true };
+    } catch (err: any) {
+      if (err.code === 'INVALID_CREDENTIALS') return reply.code(400).send({ error: err.message });
+      throw err;
+    }
+  });
+
   // Create an additional workspace owned by the current user (the "+ Nuevo
   // espacio" action in the switcher). Legacy-token sessions can't own new ones.
   app.post('/api/businesses', async (req, reply) => {
@@ -266,7 +296,7 @@ export async function buildApi() {
     const uid = (req as any).uid as number | undefined;
     if (!uid) return reply.code(400).send({ error: 'Esta sesión no puede eliminar la cuenta' });
     const businesses = await listUserBusinesses(uid);
-    for (const b of businesses) await purgeConnection(b.id); // stop socket + delete creds
+    for (const b of businesses) await waPurge(b.id); // stop socket + delete creds
     await deleteAccount(uid);
     return { ok: true };
   });
@@ -295,13 +325,13 @@ export async function buildApi() {
     };
     bus.on('event', forward);
     socket.on('close', () => bus.off('event', forward));
-    const wa = getWaState(businessId);
+    const wa = await waState(businessId);
     forward({ type: 'wa.status', businessId, status: wa.status, qr: wa.qr, me: wa.me });
   });
 
   // ---- whatsapp connection -------------------------------------------------
   app.get('/api/status', async () => {
-    const wa = getWaState();
+    const wa = await waState();
     const usage = await getAiUsage();
     const biz = await one<{ subscription_status: string | null; current_period_end: number | null }>(
       'SELECT subscription_status, current_period_end FROM businesses WHERE id = $1', [currentBusinessId()]);
@@ -323,27 +353,37 @@ export async function buildApi() {
     };
   });
 
+  // ---- platform admin (owner-only, cross-tenant ops console) ----------------
+  // Gated by email ∈ config.adminEmails; unlike every other route this reads
+  // across all businesses. Non-admins get 403 even with a valid session.
+  app.get('/api/admin/overview', async (req, reply) => {
+    if (!(await isAdminUser((req as any).uid))) {
+      return reply.code(403).send({ error: 'Acceso restringido' });
+    }
+    return getAdminOverview();
+  });
+
   app.post('/api/logout', async () => {
-    await logoutWhatsApp();
+    await waLogout();
     return { ok: true };
   });
 
   // Change numbers: keep brand assets + CRM, reset the old number's chats/money,
   // then re-issue a QR for the new number.
   app.post('/api/change-number', async () => {
-    await changeNumber();
+    await waChangeNumber();
     return { ok: true };
   });
 
   // Dashboard session lifecycle: closing the app session pauses the WhatsApp
   // socket but keeps the link + all data; logging back in resumes it.
   app.post('/api/session/close', async () => {
-    await pauseWhatsApp();
+    await waSessionClose();
     return { ok: true };
   });
 
   app.post('/api/session/open', async () => {
-    await reconnectWhatsApp();
+    await waSessionOpen();
     return { ok: true };
   });
 
@@ -528,6 +568,7 @@ export async function buildApi() {
       trackStock: z.boolean().optional(),
       imagePath: z.string().nullable().optional(),
     }).parse(req.body);
+    await assertWithinLimit('products'); // tier cap (402 PLAN_LIMIT when exceeded)
     const row = await one(
       'INSERT INTO products (business_id, name, description, price, currency, cost, sku, category, stock, track_stock, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
       [currentBusinessId(), body.name, body.description, body.price, body.currency, body.cost ?? null, body.sku ?? null, body.category ?? '', body.stock ?? null, body.trackStock ? 1 : 0, body.imagePath ?? null]);
@@ -583,6 +624,63 @@ export async function buildApi() {
   app.delete('/api/products/:id', async (req) => {
     await none('DELETE FROM products WHERE id = $1 AND business_id = $2', [Number((req.params as any).id), currentBusinessId()]);
     return { ok: true };
+  });
+
+  // ---- catalog: bulk CSV import / export -------------------------------------
+  // A ready-to-fill template so owners can organize their inventory in a
+  // spreadsheet and push it back in one file.
+  app.get('/api/products/template.csv', async (_req, reply) => {
+    return reply.header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', 'attachment; filename="plantilla-inventario.csv"')
+      .send(templateCsv());
+  });
+
+  // Export the current catalog in the same column shape as the template, so an
+  // export can be edited and re-imported round-trip.
+  app.get('/api/products/export.csv', async (_req, reply) => {
+    const rows = await many<any>(
+      'SELECT sku, name, description, category, price, cost, currency, stock, track_stock, active FROM products WHERE business_id = $1 ORDER BY created_at DESC',
+      [currentBusinessId()]);
+    const esc = (v: any) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [PRODUCT_CSV_COLUMNS.join(','), ...rows.map((r) => PRODUCT_CSV_COLUMNS.map((c) => esc(r[c])).join(','))].join('\n');
+    return reply.header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', 'attachment; filename="inventario.csv"').send(csv);
+  });
+
+  // Import: the dashboard reads the chosen file client-side and posts its text as
+  // JSON, so no multipart handling is needed. Upserts by SKU; reports per-row errors.
+  app.post('/api/products/import', async (req) => {
+    const body = z.object({ csv: z.string().min(1) }).parse(req.body);
+    return importProductsCsv(body.csv);
+  });
+
+  // Upload a product photo to Cloudflare R2. The dashboard reads the file and
+  // posts it base64-encoded (no multipart needed); we store the public R2 URL in
+  // products.image_path so the catalog renders it straight from R2.
+  app.post('/api/products/:id/image', async (req, reply) => {
+    if (!isStorageConfigured()) return reply.code(503).send({ error: 'El almacenamiento de imágenes no está configurado' });
+    const id = Number((req.params as any).id);
+    const body = z.object({
+      contentType: z.string().min(1),
+      data: z.string().min(1), // base64 (no data: URI prefix)
+    }).parse(req.body);
+    const product = await one<any>('SELECT id FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
+    if (!product) return reply.code(404).send({ error: 'Producto no encontrado' });
+    const buffer = Buffer.from(body.data, 'base64');
+    if (buffer.length === 0) return reply.code(400).send({ error: 'Imagen vacía' });
+    if (buffer.length > 5 * 1024 * 1024) return reply.code(413).send({ error: 'La imagen supera 5 MB' });
+    try {
+      const url = await uploadProductImage(currentBusinessId(), id, buffer, body.contentType);
+      await none('UPDATE products SET image_path = $1 WHERE id = $2 AND business_id = $3', [url, id, currentBusinessId()]);
+      return { imagePath: url };
+    } catch (err: any) {
+      if (err.code === 'BAD_IMAGE') return reply.code(400).send({ error: err.message });
+      logger.error({ err }, 'product image upload failed');
+      return reply.code(502).send({ error: 'No se pudo subir la imagen' });
+    }
   });
 
   // ---- FAQs ---------------------------------------------------------------------
@@ -706,7 +804,7 @@ export async function buildApi() {
 
   app.post('/api/history/import', async (req, reply) => {
     const body = z.object({ mode: z.enum(['on_demand', 'full_rescan']) }).parse(req.body ?? {});
-    if (getWaState().status !== 'connected') {
+    if ((await waState()).status !== 'connected') {
       return reply.code(409).send({ error: 'WhatsApp no está conectado' });
     }
     if (await getActiveImport()) {
@@ -737,7 +835,7 @@ export async function buildApi() {
       message: z.string().min(1),
       tagId: z.number().nullable().optional(),
     }).parse(req.body);
-    if (getWaState().status !== 'connected') {
+    if ((await waState()).status !== 'connected') {
       return reply.code(409).send({ error: 'WhatsApp is not connected' });
     }
     try {

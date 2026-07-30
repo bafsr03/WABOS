@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Despliegue en VPS</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}
+.topbar a:hover,.topbar a.active{color:#fff}
+.topbar .sp{flex:1}
+.hero{background:linear-gradient(135deg,#0f172a,#128c7e);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1080px;margin:0 auto}
+.hero h1{margin:0;font-size:32px}
+.hero p{margin:10px 0 0;color:#cbd5e1;max-width:760px}
+.hero .meta{margin-top:14px;font-size:13px;color:#9fb4c9}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:250px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0;border-left:2px solid transparent;padding-left:10px}
+nav.toc a:hover{color:var(--ink)}
+nav.toc .grp{font-weight:700;color:var(--ink);margin-top:12px;padding-left:10px;text-transform:uppercase;font-size:11px;letter-spacing:.04em}
+main{min-width:0}
+main h2{font-size:23px;margin:40px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:24px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.callout.tip{border-color:#3b82f6;background:#eff6ff}
+.pill{display:inline-block;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.pill.new{background:#eef2ff;color:#4338ca}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1080px;margin:0 auto}
+.step{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:6px 18px 14px;margin:14px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.step > summary{cursor:pointer;font-weight:700;font-size:15.5px;padding:10px 0;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.step > summary::-webkit-details-marker{display:none}
+.step > summary::before{content:'▸';color:var(--wa-dark);font-size:13px;transition:transform .15s}
+.step[open] > summary::before{transform:rotate(90deg)}
+.step .n{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#0f172a;color:#fff;padding:2px 9px;border-radius:6px}
+.expect{border-left:4px solid var(--wa);background:#f0fdf4;padding:10px 14px;border-radius:8px;margin:12px 0 4px;font-size:14px}
+.expect b{color:#047857}
+.checklist{list-style:none;padding:0;margin:8px 0}
+.checklist li{position:relative;padding:8px 0 8px 30px;border-bottom:1px solid var(--line);font-size:14.5px}
+.checklist li:last-child{border-bottom:0}
+.checklist li::before{content:'';position:absolute;left:0;top:11px;width:16px;height:16px;border:2px solid var(--wa-dark);border-radius:4px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:10px 0 0}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}.step{break-inside:avoid}.step>summary::before{display:none}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="user-manual.html">Usuario</a>
+  <a href="owner-manual.html">Propietario</a>
+  <a href="developer-manual.html">Desarrollador</a>
+  <a href="production-readiness.html">Producción</a>
+  <a href="deploy-vps.html" class="active">Despliegue</a>
+  <a href="v2-roadmap.html">v2</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🚀 WABOS — Despliegue</h1>
+  <p>Cómo poner WABOS en vivo con Docker. Empieza leyendo <a href="#como-funciona" style="color:#fff;text-decoration:underline">Cómo funciona</a> y <a href="#costos" style="color:#fff;text-decoration:underline">Costos & producción</a> para el panorama (qué corre hoy en la Mac vía túnel, qué cuesta, y el salto a un VPS 24/7). Luego el runbook: lanza la <b>build combinada</b> (<code>ROLE=all</code>) — un motor con API de tienda + WhatsApp + workers, más dashboard y marketing, detrás de Caddy. El paso a los <b>backends separados</b> es un comando; nada bloquea salir en vivo hoy.</p>
+  <p class="meta">⏱️ VPS de cero: <b>30–45 min</b> · El modo local + túnel ya está corriendo · Imprime como checklist (Cmd/Ctrl+P).</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <div class="grp">Panorama</div>
+  <a href="#como-funciona">Cómo funciona</a>
+  <a href="#costos">Costos & producción</a>
+  <div class="grp">Antes de empezar</div>
+  <a href="#hetzner">★ Ruta rápida: Hetzner</a>
+  <a href="#requisitos">0 · Qué necesitas</a>
+  <div class="grp">Pasos</div>
+  <a href="#dns">1 · Apuntar el DNS</a>
+  <a href="#docker">2 · Instalar Docker</a>
+  <a href="#codigo">3 · Subir el código</a>
+  <a href="#env">4 · Crear el .env</a>
+  <a href="#lanzar">5 · Lanzar</a>
+  <a href="#r2">6 · Cloudflare R2 (fotos)</a>
+  <a href="#usuario">7 · Crear el primer usuario</a>
+  <a href="#whatsapp">8 · Vincular WhatsApp</a>
+  <a href="#smoke">9 · Prueba de humo</a>
+  <div class="grp">Uso & operación</div>
+  <a href="#inventario">10 · Import/Export inventario</a>
+  <a href="#dia2">11 · Operación día a día</a>
+  <a href="#split">12 · Pasar al split</a>
+  <a href="#trouble">Solución de problemas</a>
+</nav>
+<main>
+
+<h2 id="como-funciona">Cómo funciona (y cómo funcionará)</h2>
+<p><span class="pill new">AHORA</span> WABOS está corriendo <b>en la Mac del dueño</b> con Docker, y sale a internet por un <b>túnel de Cloudflare</b> — sin abrir puertos, sin IP pública, con HTTPS real en <code>https://wabos.bouldhq.com</code>. El hermano lo abre desde su teléfono como cualquier web/PWA.</p>
+<pre><code>Teléfono del hermano
+      │  https://wabos.bouldhq.com
+      ▼
+Cloudflare (HTTPS + CDN)          ← termina el TLS, edges en Lima/Santiago
+      │  túnel cifrado (cloudflared, servicio launchd)
+      ▼
+Mac del dueño  ── Caddy :80 ─┬─ /api  /ws ─▶ engine (Fastify + WhatsApp + workers)
+                             └─ resto     ─▶ dashboard (Next.js)
+                                             engine ─▶ Postgres (contenedor, volumen pgdata)</code></pre>
+<p>Todo vive en contenedores Docker: <code>postgres</code>, <code>engine</code> (API tienda + WhatsApp + IA + workers), <code>dashboard</code> (la UI), <code>web</code> (marketing) y <code>caddy</code>. La sesión de WhatsApp y los datos se guardan en <b>volúmenes</b> que sobreviven reinicios.</p>
+<div class="callout warn"><b>Límite de este modo:</b> la Mac debe estar <b>encendida, despierta y con internet</b>. Si se duerme o se cae el WiFi, WABOS deja de responder y WhatsApp puede desvincularse. Es un puente perfecto para arrancar sin gastar — no es 24/7 de verdad.</div>
+<p><span class="pill">DESPUÉS</span> El salto a “producción de verdad” es <b>el mismo Docker</b> pero en un <b>VPS</b> (un servidorcito Linux siempre encendido) con un <b>dominio</b>. Ahí Caddy saca su propio HTTPS y ya no hace falta el túnel ni la Mac. Cero reescritura: es copiar el repo, el <code>.env</code>, y <code>docker compose up -d</code>.</p>
+
+<h2 id="costos">Costos y camino a producción</h2>
+<h3>Qué cuesta cada cosa</h3>
+<table>
+  <thead><tr><th>Concepto</th><th>Ahora (local + túnel)</th><th>Full live (VPS)</th></tr></thead>
+  <tbody>
+    <tr><td>Servidor</td><td>S/ 0 — la Mac + luz</td><td>Hetzner <b>CX23</b> ≈ <b>€4.5/mes</b> (~S/ 18)</td></tr>
+    <tr><td>Dominio</td><td>Gratis (subdominio de <code>bouldhq.com</code>)</td><td>Propio ≈ <b>$10–12/año</b>, o sigue con el subdominio</td></tr>
+    <tr><td>HTTPS / túnel</td><td>Gratis (Cloudflare)</td><td>Gratis (Caddy + Let's Encrypt)</td></tr>
+    <tr><td>Fotos de productos (R2)</td><td>Opcional — gratis hasta 10&nbsp;GB</td><td>Gratis hasta 10&nbsp;GB, luego ~$0.015/GB·mes</td></tr>
+    <tr><td>IA (Anthropic)</td><td colspan="2"><b>Pago por uso</b> — depende de cuántos mensajes responde la IA. Ya está <b>activa</b>. Se controla con el modelo (<code>AI_MODEL</code>) y se puede apagar dejando la key en blanco.</td></tr>
+    <tr><td>Email (SMTP), Push</td><td colspan="2">Gratis en los tiers básicos (Resend/Gmail; VAPID). Opcionales.</td></tr>
+    <tr><td>Base de datos</td><td>Gratis (Postgres en contenedor)</td><td>Gratis en el mismo VPS, o Postgres manejado (Neon/Supabase) desde $0</td></tr>
+  </tbody>
+</table>
+<div class="callout tip"><b>Resumen:</b> arrancar hoy cuesta <b>~S/ 0</b> (solo la IA por uso). El “full live” 24/7 arranca en <b>~S/ 18–25 al mes</b> + el uso de IA.</div>
+
+<h3>Qué hacer cuando haya plata (pasar a 24/7)</h3>
+<ol class="steps">
+  <li><b>Rentar el VPS</b> (Hetzner CX23, Ubuntu) e instalar Docker — ver la <a href="#hetzner">Ruta rápida: Hetzner</a> y §2.</li>
+  <li><b>Apuntar el dominio</b> al VPS (registro A). Puede ser el mismo <code>wabos.bouldhq.com</code> o uno propio de WABOS.</li>
+  <li><b>Copiar el repo + el <code>.env</code></b> al servidor (rotando los secretos y la key de Anthropic), poner <code>APP_DOMAIN=tudominio</code>, y <code>docker compose up -d --build</code>. Caddy saca el HTTPS solo.</li>
+  <li><b>Mudar los datos</b> de la Mac al VPS con un backup de Postgres (ver abajo) — o empezar limpio si aún no hay data real.</li>
+  <li><b>Apagar el túnel</b> de la Mac (<code>launchctl unload ~/Library/LaunchAgents/com.wabos.cloudflared.plist</code>) y listo: ya no depende de tu computadora.</li>
+</ol>
+
+<h3>Cómo seguir trabajando mientras tanto</h3>
+<ul>
+  <li><b>Mantén la Mac despierta</b> y enchufada (System Settings → Pantalla → no dormir; laptop con tapa abierta).</li>
+  <li><b>Docker Desktop</b>: activa “Start when you sign in” — los contenedores se auto-reinician (<code>restart: unless-stopped</code>).</li>
+  <li><b>El túnel se auto-levanta</b> (servicio launchd); no hay que tocarlo.</li>
+  <li><b>Haz backups</b> (siguiente punto). Es lo único que no se recupera solo.</li>
+</ul>
+
+<h3>La base de datos (dónde vive y cómo respaldarla)</h3>
+<p>Postgres corre en el contenedor <code>postgres</code> y guarda todo en el volumen <code>pgdata</code> — sobrevive reinicios y actualizaciones. La sesión de WhatsApp vive en <code>wa_auth</code> y los medios en <code>wa_data</code>.</p>
+<p><b>Backup (hazlo seguido):</b></p>
+<pre><code># Vuelca toda la base a un archivo con fecha
+docker compose exec postgres pg_dump -U wabos wabos &gt; wabos-$(date +%F).sql</code></pre>
+<p><b>Restaurar</b> (o mudar al VPS): copia ese <code>.sql</code> al otro equipo y:</p>
+<pre><code>cat wabos-2026-07-30.sql | docker compose exec -T postgres psql -U wabos wabos</code></pre>
+<div class="callout tip">Cuando quieras dejar de preocuparte por la base, apunta <code>DATABASE_URL</code> a un <b>Postgres manejado</b> (Neon o Supabase, tienen plan gratis) y quita el contenedor <code>postgres</code> — ellos hacen los backups por ti. Es cambiar una línea del <code>.env</code>.</div>
+
+<h2 id="hetzner">★ Ruta rápida: Hetzner + un subdominio que ya tienes</h2>
+<p>Esta es la ruta usada para el primer lanzamiento. No hace falta comprar un dominio nuevo: se usa un <b>subdominio</b> de uno que ya controlas (p.ej. <code>wabos.tudominio.com</code>), y Caddy le emite HTTPS real automáticamente — necesario para la PWA (notificaciones push, instalar la app, login con Google).</p>
+<ol>
+  <li><b>Servidor:</b> Hetzner Cloud → nuevo <b>CX23</b> (2 vCPU / 4 GB), imagen <b>Ubuntu 24.04</b>, región más cercana a tus usuarios (Ashburn <code>ash</code> es la de menor latencia para Perú). Agrega tu llave SSH. Anota la IPv4 pública.</li>
+  <li><b>Subdominio:</b> en el DNS del dominio que ya controlas, agrega un registro <b>A</b>: <code>wabos</code> → <code>&lt;IP de Hetzner&gt;</code>.</li>
+  <li>Sigue desde <b>§2 (instalar Docker)</b> en adelante, usando <code>APP_DOMAIN=wabos.tudominio.com</code>.</li>
+</ol>
+<div class="callout danger">
+  <b>⚠️ Si ese dominio está en Cloudflare</b>, pon este registro como <b>DNS only (nube gris), no proxied</b> — para que Caddy pueda completar el desafío de Let's Encrypt y el WebSocket <code>/ws</code> pase limpio.
+</div>
+<div class="callout tip">
+  <b>Cuando tengas el dominio dedicado (el próximo mes):</b> agrega su registro A, cambia <code>APP_DOMAIN</code>, <code>ALLOWED_ORIGIN</code> y <code>DASHBOARD_URL</code> en <code>.env</code>, y corre <code>docker compose up -d</code>. Caddy emite el nuevo certificado en la primera visita — sin reconstruir.
+</div>
+
+<h2 id="requisitos">0 · Qué necesitas</h2>
+<ul>
+  <li><b>Un VPS</b> (2 vCPU / 2–4 GB RAM alcanza para empezar) con Ubuntu 22.04+ — p.ej. Hetzner, DigitalOcean, Vultr. Necesitas acceso SSH como <code>root</code>/<code>sudo</code>.</li>
+  <li><b>Un dominio</b> que controles (p.ej. <code>app.tudominio.com</code>) para que Caddy emita el certificado HTTPS. No es estrictamente obligatorio para una primera prueba (puedes usar HTTP plano sobre la IP), pero muy recomendable.</li>
+  <li><b>Una API key de Anthropic</b> para el Empleado IA (opcional — sin ella la app igual funciona, las conversaciones quedan en modo manual/humano).</li>
+  <li><b>Un bucket de Cloudflare R2</b> para las fotos de productos (opcional — el catálogo y el import/export CSV funcionan sin él; solo la carga de fotos lo necesita). Ver §6.</li>
+</ul>
+<div class="callout danger">
+  <b>⚠️ Rota los secretos primero.</b> El <code>apps/engine/.env</code> local ha contenido claves reales durante el desarrollo (Anthropic, Lemon Squeezy). <b>Antes de salir en vivo, regenera esas claves</b> en el panel de cada proveedor y pon solo las nuevas en el <code>.env</code> del servidor. Nunca reutilices una clave que estuvo en un árbol de trabajo.
+</div>
+
+<h2 id="dns">1 · Apuntar el DNS al servidor</h2>
+<p>En tu proveedor de DNS, crea un registro <b>A</b>:</p>
+<pre><code>app.tudominio.com   →   &lt;IP pública de tu VPS&gt;</code></pre>
+<p>(Si además servirás el sitio de marketing, agrega otro registro A para él.) El DNS puede tardar unos minutos en propagarse.</p>
+
+<h2 id="docker">2 · Instalar Docker en el VPS</h2>
+<p>Entra por SSH y ejecuta:</p>
+<pre><code>curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER      # correr docker sin sudo
+# cierra sesión y vuelve a entrar para que aplique el grupo</code></pre>
+<p>Verifica: <code>docker version</code> y <code>docker compose version</code> imprimen salida.</p>
+
+<h2 id="codigo">3 · Subir el código al servidor</h2>
+<pre><code>git clone &lt;url-de-tu-repo&gt; wabos
+cd wabos</code></pre>
+<p>(O sube el proyecto con <code>scp</code>/<code>rsync</code> si el repo no está hospedado en ningún lado.)</p>
+
+<h2 id="env">4 · Crear y llenar el <code>.env</code></h2>
+<pre><code>cp .env.example .env
+nano .env</code></pre>
+<p>Llena <b>como mínimo</b>:</p>
+<table>
+<tr><th>Variable</th><th>Qué poner</th></tr>
+<tr><td><code>APP_DOMAIN</code></td><td><code>app.tudominio.com</code> (o <code>:80</code> para prueba rápida HTTP-only por IP)</td></tr>
+<tr><td><code>ALLOWED_ORIGIN</code></td><td><code>https://app.tudominio.com</code></td></tr>
+<tr><td><code>DASHBOARD_URL</code></td><td><code>https://app.tudominio.com</code></td></tr>
+<tr><td><code>POSTGRES_PASSWORD</code></td><td>una contraseña fuerte y aleatoria</td></tr>
+<tr><td><code>JWT_SECRET</code></td><td><code>openssl rand -hex 32</code></td></tr>
+<tr><td><code>DASHBOARD_TOKEN</code></td><td><code>openssl rand -hex 24</code></td></tr>
+<tr><td><code>STORE_INTERNAL_KEY</code></td><td><code>openssl rand -hex 24</code></td></tr>
+<tr><td><code>WA_INTERNAL_KEY</code></td><td><code>openssl rand -hex 24</code></td></tr>
+<tr><td><code>ANTHROPIC_API_KEY</code></td><td>tu clave (recién rotada), o déjala vacía</td></tr>
+</table>
+<div class="callout tip">Genera un secreto al vuelo con <code>openssl rand -hex 32</code>. Todo lo demás (billing, SMTP, push, R2) es opcional — déjalo vacío para desactivarlo.</div>
+
+<h2 id="lanzar">5 · Lanzar</h2>
+<pre><code>docker compose up -d --build</code></pre>
+<p>La primera build tarda unos minutos (instala dependencias y compila los dos apps Next). Luego revisa que todo esté sano:</p>
+<pre><code>docker compose ps
+docker compose logs -f engine     # ver el arranque del motor; Ctrl-C para dejar de seguir</code></pre>
+<div class="expect"><b>Esperado:</b> el motor corre las migraciones e imprime <code>WABOS engine is running</code>. Caddy obtiene el certificado HTTPS automáticamente la primera vez que visitas el dominio.</div>
+
+<h2 id="r2">6 · (Opcional) Cloudflare R2 para fotos de productos</h2>
+<p>R2 es el almacén de imágenes (tipo S3, de Cloudflare). Sin él, el catálogo y el import/export CSV <b>funcionan igual</b> — solo la <b>subida de fotos de producto</b> queda desactivada (el endpoint responde 503). Es gratis hasta 10&nbsp;GB. <span class="pill new">Estado: apagado</span> hasta que llenes las 5 variables de abajo.</p>
+<ol class="steps">
+  <li>Panel de Cloudflare → <b>R2</b> → <b>Create bucket</b> (p.ej. <code>wabos-media</code>).</li>
+  <li><b>Settings → Public access</b>: actívalo (te da una URL <code>https://pub-xxxx.r2.dev</code>) o conecta un dominio propio como <code>img.tudominio.com</code>. Copia esa URL pública (sin barra final).</li>
+  <li><b>Manage R2 API Tokens → Create API token</b> → permiso <b>Object Read &amp; Write</b>. Anota el <b>Access Key ID</b>, el <b>Secret Access Key</b>, y tu <b>Account ID</b> (arriba a la derecha del panel de R2).</li>
+  <li>Ponlos en <code>.env</code>:
+<pre><code>R2_ACCOUNT_ID=...            # tu Account ID de Cloudflare
+R2_ACCESS_KEY_ID=...         # del token
+R2_SECRET_ACCESS_KEY=...     # del token (solo se muestra una vez)
+R2_BUCKET=wabos-media        # el nombre del bucket
+R2_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev   # la URL pública, sin / al final</code></pre></li>
+  <li>Aplica los cambios recreando el motor: <code>docker compose up -d engine</code>.</li>
+</ol>
+<div class="expect"><b>Esperado:</b> en <b>Catálogo</b> → abre un producto → <b>Agregar foto</b> → la imagen se sube y aparece en la lista y en <b>Registro</b>. El archivo queda en R2 bajo <code>products/&lt;negocio&gt;/…</code> y su URL pública se guarda en el producto.</div>
+<div class="callout warn">La subida se activa al <b>recrear</b> el contenedor (<code>up -d</code>), no con <code>restart</code> — el motor lee las variables solo al arrancar.</div>
+
+<h2 id="usuario">7 · Crear el primer usuario</h2>
+<pre><code>docker compose exec engine pnpm --filter @wabos/engine create-user</code></pre>
+<p>Sigue las indicaciones (email, contraseña, nombre del negocio). Esta es la cuenta con la que tu hermano inicia sesión en <code>https://app.tudominio.com</code>.</p>
+
+<h2 id="whatsapp">8 · Vincular WhatsApp</h2>
+<ol class="steps">
+  <li>Abre <code>https://app.tudominio.com</code>, inicia sesión.</li>
+  <li>Ve a <b>Conexión</b> — aparece un código QR.</li>
+  <li>En el teléfono: WhatsApp → <b>Dispositivos vinculados → Vincular dispositivo</b> → escanea el QR.</li>
+  <li>El estado cambia a <b>conectado</b>. La sesión se guarda en un volumen de Docker, así que sobrevive reinicios y redespliegues.</li>
+</ol>
+
+<h2 id="smoke">9 · Prueba de humo (hazlas una vez, en orden)</h2>
+<ul class="checklist">
+  <li>Inicia sesión en el dominio por <b>HTTPS</b> (se ve el candado).</li>
+  <li><b>Conexión</b> muestra <i>conectado</i> tras escanear.</li>
+  <li>Envía un WhatsApp al número vinculado desde otro teléfono → aparece en el <b>Inbox</b>; responde desde el inbox → llega al teléfono.</li>
+  <li><b>Catálogo → Descargar plantilla</b> → llena 2–3 filas en Excel/Sheets → <b>Importar CSV</b> → aparecen los productos (revisa el toast de creados/actualizados).</li>
+  <li><b>Catálogo → Exportar</b> → descarga el CSV y coincide con tu catálogo.</li>
+  <li>(Si R2 está configurado) abre un producto → <b>Agregar foto</b> → la imagen se ve en la lista.</li>
+  <li><b>Registro</b> (POS): registra una venta → aparece en <b>Ventas</b>.</li>
+</ul>
+<div class="expect">Si todas pasan, estás en vivo. <b>🎉</b></div>
+
+<h2 id="inventario">10 · Import/Export de inventario — cómo funciona (para el dueño)</h2>
+<ul>
+  <li><b>Descargar plantilla</b> entrega un CSV con las columnas correctas y una fila de ejemplo:
+    <br><code>sku, name, description, category, price, cost, currency, stock, track_stock, active</code>.</li>
+  <li>Llénalo en una hoja de cálculo y usa <b>Importar CSV</b>. Las filas se emparejan por <b>SKU</b>: un SKU existente actualiza ese producto, lo demás se agrega. <code>name</code> y <code>price</code> son obligatorios; las filas con error se reportan y se saltan (el resto igual se importa).</li>
+  <li><b>Exportar</b> descarga tu catálogo actual con la misma forma, para editarlo y reimportarlo de ida y vuelta.</li>
+</ul>
+
+<h2 id="dia2">11 · Operación día a día</h2>
+<h3>Actualizar a una nueva versión</h3>
+<pre><code>git pull
+docker compose up -d --build</code></pre>
+<p>Las migraciones corren solas al arrancar el motor.</p>
+<h3>Backups (recomendado)</h3>
+<p>Pon <code>BACKUP_DIR=/app/apps/engine/data/backups</code> en <code>.env</code> y redespliega — se escribe un snapshot JSON diario de todos los datos en el volumen <code>wa_data</code>. Respalda también Postgres:</p>
+<pre><code>docker compose exec postgres pg_dump -U wabos wabos > wabos-$(date +%F).sql</code></pre>
+<h3>Logs y reinicio</h3>
+<pre><code>docker compose logs -f engine     # o dashboard, caddy
+docker compose restart</code></pre>
+
+<h2 id="split">12 · (Después) Pasar a los backends separados</h2>
+<p>Cuando quieras que la tienda y WhatsApp corran como procesos separados — para que reiniciar uno nunca toque al otro — baja el stack combinado y levanta el split (usa <b>la misma imagen y el mismo <code>.env</code></b>):</p>
+<pre><code>docker compose down
+docker compose -f docker-compose.split.yml up -d --build</code></pre>
+<p>Esto arranca <code>store</code> (ROLE=store) y <code>whatsapp</code> (ROLE=whatsapp) en vez del <code>engine</code> único. Comparten el mismo Postgres y el mismo volumen de sesión de WhatsApp, así que no se pierde nada y el vínculo de WhatsApp queda intacto. Para volver: <code>docker compose -f docker-compose.split.yml down</code> y luego <code>docker compose up -d</code>.</p>
+<div class="callout"><b>Verifica tras el cambio:</b> envía un WhatsApp entrante (debe llegar al Inbox → funciona el puente de eventos), responde desde el inbox (debe enviarse → funciona el canal interno), y corre <code>docker compose -f docker-compose.split.yml restart whatsapp</code> — el dashboard/API siguen arriba todo el tiempo.</div>
+
+<h2 id="trouble">Solución de problemas</h2>
+<table>
+<tr><th>Síntoma</th><th>Qué revisar</th></tr>
+<tr><td>Sin HTTPS / error de certificado</td><td>Asegúrate de que el DNS apunta al servidor y que los puertos 80+443 están abiertos en el firewall del VPS. Revisa <code>docker compose logs caddy</code>.</td></tr>
+<tr><td>El dashboard carga pero las llamadas a la API fallan</td><td>Revisa <code>docker compose logs engine</code>. El dashboard alcanza el motor por la red interna (<code>ENGINE_ORIGIN</code>), así que el contenedor del motor debe estar sano.</td></tr>
+<tr><td>WhatsApp no conecta</td><td>Reabre <b>Conexión</b> para un QR nuevo. Si entra en bucle: <code>docker compose restart engine</code> y reintenta.</td></tr>
+<tr><td>La carga de imagen dice "no configurado"</td><td>Faltan variables R2 de §6.</td></tr>
+<tr><td>Resetear la base de datos (borra todo)</td><td><code>docker compose down -v</code> elimina los volúmenes — hazlo solo a propósito.</td></tr>
+</table>
+
+</main>
+</div>
+<footer>
+  WABOS — Guía de Despliegue en VPS · Complementa <a href="production-readiness.html">Camino a Producción</a>. También disponible en Markdown: <code>docs/deploy-vps.md</code>.
+</footer>
+</body>
+</html>

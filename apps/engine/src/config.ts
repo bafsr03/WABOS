@@ -10,8 +10,34 @@ const dataDir = process.env.WABOS_DATA_DIR
   ? path.resolve(process.env.WABOS_DATA_DIR)
   : path.join(rootDir, 'data');
 
+// Which subsystems this process runs. 'all' = the classic combined monolith
+// (store API + WhatsApp + every worker in one process — the default, and what we
+// ship first). 'store' = dashboard API/WS + store-side workers only. 'whatsapp' =
+// Baileys sockets + WhatsApp-side workers only. The two split roles share one
+// Postgres and talk over the internal keyed channel below.
+const rawRole = (process.env.ROLE ?? 'all').toLowerCase();
+const role = (['all', 'store', 'whatsapp'].includes(rawRole) ? rawRole : 'all') as 'all' | 'store' | 'whatsapp';
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
+  role,
+  // Mutual service-to-service keys ("keys from both sides"). store→whatsapp calls
+  // carry STORE_INTERNAL_KEY; whatsapp→store callbacks carry WA_INTERNAL_KEY. Each
+  // side verifies the peer's key on its /internal/* routes. Never exposed publicly.
+  storeInternalKey: process.env.STORE_INTERNAL_KEY ?? 'wabos-dev-internal-store',
+  waInternalKey: process.env.WA_INTERNAL_KEY ?? 'wabos-dev-internal-wa',
+  // Where each role reaches the other over the internal network (Docker service
+  // names in prod). Only used when role !== 'all'.
+  waInternalUrl: process.env.WA_INTERNAL_URL ?? 'http://whatsapp:4000',
+  storeInternalUrl: process.env.STORE_INTERNAL_URL ?? 'http://store:4000',
+  // Product-image storage on Cloudflare R2 (S3-compatible). Empty account id =
+  // uploads disabled (the endpoint returns 503). R2_PUBLIC_BASE_URL is the
+  // public bucket URL (or custom domain) that the stored image_path is built on.
+  r2AccountId: process.env.R2_ACCOUNT_ID ?? '',
+  r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+  r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+  r2Bucket: process.env.R2_BUCKET ?? '',
+  r2PublicBaseUrl: (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, ''),
   dashboardToken: process.env.DASHBOARD_TOKEN ?? 'wabos-dev-token',
   // Postgres connection. Defaults to the local embedded dev server (`pnpm pg:dev`).
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://postgres:password@localhost:5433/wabos',
@@ -27,6 +53,10 @@ export const config = {
   // permissive (true), which is fine for localhost.
   allowedOrigin: process.env.ALLOWED_ORIGIN ?? '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  // Platform-admin emails (comma-separated). A logged-in user whose email is in
+  // this list can reach the cross-tenant /api/admin/* endpoints (ops overview).
+  // Empty = admin console disabled for everyone.
+  adminEmails: (process.env.ADMIN_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   // Platform billing via a Merchant of Record. Provider-selectable so the rail can
   // be swapped without touching routes/metering/UI. Empty keys = billing disabled
   // (checkout/portal return 503). Lemon Squeezy variant ids map to plan tiers.
@@ -60,6 +90,11 @@ export const config = {
   // model. Halves blended cost while keeping quality where it closes sales.
   aiModelDefault: process.env.AI_MODEL_DEFAULT ?? 'claude-haiku-4-5',
   aiModelSales: process.env.AI_MODEL_SALES ?? 'claude-sonnet-5',
+  // Anthropic prices (USD per million tokens) — used only for the admin console's
+  // AI-spend estimate. Token usage doesn't record which model produced it, so this
+  // is an estimate; keep these in sync with the Anthropic console for accuracy.
+  aiPriceInputPerM: Number(process.env.AI_PRICE_INPUT_PER_M ?? '3'),
+  aiPriceOutputPerM: Number(process.env.AI_PRICE_OUTPUT_PER_M ?? '15'),
   // Web push (VAPID). Empty keys = push disabled (subscribe endpoint returns 503).
   // Generate a pair once with `npx web-push generate-vapid-keys`.
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',

@@ -3,6 +3,10 @@ import type { NextConfig } from 'next';
 // Where the dashboard proxies /api and /ws when it serves them same-origin. In
 // dev that's the local engine; in prod set ENGINE_ORIGIN to the engine's URL.
 const engineOrigin = process.env.ENGINE_ORIGIN || 'http://localhost:4000';
+// Under the store/whatsapp split, /api/media is served by the whatsapp backend
+// (media lives on its disk). WA_ORIGIN points there; in the combined ROLE=all
+// deploy it's just the same engine, so it defaults to engineOrigin.
+const waOrigin = process.env.WA_ORIGIN || engineOrigin;
 
 const nextConfig: NextConfig = {
   // Allow the Next dev server to be reached through a tunnel / the IDE port
@@ -18,6 +22,8 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       beforeFiles: [
+        // Media first (more specific): served by the whatsapp backend under the split.
+        { source: '/api/media/:path*', destination: `${waOrigin}/api/media/:path*` },
         { source: '/api/:path*', destination: `${engineOrigin}/api/:path*` },
         { source: '/ws', destination: `${engineOrigin}/ws` },
       ],

@@ -92,6 +92,17 @@ export async function loginUser(email: string, password: string): Promise<{ toke
   return { token: await issueToken(row.id), user: { id: row.id, email: row.email } };
 }
 
+// Change the password of a logged-in user: verify the current one, then re-hash.
+// (Google-only accounts have a random hash they don't know — they set a password
+// via the forgot/reset flow instead.)
+export async function changePassword(userId: number, current: string, next: string): Promise<void> {
+  const row = await one<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = $1', [userId]);
+  if (!row || !(await argon2.verify(row.password_hash, current))) {
+    throw Object.assign(new Error('La contraseña actual es incorrecta'), { code: 'INVALID_CREDENTIALS' });
+  }
+  await none('UPDATE users SET password_hash = $1 WHERE id = $2', [await argon2.hash(next), userId]);
+}
+
 // Verify a Google ID token, then log the user in (or create the account +
 // business on first sign-in, same as registerUser). The email is the identity —
 // a Google user with the same email as a password account signs into it.

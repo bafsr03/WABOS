@@ -1,11 +1,15 @@
 import { ImageResponse } from 'next/og';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
-export const runtime = 'edge';
 export const alt = 'WABOS — Convierte tu WhatsApp en tu empleado más inteligente';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-export default function OG() {
+export default async function OG() {
+  const logoBuffer = await readFile(join(process.cwd(), 'public/logo.png'));
+  const logoSrc = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+
   return new ImageResponse(
     (
       <div
@@ -22,9 +26,8 @@ export default function OG() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{ display: 'flex', width: 64, height: 64, borderRadius: 16, background: '#5b4bff', alignItems: 'center', justifyContent: 'center', fontSize: 38, fontWeight: 800, color: '#fff' }}>
-            W
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoSrc} width={64} height={64} style={{ borderRadius: 16 }} alt="" />
           <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, color: '#fff', letterSpacing: -1 }}>
             <span>WAB</span>
             <span style={{ color: '#8a7dff' }}>OS</span>

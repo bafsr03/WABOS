@@ -7,7 +7,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import {
   LayoutDashboard, MessageCircle, Users, ShoppingBag, Wallet, Megaphone,
   Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3,
-  Receipt, Coins, Sun, Moon, Monitor, type LucideIcon,
+  Receipt, Coins, Boxes, Sun, Moon, Monitor, type LucideIcon,
 } from 'lucide-react';
 import { api, clearToken, getToken, getStatus, getFlag, setFlag } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
@@ -30,6 +30,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     { href: '/inbox', label: 'Inbox', icon: MessageCircle },
     { href: '/contacts', label: 'Contactos', icon: Users },
     { href: '/catalog', label: 'Catálogo', icon: ShoppingBag },
+    { href: '/inventory', label: 'Inventario', icon: Boxes },
     { href: '/knowledge', label: 'Conocimiento', icon: BookOpen },
     { href: '/agents', label: 'Agentes IA', icon: Bot },
     { href: '/voice', label: 'ADN de voz', icon: Sparkles },
@@ -57,6 +58,7 @@ const PRIMARY: NavItem[] = [
   { href: '/sales', label: 'Punto de venta', icon: Receipt },
 ];
 const OVERFLOW: NavItem[] = [
+  { href: '/inventory', label: 'Inventario', icon: Boxes },
   { href: '/payments', label: 'Cobros', icon: Wallet },
   { href: '/cashflow', label: 'Caja', icon: Coins },
   { href: '/contacts', label: 'Contactos', icon: Users },

@@ -27,6 +27,10 @@ afterAll(async () => { await db.pool.end(); await dropTempSchema(schema); });
 beforeEach(async () => {
   await db.none('DELETE FROM sale_items');
   await db.none('DELETE FROM sales');
+  await db.none('DELETE FROM stock_movements');
+  await db.none('DELETE FROM stock_entry_items');
+  await db.none('DELETE FROM stock_entries');
+  await db.none('DELETE FROM cash_sessions');
   await db.none('DELETE FROM cash_movements');
   await db.none('DELETE FROM charges');
   await db.none('DELETE FROM products');
@@ -63,6 +67,35 @@ describe('createSale', () => {
     expect(sale.net).toBe(99.65);
   });
 
+  it('logs exactly one stock movement per tracked line, tagged to the sale', async () => {
+    const p = (await newProduct())!;
+    const sale = await sales.createSale({
+      items: [{ productId: p.id, name: p.name, qty: 2, unitPrice: 10, unitCost: 4 }],
+      paymentMethod: 'cash',
+    });
+    const moves = await db.many<any>('SELECT * FROM stock_movements');
+    expect(moves).toHaveLength(1);
+    expect(moves[0].kind).toBe('sale');
+    expect(moves[0].origin).toBe('pos');
+    expect(moves[0].qty_delta).toBe(-2);
+    expect(moves[0].stock_after).toBe(18);
+    expect(moves[0].ref_type).toBe('sale');
+    expect(Number(moves[0].ref_id)).toBe(Number(sale.id));
+    expect(moves[0].product_name).toBe(p.name);
+  });
+
+  it('logs nothing for ad-hoc lines or untracked products', async () => {
+    const untracked = (await newProduct({ track: 0 }))!;
+    await sales.createSale({
+      items: [
+        { productId: null, name: 'Servicio', qty: 1, unitPrice: 30 },
+        { productId: untracked.id, name: untracked.name, qty: 1, unitPrice: 10 },
+      ],
+      paymentMethod: 'cash',
+    });
+    expect(await db.many('SELECT * FROM stock_movements')).toHaveLength(0);
+  });
+
   it('never drives tracked stock negative', async () => {
     const p = (await newProduct({ stock: 1 }))!;
     await sales.createSale({ items: [{ productId: p.id, name: p.name, qty: 5, unitPrice: 10, unitCost: 4 }], paymentMethod: 'cash' });
@@ -82,6 +115,17 @@ describe('voidSale', () => {
     const sum = await sales.getDaySummary(today());
     expect(sum.count).toBe(0);
   });
+
+  it('mirrors the sale movement with a void movement', async () => {
+    const p = (await newProduct())!;
+    const sale = await sales.createSale({ items: [{ productId: p.id, name: p.name, qty: 3, unitPrice: 10, unitCost: 4 }], paymentMethod: 'cash' });
+    await sales.voidSale(sale.id);
+    const moves = await db.many<any>('SELECT * FROM stock_movements ORDER BY id');
+    expect(moves).toHaveLength(2);
+    expect(moves[1].kind).toBe('void');
+    expect(moves[1].qty_delta).toBe(3);
+    expect(moves[1].stock_after).toBe(20);
+  });
 });
 
 describe('createSaleFromCharge', () => {
@@ -98,6 +142,56 @@ describe('createSaleFromCharge', () => {
     expect(rows[0].channel).toBe('whatsapp');
     expect(rows[0].payment_method).toBe('plin');
     expect(rows[0].total).toBe(50);
+  });
+
+  // A charge knows an amount, not what was sold. This asserts the gap on purpose:
+  // a WhatsApp sale carries no line items and moves no stock. Do NOT "fix" this by
+  // guessing products — the honest fix is attachSaleItems, tested below.
+  it('records no line items and no stock movement (known gap)', async () => {
+    const contact = await store.upsertContactByJid('51999000009@s.whatsapp.net', 'Cli');
+    const charge = (await db.one<{ id: number }>(
+      `INSERT INTO charges (business_id, contact_id, amount, currency, concept) VALUES (1,$1,50,'PEN','x') RETURNING id`,
+      [contact.id],
+    ))!;
+    await sales.createSaleFromCharge(charge.id, 'yape');
+    const sale = (await db.one<{ id: number }>('SELECT id FROM sales WHERE charge_id = $1', [charge.id]))!;
+    expect(await db.many('SELECT * FROM sale_items WHERE sale_id = $1', [sale.id])).toHaveLength(0);
+    expect(await db.many('SELECT * FROM stock_movements')).toHaveLength(0);
+  });
+});
+
+describe('attachSaleItems', () => {
+  const linelessSale = async () => {
+    const contact = await store.upsertContactByJid('51999000010@s.whatsapp.net', 'Cli');
+    const charge = (await db.one<{ id: number }>(
+      `INSERT INTO charges (business_id, contact_id, amount, currency, concept) VALUES (1,$1,50,'PEN','x') RETURNING id`,
+      [contact.id],
+    ))!;
+    await sales.createSaleFromCharge(charge.id, 'yape');
+    return (await db.one<{ id: number }>('SELECT id FROM sales WHERE charge_id = $1', [charge.id]))!;
+  };
+
+  it('attaches items, recomputes cost and discounts stock as the AI', async () => {
+    const p = (await newProduct())!;
+    const sale = await linelessSale();
+    const res = await sales.attachSaleItems(sale.id, [{ productId: p.id, name: p.name, qty: 2, unitPrice: 25, unitCost: 4 }]);
+    expect(res.ok).toBe(true);
+
+    expect((await db.one<{ stock: number }>('SELECT stock FROM products WHERE id=$1', [p.id]))!.stock).toBe(18);
+    expect((await db.one<{ cost_total: number }>('SELECT cost_total FROM sales WHERE id=$1', [sale.id]))!.cost_total).toBe(8);
+    const moves = await db.many<any>('SELECT * FROM stock_movements');
+    expect(moves).toHaveLength(1);
+    expect(moves[0].origin).toBe('ai');
+    expect(moves[0].kind).toBe('sale');
+  });
+
+  it('refuses a second assignment so stock is never double-discounted', async () => {
+    const p = (await newProduct())!;
+    const sale = await linelessSale();
+    await sales.attachSaleItems(sale.id, [{ productId: p.id, name: p.name, qty: 2, unitPrice: 25, unitCost: 4 }]);
+    const again = await sales.attachSaleItems(sale.id, [{ productId: p.id, name: p.name, qty: 2, unitPrice: 25, unitCost: 4 }]);
+    expect(again.ok).toBe(false);
+    expect((await db.one<{ stock: number }>('SELECT stock FROM products WHERE id=$1', [p.id]))!.stock).toBe(18);
   });
 });
 

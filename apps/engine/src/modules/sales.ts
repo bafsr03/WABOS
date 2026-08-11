@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { one, many, none, tx, getAllSettings } from '../db/index.js';
 import { currentBusinessId } from '../context.js';
 import { recordEvent } from './analytics.js';
+import { adjustStock } from './inventory.js';
 import { logger } from '../logger.js';
 
 // The register: records completed sales (POS, WhatsApp, AI) and reads them back
@@ -125,13 +126,19 @@ export async function createSale(input: CreateSaleInput): Promise<Sale> {
          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
         [row.id, it.productId ?? null, it.name, it.qty, it.unitPrice, it.unitCost ?? 0, it.lineTotal],
       );
-      // Decrement tracked stock, clamped at 0. Untracked items are left alone.
+      // Decrement tracked stock and log the movement in the same transaction.
+      // Untracked items and ad-hoc lines are left alone (adjustStock no-ops).
       if (it.productId != null) {
-        await client.query(
-          `UPDATE products SET stock = GREATEST(0, COALESCE(stock, 0) - $1)
-           WHERE id = $2 AND business_id = $3 AND track_stock = 1`,
-          [it.qty, it.productId, businessId],
-        );
+        await adjustStock({
+          productId: it.productId,
+          qtyDelta: -it.qty,
+          kind: 'sale',
+          origin: input.channel === 'ai' || input.createdBy === 'ai' ? 'ai' : 'pos',
+          unitCost: it.unitCost ?? null,
+          refType: 'sale',
+          refId: row.id,
+          createdBy: input.createdBy ?? 'dashboard',
+        }, client);
       }
     }
     return row;
@@ -179,10 +186,15 @@ export async function voidSale(id: number): Promise<{ ok: boolean; error?: strin
     )).rows;
     for (const it of items) {
       if (it.product_id != null) {
-        await client.query(
-          `UPDATE products SET stock = COALESCE(stock, 0) + $1 WHERE id = $2 AND business_id = $3 AND track_stock = 1`,
-          [it.qty, it.product_id, businessId],
-        );
+        await adjustStock({
+          productId: it.product_id,
+          qtyDelta: it.qty,
+          kind: 'void',
+          origin: 'dashboard',
+          refType: 'sale',
+          refId: id,
+          note: `Anulación de venta #${id}`,
+        }, client);
       }
     }
   });
@@ -207,8 +219,10 @@ export async function deleteSale(id: number): Promise<{ ok: boolean; error?: str
 export const dayExpr = (col: string, tz: string) =>
   `to_char(to_timestamp(${col}) AT TIME ZONE '${tz.replace(/[^A-Za-z0-9_/+-]/g, '')}', 'YYYY-MM-DD')`;
 
-export async function listSales(day: string): Promise<any[]> {
+export async function listSales(day: string, opts: { channel?: 'pos' | 'whatsapp' | 'ai' } = {}): Promise<any[]> {
   const { timezone } = await getSalesSettings();
+  const params: any[] = [currentBusinessId(), day];
+  if (opts.channel) params.push(opts.channel);
   return many(
     `SELECT s.*, c.name AS contact_name,
             COALESCE(json_agg(json_build_object('name', si.name, 'qty', si.qty, 'unit_price', si.unit_price)
@@ -216,11 +230,46 @@ export async function listSales(day: string): Promise<any[]> {
      FROM sales s
      LEFT JOIN contacts c ON c.id = s.contact_id
      LEFT JOIN sale_items si ON si.sale_id = s.id
-     WHERE s.business_id = $1 AND ${dayExpr('s.sold_at', timezone)} = $2
+     WHERE s.business_id = $1 AND ${dayExpr('s.sold_at', timezone)} = $2${opts.channel ? ' AND s.channel = $3' : ''}
      GROUP BY s.id, c.name
      ORDER BY s.sold_at DESC`,
-    [currentBusinessId(), day],
+    params,
   );
+}
+
+// Attach line items to a sale that has none. WhatsApp/AI charges become lineless
+// sales — real revenue, but no products and therefore no stock movement and no
+// cost. Rather than guessing what was sold, this lets the shopkeeper say so, and
+// only then does the stock come off, tagged as the AI's doing.
+export async function attachSaleItems(id: number, items: SaleItemInput[]): Promise<{ ok: boolean; error?: string }> {
+  const businessId = currentBusinessId();
+  const sale = await one<Sale>('SELECT * FROM sales WHERE id = $1 AND business_id = $2', [id, businessId]);
+  if (!sale) return { ok: false, error: 'Venta no encontrada' };
+  if (sale.status !== 'completed') return { ok: false, error: `La venta está ${sale.status}` };
+  const existing = await one<{ n: number }>('SELECT COUNT(*)::int AS n FROM sale_items WHERE sale_id = $1', [id]);
+  if ((existing?.n ?? 0) > 0) return { ok: false, error: 'Esta venta ya tiene productos asignados' };
+  if (items.length === 0) return { ok: false, error: 'Indica al menos un producto' };
+
+  const costTotal = round2(items.reduce((a, it) => a + it.qty * (it.unitCost ?? 0), 0));
+  await tx(async (client) => {
+    for (const it of items) {
+      await client.query(
+        `INSERT INTO sale_items (sale_id, product_id, name, qty, unit_price, unit_cost, line_total)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [id, it.productId ?? null, it.name, it.qty, it.unitPrice, it.unitCost ?? 0, round2(it.qty * it.unitPrice)],
+      );
+      if (it.productId != null) {
+        await adjustStock({
+          productId: it.productId, qtyDelta: -it.qty, kind: 'sale', origin: 'ai',
+          unitCost: it.unitCost ?? null, refType: 'sale', refId: id,
+          note: 'Productos asignados a una venta por WhatsApp', createdBy: 'dashboard',
+        }, client);
+      }
+    }
+    // The sale's money doesn't change — only what it cost us to fulfil it.
+    await client.query('UPDATE sales SET cost_total = $1 WHERE id = $2', [costTotal, id]);
+  });
+  return { ok: true };
 }
 
 export interface DaySummary {
@@ -232,28 +281,44 @@ export interface DaySummary {
   cost: number;       // COGS
   margin: number;     // net - cost
   byMethod: { method: string; total: number; net: number; count: number }[];
+  byChannel: { channel: string; total: number; net: number; count: number }[];
+  linelessCount: number; // sales with no products attached (WhatsApp/AI charges)
 }
 
-export async function getDaySummary(day: string): Promise<DaySummary> {
+export async function getDaySummary(day: string, opts: { channel?: 'pos' | 'whatsapp' | 'ai' } = {}): Promise<DaySummary> {
   const biz = currentBusinessId();
   const { timezone } = await getSalesSettings();
-  const where = `s.business_id = $1 AND s.status = 'completed' AND ${dayExpr('s.sold_at', timezone)} = $2`;
+  const base = `s.business_id = $1 AND s.status = 'completed' AND ${dayExpr('s.sold_at', timezone)} = $2`;
+  const where = base + (opts.channel ? ' AND s.channel = $3' : '');
+  const params: any[] = opts.channel ? [biz, day, opts.channel] : [biz, day];
   const totals = await one<{ count: number; gross: number; net: number; fees: number; cost: number }>(
     `SELECT COUNT(*)::int AS count, COALESCE(SUM(total),0)::float8 AS gross,
             COALESCE(SUM(net),0)::float8 AS net, COALESCE(SUM(fee_amount),0)::float8 AS fees,
             COALESCE(SUM(cost_total),0)::float8 AS cost
      FROM sales s WHERE ${where}`,
-    [biz, day],
+    params,
   );
   const byMethod = await many<{ method: string; total: number; net: number; count: number }>(
     `SELECT payment_method AS method, COALESCE(SUM(total),0)::float8 AS total,
             COALESCE(SUM(net),0)::float8 AS net, COUNT(*)::int AS count
      FROM sales s WHERE ${where} GROUP BY payment_method ORDER BY total DESC`,
+    params,
+  );
+  // Unfiltered on purpose: this is the split itself, so it shows every origin.
+  const byChannel = await many<{ channel: string; total: number; net: number; count: number }>(
+    `SELECT channel, COALESCE(SUM(total),0)::float8 AS total,
+            COALESCE(SUM(net),0)::float8 AS net, COUNT(*)::int AS count
+     FROM sales s WHERE ${base} GROUP BY channel ORDER BY total DESC`,
     [biz, day],
+  );
+  const lineless = await one<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM sales s WHERE ${where}
+       AND NOT EXISTS (SELECT 1 FROM sale_items si WHERE si.sale_id = s.id)`,
+    params,
   );
   const t = totals ?? { count: 0, gross: 0, net: 0, fees: 0, cost: 0 };
   return {
     day, count: t.count, gross: t.gross, net: t.net, fees: t.fees, cost: t.cost,
-    margin: round2(t.net - t.cost), byMethod,
+    margin: round2(t.net - t.cost), byMethod, byChannel, linelessCount: lineless?.n ?? 0,
   };
 }

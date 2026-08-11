@@ -22,11 +22,31 @@ const CONNECTION_DELETES: string[] = [
   'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE business_id = $1)',
   'DELETE FROM broadcast_recipients WHERE broadcast_id IN (SELECT id FROM broadcasts WHERE business_id = $1)',
   'DELETE FROM broadcasts WHERE business_id = $1',
+  // The charge goes with the old number, but the sale it produced is revenue and
+  // stays. Unlink first: sales.charge_id is a hard reference, so deleting charges
+  // underneath a sale would fail outright.
+  'UPDATE sales SET charge_id = NULL WHERE business_id = $1',
   'DELETE FROM charges WHERE business_id = $1',
   'DELETE FROM payment_notifications WHERE business_id = $1',
   'DELETE FROM conversations WHERE business_id = $1',
   'DELETE FROM history_imports WHERE business_id = $1',
   'DELETE FROM jobs WHERE business_id = $1',
+];
+
+// The register: sales, the cash ledger, inventory history and the event log.
+// These are NOT part of the connection layer — changing your WhatsApp number
+// must not erase your revenue or your stock history. They only go on a full wipe
+// or an account deletion, and they run FIRST because sales reference charges and
+// events reference contacts, both of which are deleted further down.
+const REGISTER_DELETES: string[] = [
+  'DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE business_id = $1)',
+  'DELETE FROM sales WHERE business_id = $1',
+  'DELETE FROM stock_movements WHERE business_id = $1',
+  'DELETE FROM stock_entry_items WHERE entry_id IN (SELECT id FROM stock_entries WHERE business_id = $1)',
+  'DELETE FROM stock_entries WHERE business_id = $1',
+  'DELETE FROM cash_sessions WHERE business_id = $1',
+  'DELETE FROM cash_movements WHERE business_id = $1',
+  'DELETE FROM events WHERE business_id = $1',
 ];
 
 const BRAND_DELETES: string[] = [
@@ -59,7 +79,7 @@ function clearMediaFiles(): void {
 
 // Used when unlinking the number entirely ("Borrar todo y empezar de cero").
 export async function wipeAllData(): Promise<void> {
-  await runDeletes([...CONNECTION_DELETES, ...BRAND_DELETES]);
+  await runDeletes([...REGISTER_DELETES, ...CONNECTION_DELETES, ...BRAND_DELETES]);
   clearMediaFiles();
   logger.info('all local data wiped');
 }
@@ -69,6 +89,7 @@ export async function wipeAllData(): Promise<void> {
 // the FKs to businesses(id) are satisfied.
 export async function purgeBusiness(): Promise<void> {
   await runDeletes([
+    ...REGISTER_DELETES,
     ...CONNECTION_DELETES,
     ...BRAND_DELETES,
     'DELETE FROM agents WHERE business_id = $1',

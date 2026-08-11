@@ -2,6 +2,7 @@ import { one, many, getAllSettings } from '../db/index.js';
 import { currentBusinessId } from '../context.js';
 import { getSalesSettings, getDaySummary, dayExpr } from './sales.js';
 import { getCashPosition } from './ledger.js';
+import { listLowStock, getEntriesDaySummary, PURCHASE_CATEGORY } from './inventory.js';
 
 // The daily close ("Cierre de día"): a truthful summary of the day's register,
 // composed as a WhatsApp-friendly text. Delivered over WhatsApp (business number →
@@ -51,10 +52,15 @@ export async function composeDigest(day: string): Promise<Digest> {
      GROUP BY si.name ORDER BY qty DESC LIMIT 3`,
     [biz, day],
   );
-  const lowStock = await many<{ name: string; stock: number }>(
-    `SELECT name, stock FROM products WHERE business_id = $1 AND track_stock = 1 AND COALESCE(stock,0) <= 3 ORDER BY stock ASC LIMIT 8`,
-    [biz],
-  );
+  const lowStock = (await listLowStock()).slice(0, 8);
+  const entries = await getEntriesDaySummary(day);
+  // Merchandise purchases are cash out today but they're already counted as COGS
+  // when the goods sell — subtracting both would double-count them out of profit.
+  const purchases = (await one<{ total: number }>(
+    `SELECT COALESCE(SUM(amount),0)::float8 AS total FROM cash_movements
+      WHERE business_id = $1 AND kind = 'expense' AND category = $2 AND ${dayExpr('sold_at', timezone)} = $3`,
+    [biz, PURCHASE_CATEGORY, day],
+  ))?.total ?? 0;
   const pending = await one<{ n: number; total: number }>(
     `SELECT COUNT(*)::int AS n, COALESCE(SUM(amount),0)::float8 AS total FROM charges WHERE business_id = $1 AND status = 'pending'`,
     [biz],
@@ -72,11 +78,21 @@ export async function composeDigest(day: string): Promise<Digest> {
   lines.push(`💰 Neto de ventas: *${money(summary.net)}*`);
   if (position.expenses > 0) lines.push(`🔻 Gastos: −${money(position.expenses)}`);
   if (position.income > 0) lines.push(`🔺 Ingresos extra: +${money(position.income)}`);
-  lines.push(`🪙 Efectivo en caja: *${money(position.net)}*`);
-  lines.push(`📈 Ganancia (neto − costo − gastos): *${money(Math.round((summary.net - summary.cost - position.expenses) * 100) / 100)}*`);
+  if (position.hasSession) lines.push(`🔓 Inicio de caja: ${money(position.opening)}`);
+  lines.push(`🪙 Efectivo en caja${position.status === 'closed' ? ' (esperado)' : ''}: *${money(position.net)}*`);
+  if (position.status === 'closed' && position.counted != null) {
+    const diff = position.difference ?? 0;
+    const verdict = diff === 0 ? 'cuadrado ✅' : diff > 0 ? `sobra ${money(diff)}` : `falta ${money(-diff)}`;
+    lines.push(`🔎 Conteo: ${money(position.counted)} · ${verdict}`);
+  }
+  lines.push(`📈 Ganancia (neto − costo − gastos): *${money(Math.round((summary.net - summary.cost - (position.expenses - purchases)) * 100) / 100)}*`);
   if (topProducts.length > 0) {
     lines.push('');
     lines.push(`🏆 Más vendidos: ${topProducts.map((p) => `${p.name} (${p.qty})`).join(', ')}`);
+  }
+  if (entries.count > 0) {
+    lines.push('');
+    lines.push(`📦 Entradas de hoy: ${entries.count} recepci${entries.count === 1 ? 'ón' : 'ones'} (${money(entries.total)})`);
   }
   if (lowStock.length > 0) {
     lines.push('');
@@ -87,6 +103,7 @@ export async function composeDigest(day: string): Promise<Digest> {
     lines.push(`⏳ Cobros pendientes: ${pending.n} (${money(pending.total)})`);
   }
 
-  const hasActivity = summary.count > 0 || position.expenses > 0 || position.income > 0;
+  const hasActivity = summary.count > 0 || position.expenses > 0 || position.income > 0
+    || entries.count > 0 || position.hasSession;
   return { day, subject: `Cierre del día ${day}${name ? ` — ${name}` : ''}`, text: lines.join('\n'), hasActivity };
 }

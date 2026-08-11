@@ -1,6 +1,7 @@
 import { one, none } from '../db/index.js';
 import { currentBusinessId } from '../context.js';
 import { getLimits } from './entitlements.js';
+import { adjustStock, logStockMovement } from './inventory.js';
 
 // Inventory bulk import/export as CSV. Columns are chosen so a non-technical
 // owner can fill them in Excel/Google Sheets from the exported template. Import
@@ -120,20 +121,38 @@ export async function importProductsCsv(csv: string): Promise<ImportResult> {
         : undefined;
 
       if (existing) {
+        // Stock is deliberately left out of this UPDATE: it goes through
+        // adjustStock below so the import shows up in the movement history
+        // like every other stock change.
         await none(
           `UPDATE products SET name = $1, description = $2, price = $3, currency = $4, cost = $5,
-             category = $6, stock = $7, track_stock = $8, active = $9 WHERE id = $10 AND business_id = $11`,
-          [name, description, price, currency, cost, category, stock, trackStock, active, existing.id, businessId]);
+             category = $6, track_stock = $7, active = $8 WHERE id = $9 AND business_id = $10`,
+          [name, description, price, currency, cost, category, trackStock, active, existing.id, businessId]);
+        if (stock !== null && trackStock === 1) {
+          await adjustStock({
+            productId: existing.id, setTo: stock, kind: 'import', origin: 'import',
+            enableTracking: true, refType: 'import', note: 'Importación CSV',
+          });
+        }
         result.updated++;
       } else {
         if (productCount >= productLimit) {
           result.errors.push({ row: lineNo, message: `Alcanzaste el límite de tu plan (${productLimit} productos). Actualiza para agregar más.` });
           continue;
         }
-        await none(
+        const created = await one<{ id: number }>(
           `INSERT INTO products (business_id, name, description, price, currency, cost, sku, category, stock, track_stock, active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
           [businessId, name, description, price, currency, cost, sku, category, stock, trackStock, active]);
+        // The row was inserted with its stock already set, so there is nothing to
+        // adjust — just record where that opening quantity came from.
+        if (created && stock !== null && stock !== 0 && trackStock === 1) {
+          await logStockMovement({
+            productId: created.id, productName: name, kind: 'import', origin: 'import',
+            qtyDelta: stock, stockAfter: stock, unitCost: cost, refType: 'import',
+            note: 'Importación CSV · stock inicial',
+          });
+        }
         result.created++;
         productCount++;
       }

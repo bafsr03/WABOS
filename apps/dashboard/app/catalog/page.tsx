@@ -5,17 +5,22 @@ import {
   Plus, Trash2, Search, ArrowUpDown, ImagePlus, ImageIcon, ChevronRight, ShoppingBag, Check,
   Download, Upload, Loader2,
 } from 'lucide-react';
+import Link from 'next/link';
 import Shell from '@/components/Shell';
 import { api, apiDownload, importProductsCsv, uploadProductImage } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Switch } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import StockAdjustSheet, { type AdjustTarget } from '@/components/inventory/StockAdjustSheet';
 
 interface Product { id: number; name: string; description: string; price: number; currency: string; cost: number | null; sku: string | null; category: string; active: number; stock: number | null; track_stock: number; image_path: string | null }
 
 const isOutOfStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) <= 0;
-const isLowStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 3;
+// Matches the engine's default; the real threshold is the
+// `inventory_low_stock_threshold` setting, which Inventario reads.
+const LOW_STOCK_AT = 3;
+const isLowStock = (p: Product) => p.track_stock === 1 && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= LOW_STOCK_AT;
 
 type View = { mode: 'list' } | { mode: 'edit'; product: Product | null };
 type FilterId = 'all' | 'active' | 'draft';
@@ -307,6 +312,7 @@ function EditorView({ product, categories, onClose, onSaved, onDelete, toast }: 
   const [trackStock, setTrackStock] = useState(product ? product.track_stock === 1 : false);
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
   const [image, setImage] = useState<string | null>(product?.image_path ?? null);
+  const [adjusting, setAdjusting] = useState<AdjustTarget | null>(null);
   const [uploading, setUploading] = useState(false);
   const imgInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
@@ -335,7 +341,11 @@ function EditorView({ product, categories, onClose, onSaved, onDelete, toast }: 
     setSaving(true);
     setError('');
     try {
-      const stockPayload = { trackStock, stock: trackStock ? Math.max(0, Math.floor(Number(stock) || 0)) : null };
+      // Only a brand-new product sets stock from here; for an existing one the
+      // quantity moves through Ajustar stock so the history stays complete.
+      const stockPayload = isNew
+        ? { trackStock, stock: trackStock ? Math.max(0, Math.floor(Number(stock) || 0)) : null }
+        : { trackStock };
       const costPayload = { cost: cost.trim() === '' ? null : Math.max(0, Number(cost) || 0), sku: sku.trim() || null, category: category.trim() };
       if (isNew) {
         await api('/api/products', {
@@ -474,12 +484,26 @@ function EditorView({ product, categories, onClose, onSaved, onDelete, toast }: 
             </div>
             <Switch checked={trackStock} onChange={setTrackStock} label="Inventario" />
           </div>
-          {trackStock && (
-            <Field label="Stock disponible" hint="Unidades en existencia.">
+          {trackStock && (isNew ? (
+            <Field label="Stock inicial" hint="Unidades con las que empiezas.">
               <Input value={stock} onChange={(e) => setStock(e.target.value)} type="number" step="1" min="0" placeholder="0" />
             </Field>
-          )}
+          ) : (
+            // Quantities are owned by Inventario, so every change lands in the
+            // movement history instead of being silently overwritten here.
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-2 p-3">
+              <div>
+                <p className="text-sm text-fg">Stock actual: <span className="tabular font-semibold">{product!.stock ?? 0}</span></p>
+                <Link href={`/inventory?product=${product!.id}`} className="text-xs text-brand hover:underline">Ver movimientos</Link>
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => setAdjusting({ id: product!.id, name: product!.name, stock: product!.stock })}>
+                Ajustar stock
+              </Button>
+            </div>
+          ))}
         </Card>
+
+        <StockAdjustSheet product={adjusting} onClose={() => setAdjusting(null)} onSaved={onSaved} />
 
         {error && <p className="text-sm text-danger">{error}</p>}
 

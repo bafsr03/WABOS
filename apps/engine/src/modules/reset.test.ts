@@ -62,6 +62,70 @@ describe('clearConnectionData', () => {
   });
 });
 
+describe('the register layer', () => {
+  // Seeds a business that has actually traded: a sale against a charge, a
+  // recepción with its cash expense, and a cash session.
+  async function seedRegister() {
+    const { currentBusinessId } = await import('../context.js');
+    const biz = currentBusinessId();
+    const contact = await store.upsertContactByJid('51988@s.whatsapp.net', 'Beto');
+    const charge = (await db.one<{ id: number }>(
+      `INSERT INTO charges (business_id, contact_id, amount, currency, concept) VALUES ($1,$2,50,'PEN','x') RETURNING id`,
+      [biz, contact.id],
+    ))!;
+    const sale = (await db.one<{ id: number }>(
+      `INSERT INTO sales (business_id, charge_id, total, subtotal, net, payment_method) VALUES ($1,$2,50,50,50,'yape') RETURNING id`,
+      [biz, charge.id],
+    ))!;
+    await db.none(`INSERT INTO sale_items (sale_id, name, qty, unit_price, line_total) VALUES ($1,'Polo',1,50,50)`, [sale.id]);
+    const product = (await db.one<{ id: number }>(
+      `INSERT INTO products (business_id, name, price, stock, track_stock) VALUES ($1,'Gorra',20,5,1) RETURNING id`,
+      [biz],
+    ))!;
+    const inventory = await import('./inventory.js');
+    await inventory.createStockEntry({ supplier: 'Prov', postExpense: true, items: [{ productId: product.id, qty: 3, unitCost: 8 }] });
+    const ledger = await import('./ledger.js');
+    await ledger.openCashDay({ day: '2026-01-15', amount: 40 });
+  }
+
+  it('survives a number change — revenue and stock history are not connection data', async () => {
+    await seedRegister();
+    await reset.clearConnectionData();
+
+    expect(await count('sales')).toBe(1);
+    expect(await count('sale_items')).toBe(1);
+    expect(await count('stock_entries')).toBe(1);
+    expect(await count('stock_movements')).toBe(1);
+    expect(await count('cash_sessions')).toBe(1);
+  });
+
+  it('is wiped by wipeAllData without tripping a foreign key', async () => {
+    await seedRegister();
+    await reset.wipeAllData();
+
+    expect(await count('sales')).toBe(0);
+    expect(await count('sale_items')).toBe(0);
+    expect(await count('stock_movements')).toBe(0);
+    expect(await count('stock_entry_items')).toBe(0);
+    expect(await count('stock_entries')).toBe(0);
+    expect(await count('cash_sessions')).toBe(0);
+    expect(await count('cash_movements')).toBe(0);
+    expect(await count('products')).toBe(0);
+  });
+
+  // Regression: sales reference charges and events reference contacts, so a
+  // business that had ever sold anything could not be deleted at all.
+  it('lets a business that has traded be purged entirely', async () => {
+    const biz = (await db.one<{ id: number }>(`INSERT INTO businesses (name) VALUES ('Purgable') RETURNING id`))!;
+    const ctx = await import('../context.js');
+    await ctx.runWithBusiness(biz.id, async () => {
+      await seedRegister();
+      await reset.purgeBusiness();
+    });
+    expect(await db.one('SELECT id FROM businesses WHERE id = $1', [biz.id])).toBeUndefined();
+  });
+});
+
 describe('reconcileLinkedNumber', () => {
   it('sets account_phone on first link without clearing', async () => {
     await db.setSetting('account_phone', '');

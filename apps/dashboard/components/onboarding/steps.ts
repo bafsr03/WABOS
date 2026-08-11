@@ -40,7 +40,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'cashflow',
     target: 'cashflow',
     title: 'Caja y reportes',
-    body: 'Controla ingresos y gastos del día, y recibe tu cierre diario por WhatsApp.',
+    body: 'Abre la caja con el efectivo del día, registra ingresos y gastos, y ciérrala contando lo que hay. Tu cierre llega por WhatsApp.',
     placement: 'right',
   },
   {

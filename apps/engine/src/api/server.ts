@@ -33,8 +33,11 @@ import { approveReceipt, rejectReceipt, rekickPendingReceipts } from '../workers
 import { remindNow } from '../workers/collections.js';
 import { insertNotification, listNotifications } from '../modules/payment-notifications.js';
 import { getAnalytics } from '../modules/analytics.js';
-import { createSale, voidSale, deleteSale, listSales, getDaySummary, getSalesSettings } from '../modules/sales.js';
-import { addCashMovement, listCashMovements, getCashPosition } from '../modules/ledger.js';
+import { createSale, voidSale, deleteSale, listSales, getDaySummary, getSalesSettings, attachSaleItems } from '../modules/sales.js';
+import {
+  addCashMovement, listCashMovements, getCashPosition,
+  getCashSession, suggestOpeningAmount, openCashDay, closeCashDay, reopenCashDay,
+} from '../modules/ledger.js';
 import { composeDigest } from '../modules/digest.js';
 import { sendDigestNow } from '../workers/digest.js';
 import { runBackup, latestBackup } from '../workers/backup.js';
@@ -54,6 +57,10 @@ import {
 } from '../modules/history-import.js';
 import { mediaAbsolutePath } from '../wa/media.js';
 import { templateCsv, importProductsCsv, PRODUCT_CSV_COLUMNS } from '../modules/products-csv.js';
+import {
+  adjustStock, logStockMovement, listStockMovements, listLowStock, getInventorySummary,
+  createStockEntry, voidStockEntry, listStockEntries, getStockEntry,
+} from '../modules/inventory.js';
 import { isStorageConfigured, uploadProductImage } from '../modules/storage.js';
 import fs from 'node:fs';
 
@@ -660,9 +667,18 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
       imagePath: z.string().nullable().optional(),
     }).parse(req.body);
     await assertWithinLimit('products'); // tier cap (402 PLAN_LIMIT when exceeded)
-    const row = await one(
+    const row = await one<any>(
       'INSERT INTO products (business_id, name, description, price, currency, cost, sku, category, stock, track_stock, image_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
       [currentBusinessId(), body.name, body.description, body.price, body.currency, body.cost ?? null, body.sku ?? null, body.category ?? '', body.stock ?? null, body.trackStock ? 1 : 0, body.imagePath ?? null]);
+    // Opening quantity: nothing to adjust (it was inserted), just record its origin
+    // so the movement history starts where the product does.
+    if (row && body.trackStock && body.stock) {
+      await logStockMovement({
+        productId: row.id, productName: body.name, kind: 'count', origin: 'dashboard',
+        qtyDelta: body.stock, stockAfter: body.stock, unitCost: body.cost ?? null,
+        refType: 'product', refId: row.id, note: 'Stock inicial',
+      });
+    }
     return reply.code(201).send(row);
   });
 
@@ -683,7 +699,10 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
     }).parse(req.body);
     const current = await one<any>('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
     if (!current) return { error: 'Not found' };
-    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5, cost = $6, sku = $7, category = $8, stock = $9, track_stock = $10, image_path = $11 WHERE id = $12',
+    const nextTrack = body.trackStock === undefined ? current.track_stock : body.trackStock ? 1 : 0;
+    // `stock` is deliberately absent from this UPDATE — it moves through
+    // adjustStock below so an edit from the catalog lands in the history too.
+    await none('UPDATE products SET name = $1, description = $2, price = $3, currency = $4, active = $5, cost = $6, sku = $7, category = $8, track_stock = $9, image_path = $10 WHERE id = $11',
       [
         body.name ?? current.name,
         body.description ?? current.description,
@@ -693,23 +712,41 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
         body.cost === undefined ? current.cost : body.cost,
         body.sku === undefined ? current.sku : body.sku,
         body.category === undefined ? current.category : body.category,
-        body.stock === undefined ? current.stock : body.stock,
-        body.trackStock === undefined ? current.track_stock : body.trackStock ? 1 : 0,
+        nextTrack,
         body.imagePath === undefined ? current.image_path : body.imagePath,
         id,
       ]);
+    if (body.stock !== undefined && body.stock !== null && body.stock !== current.stock && nextTrack === 1) {
+      await adjustStock({
+        productId: id, setTo: body.stock, kind: 'count', origin: 'dashboard',
+        enableTracking: true, refType: 'product', refId: id, note: 'Ajuste desde el catálogo',
+      });
+    }
     return one('SELECT * FROM products WHERE id = $1', [id]);
   });
 
-  // Quick stock adjustment (delta or absolute) without touching the rest of the product.
+  // Quick stock adjustment (delta or absolute) without touching the rest of the
+  // product. `set` is a recount, `delta` is a correction — the history says which.
   app.post('/api/products/:id/stock', async (req, reply) => {
     const id = Number((req.params as any).id);
-    const body = z.object({ delta: z.number().int().optional(), set: z.number().int().optional() }).parse(req.body ?? {});
-    const current = await one<any>('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
+    const body = z.object({
+      delta: z.number().int().optional(),
+      set: z.number().int().nonnegative().optional(),
+      note: z.string().max(200).optional(),
+    }).parse(req.body ?? {});
+    if (body.delta === undefined && body.set === undefined) {
+      return reply.code(400).send({ error: 'Indica `delta` o `set`' });
+    }
+    const current = await one<any>('SELECT id FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
     if (!current) return reply.code(404).send({ error: 'Not found' });
-    const next = body.set !== undefined ? body.set : Math.max(0, (current.stock ?? 0) + (body.delta ?? 0));
-    await none('UPDATE products SET stock = $1, track_stock = 1 WHERE id = $2', [next, id]);
-    return one('SELECT * FROM products WHERE id = $1', [id]);
+    await adjustStock({
+      productId: id,
+      ...(body.set !== undefined ? { setTo: body.set, kind: 'count' as const } : { qtyDelta: body.delta, kind: 'adjustment' as const }),
+      origin: 'dashboard',
+      enableTracking: true,
+      note: body.note ?? '',
+    });
+    return one('SELECT * FROM products WHERE id = $1 AND business_id = $2', [id, currentBusinessId()]);
   });
 
   app.delete('/api/products/:id', async (req) => {
@@ -772,6 +809,68 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
       logger.error({ err }, 'product image upload failed');
       return reply.code(502).send({ error: 'No se pudo subir la imagen' });
     }
+  });
+
+  // ---- inventory: movements + recepciones -------------------------------------
+  app.get('/api/inventory/summary', async () => getInventorySummary());
+  app.get('/api/inventory/low-stock', async () => listLowStock());
+
+  const stockKind = z.enum(['entry', 'sale', 'void', 'adjustment', 'count', 'import']);
+  const stockOrigin = z.enum(['dashboard', 'pos', 'ai', 'import', 'system']);
+
+  app.get('/api/stock/movements', async (req) => {
+    const q = z.object({
+      productId: z.coerce.number().int().optional(),
+      kind: stockKind.optional(),
+      origin: stockOrigin.optional(),
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      limit: z.coerce.number().int().positive().max(200).default(50),
+      offset: z.coerce.number().int().nonnegative().default(0),
+    }).parse(req.query ?? {});
+    return listStockMovements(q);
+  });
+
+  app.get('/api/stock/entries', async (req) => {
+    const q = z.object({
+      limit: z.coerce.number().int().positive().max(200).default(50),
+      offset: z.coerce.number().int().nonnegative().default(0),
+    }).parse(req.query ?? {});
+    return listStockEntries(q);
+  });
+
+  app.get('/api/stock/entries/:id', async (req, reply) => {
+    const entry = await getStockEntry(Number((req.params as any).id));
+    if (!entry) return reply.code(404).send({ error: 'Recepción no encontrada' });
+    return entry;
+  });
+
+  app.post('/api/stock/entries', async (req, reply) => {
+    const body = z.object({
+      supplier: z.string().max(120).default(''),
+      note: z.string().max(300).default(''),
+      receivedAt: z.number().int().positive().optional(),
+      postExpense: z.boolean().default(false),
+      items: z.array(z.object({
+        productId: z.number().int(),
+        qty: z.number().positive(),
+        unitCost: z.number().nonnegative(),
+      })).min(1),
+    }).parse(req.body);
+    try {
+      return reply.code(201).send(await createStockEntry(body));
+    } catch (err: any) {
+      if (['FRACTIONAL_STOCK', 'PRODUCT_NOT_FOUND', 'EMPTY_ENTRY'].includes(err?.code)) {
+        return reply.code(400).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
+  app.post('/api/stock/entries/:id/void', async (req, reply) => {
+    const res = await voidStockEntry(Number((req.params as any).id));
+    if (!res.ok) return reply.code(400).send(res);
+    return res;
   });
 
   // ---- FAQs ---------------------------------------------------------------------
@@ -1010,8 +1109,11 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
   app.get('/api/payment-notifications', async () => listNotifications(50));
 
   app.get('/api/analytics', async (req) => {
-    const query = z.object({ range: z.coerce.number().int().min(1).max(365).default(30) }).parse(req.query ?? {});
-    return getAnalytics(query.range);
+    const query = z.object({
+      range: z.coerce.number().int().min(1).max(365).default(30),
+      channel: z.enum(['pos', 'whatsapp', 'ai']).optional(),
+    }).parse(req.query ?? {});
+    return getAnalytics(query.range, { channel: query.channel });
   });
 
   // ---- register: sales + cash ledger -----------------------------------------
@@ -1022,14 +1124,17 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
   };
   const dayQuery = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
 
+  const salesChannel = z.enum(['pos', 'whatsapp', 'ai']);
+  const dayChannelQuery = dayQuery.extend({ channel: salesChannel.optional() });
+
   app.get('/api/sales', async (req) => {
-    const { day } = dayQuery.parse(req.query ?? {});
-    return listSales(day ?? await todayInBusinessTz());
+    const { day, channel } = dayChannelQuery.parse(req.query ?? {});
+    return listSales(day ?? await todayInBusinessTz(), { channel });
   });
 
   app.get('/api/sales/day-summary', async (req) => {
-    const { day } = dayQuery.parse(req.query ?? {});
-    return getDaySummary(day ?? await todayInBusinessTz());
+    const { day, channel } = dayChannelQuery.parse(req.query ?? {});
+    return getDaySummary(day ?? await todayInBusinessTz(), { channel });
   });
 
   app.post('/api/sales', async (req, reply) => {
@@ -1048,6 +1153,22 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
     }).parse(req.body);
     const sale = await createSale({ ...body, channel: 'pos' });
     return reply.code(201).send(sale);
+  });
+
+  // Assign products to a lineless WhatsApp/AI sale, so it finally moves stock.
+  app.post('/api/sales/:id/items', async (req, reply) => {
+    const body = z.object({
+      items: z.array(z.object({
+        productId: z.number().int().nullable().optional(),
+        name: z.string().min(1),
+        qty: z.number().positive(),
+        unitPrice: z.number().nonnegative(),
+        unitCost: z.number().nonnegative().nullable().optional(),
+      })).min(1),
+    }).parse(req.body);
+    const res = await attachSaleItems(Number((req.params as any).id), body.items);
+    if (!res.ok) return reply.code(400).send(res);
+    return res;
   });
 
   app.post('/api/sales/:id/void', async (req, reply) => {
@@ -1084,6 +1205,42 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
     return getCashPosition(day ?? await todayInBusinessTz());
   });
 
+  // The cash day. `suggestedOpening` is what to prefill the apertura with, so the
+  // shopkeeper confirms a number instead of inventing one.
+  app.get('/api/cash/session', async (req) => {
+    const { day } = dayQuery.parse(req.query ?? {});
+    const d = day ?? await todayInBusinessTz();
+    return { day: d, session: await getCashSession(d), suggestedOpening: await suggestOpeningAmount(d) };
+  });
+
+  app.post('/api/cash/session/open', async (req, reply) => {
+    const body = z.object({
+      day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      amount: z.number().nonnegative(),
+    }).parse(req.body ?? {});
+    const res = await openCashDay({ day: body.day ?? await todayInBusinessTz(), amount: body.amount });
+    if (!res.ok) return reply.code(400).send(res);
+    return res.session;
+  });
+
+  app.post('/api/cash/session/close', async (req, reply) => {
+    const body = z.object({
+      day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      counted: z.number().nonnegative(),
+      note: z.string().max(300).optional(),
+    }).parse(req.body ?? {});
+    const res = await closeCashDay({ day: body.day ?? await todayInBusinessTz(), counted: body.counted, note: body.note });
+    if (!res.ok) return reply.code(400).send(res);
+    return res.session;
+  });
+
+  app.post('/api/cash/session/reopen', async (req, reply) => {
+    const { day } = dayQuery.parse(req.body ?? {});
+    const res = await reopenCashDay(day ?? await todayInBusinessTz());
+    if (!res.ok) return reply.code(400).send(res);
+    return res;
+  });
+
   app.get('/api/sales/payment-methods', async () => (await getSalesSettings()).paymentMethods);
 
   // ---- daily digest (Cierre de día) ------------------------------------------
@@ -1104,13 +1261,17 @@ ${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></
   app.post('/api/backups/run', async (_req, reply) => reply.send(await runBackup()));
 
   // Per-business data export (self-serve). JSON bundle of the tenant's own rows.
-  const EXPORT_TABLES = ['products', 'contacts', 'sales', 'cash_movements', 'charges'] as const;
+  const EXPORT_TABLES = ['products', 'contacts', 'sales', 'cash_movements', 'charges',
+    'stock_movements', 'stock_entries', 'cash_sessions'] as const;
   app.get('/api/export', async () => {
     const biz = currentBusinessId();
     const bundle: Record<string, any[]> = {};
     for (const t of EXPORT_TABLES) bundle[t] = await many(`SELECT * FROM ${t} WHERE business_id = $1 ORDER BY id`, [biz]);
+    // Line-item tables have no business_id of their own — reach them through their parent.
     bundle.sale_items = await many(
       `SELECT si.* FROM sale_items si JOIN sales s ON s.id = si.sale_id WHERE s.business_id = $1 ORDER BY si.id`, [biz]);
+    bundle.stock_entry_items = await many(
+      `SELECT i.* FROM stock_entry_items i JOIN stock_entries e ON e.id = i.entry_id WHERE e.business_id = $1 ORDER BY i.id`, [biz]);
     return { exportedAt: Date.now(), businessId: biz, ...bundle };
   });
 

@@ -77,4 +77,46 @@ describe('getAnalytics', () => {
     expect(a.medianResponseSeconds).toBeNull();
     expect(a.topSearches).toEqual([]);
   });
+
+  describe('origin split', () => {
+    const seedTwoChannels = async () => {
+      await db.none(`INSERT INTO sales (business_id, channel, total, subtotal, net, cost_total, payment_method, status) VALUES (1,'pos',100,100,100,40,'cash','completed')`);
+      await db.none(`INSERT INTO sales (business_id, channel, total, subtotal, net, cost_total, payment_method, status) VALUES (1,'whatsapp',60,60,60,0,'yape','completed')`);
+    };
+
+    it('reports every channel and lets one be isolated', async () => {
+      await seedTwoChannels();
+      const all = await analytics.getAnalytics(30);
+      expect(all.revenue).toBe(160);
+      expect(all.channel).toBe('all');
+      expect(all.salesByChannel.find((c) => c.channel === 'pos')!.total).toBe(100);
+      expect(all.salesByChannel.find((c) => c.channel === 'whatsapp')!.total).toBe(60);
+
+      const pos = await analytics.getAnalytics(30, { channel: 'pos' });
+      expect(pos.revenue).toBe(100);
+      expect(pos.channel).toBe('pos');
+      // The split card itself stays unfiltered — it's what shows the comparison.
+      expect(pos.salesByChannel).toHaveLength(2);
+    });
+
+    it('counts sales with no products as lineless', async () => {
+      await seedTwoChannels();
+      const a = await analytics.getAnalytics(30);
+      expect(a.linelessSales).toBe(2); // neither seeded sale has line items
+    });
+  });
+
+  // Merchandise bought on a recepción is cash out today, but the same soles are
+  // already subtracted as COGS when the goods sell. Counting both halves the
+  // shopkeeper's apparent profit for no reason.
+  it('keeps merchandise purchases out of netProfit but still reports them', async () => {
+    await db.none(`INSERT INTO sales (business_id, total, subtotal, net, cost_total, payment_method, status) VALUES (1,100,100,100,40,'cash','completed')`);
+    await db.none(`INSERT INTO cash_movements (business_id, kind, amount, category) VALUES (1,'expense',15,'Agua')`);
+    await db.none(`INSERT INTO cash_movements (business_id, kind, amount, category) VALUES (1,'expense',200,$1)`, [analytics.PURCHASE_CATEGORY]);
+
+    const a = await analytics.getAnalytics(30);
+    expect(a.expenses).toBe(215);  // the drawer really did lose 215
+    expect(a.purchases).toBe(200);
+    expect(a.netProfit).toBe(45);  // 100 − 40 − (215 − 200)
+  });
 });

@@ -45,14 +45,16 @@ export function DashboardMock({ className }: { className?: string }) {
               <TrendingUp size={12} /> S/ 4,190
             </span>
           </div>
-          <div className="mt-4 flex h-24 items-end gap-2">
+          {/* h-full + justify-end on the column is load-bearing: the bars are
+              sized in %, which collapses to 0 against an auto-height parent. */}
+          <div className="mt-4 flex h-28 items-stretch gap-2">
             {BARS.map((h, i) => (
-              <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+              <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
                 <div
                   className="w-full rounded-t bg-gradient-to-t from-brand-deep to-brand"
                   style={{ height: `${h}%` }}
                 />
-                <span className="text-[9px] text-subtle">{DAYS[i]}</span>
+                <span className="text-[9px] leading-none text-subtle">{DAYS[i]}</span>
               </div>
             ))}
           </div>

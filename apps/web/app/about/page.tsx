@@ -3,8 +3,8 @@ import { Target, Heart, Sparkles, ShieldCheck, Users, Cpu, Database, Lock } from
 import { buildMetadata, graph, breadcrumbSchema } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { Container, SectionHeading, Button, Pill } from '@/components/ui';
-import { Reveal, RevealStagger, RevealItem } from '@/components/Reveal';
-import { ProofBand, CTASection } from '@/components/sections';
+import { Reveal } from '@/components/Reveal';
+import { FeatureRow, DividedList, CTASection } from '@/components/sections';
 
 export const metadata = buildMetadata({
   title: 'Nosotros',
@@ -14,14 +14,18 @@ export const metadata = buildMetadata({
 
 const VALUES = [
   { icon: Sparkles, title: 'Simple, no simplista', desc: 'Un dueño de negocio no debería necesitar capacitación para cobrar. Si algo requiere manual, está mal diseñado.' },
-  { icon: ShieldCheck, title: 'La confianza primero', desc: 'Cuando hay dinero de por medio, preferimos preguntarte antes que asumir. Por eso nada se rechaza solo.' },
+  // States the principle, not the mechanic — the "nada se rechaza solo" detail
+  // belongs to the landing page's verification section.
+  { icon: ShieldCheck, title: 'La confianza primero', desc: 'Cuando hay plata de por medio preferimos preguntarte antes que asumir. Nos parece peor equivocarnos rápido que ir un poco más lento.' },
   { icon: Users, title: 'Para PYMEs de verdad', desc: 'No para empresas con área de sistemas. Para el minimarket, la boutique y el que reparte a domicilio.' },
 ];
 
+// Infrastructure only. The CSV-export claim lives in the landing page's
+// TrustBand; repeating it here is what made these two blocks feel identical.
 const HOW = [
-  { icon: Cpu, title: 'IA de Anthropic (Claude)', desc: 'La misma familia de modelos que usan empresas grandes, puesta a trabajar en tu catálogo y tu forma de escribir.' },
-  { icon: Database, title: 'Postgres y copias diarias', desc: 'Tus datos en una base seria, con respaldos automáticos y exportación en CSV cuando quieras.' },
-  { icon: Lock, title: 'Cada negocio, aislado', desc: 'La información de tu negocio está separada de la de cualquier otro. Nadie ve tus conversaciones ni tus números.' },
+  { icon: Cpu, title: 'IA de Anthropic (Claude)', desc: 'La misma familia de modelos que usan las empresas grandes, puesta a trabajar sobre tu catálogo y tu forma de escribir.' },
+  { icon: Database, title: 'Postgres, con respaldos', desc: 'Tus datos viven en una base de datos seria, con copias de seguridad automáticas y periódicas.' },
+  { icon: Lock, title: 'Cada negocio, aislado', desc: 'La información de tu negocio está separada de la de cualquier otro. Nadie más ve tus conversaciones ni tus números.' },
 ];
 
 export default function AboutPage() {
@@ -75,51 +79,28 @@ export default function AboutPage() {
         </div>
       </Container>
 
-      <ProofBand />
+      {/* ProofBand used to sit here, duplicating the landing page. The brand
+          mission panel above already carries that beat. */}
 
       <Container className="py-16 lg:py-20">
         <Reveal>
           <SectionHeading center eyebrow="Lo que nos guía" title="Cómo tomamos decisiones" />
         </Reveal>
-        <RevealStagger className="mt-12 grid gap-4 md:grid-cols-3">
-          {VALUES.map((v) => {
-            const Icon = v.icon;
-            return (
-              <RevealItem key={v.title}>
-                <div className="card h-full p-6">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand">
-                    <Icon size={18} />
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold text-fg">{v.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted">{v.desc}</p>
-                </div>
-              </RevealItem>
-            );
-          })}
-        </RevealStagger>
+        <div className="mt-12">
+          <FeatureRow items={VALUES} />
+        </div>
       </Container>
 
+      {/* Deliberately a list, not a second card grid — these two blocks used to
+          be character-identical and adjacent. */}
       <section className="border-y border-border bg-bg-tint py-16 lg:py-20">
         <Container>
           <Reveal>
             <SectionHeading center eyebrow="Cómo está construido" title="Sin misterio detrás" />
           </Reveal>
-          <RevealStagger className="mt-12 grid gap-4 md:grid-cols-3">
-            {HOW.map((h) => {
-              const Icon = h.icon;
-              return (
-                <RevealItem key={h.title}>
-                  <div className="card h-full p-6">
-                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand">
-                      <Icon size={18} />
-                    </div>
-                    <h3 className="mt-4 text-base font-semibold text-fg">{h.title}</h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-muted">{h.desc}</p>
-                  </div>
-                </RevealItem>
-              );
-            })}
-          </RevealStagger>
+          <Reveal delay={0.1}>
+            <DividedList items={HOW} className="mx-auto mt-12 max-w-3xl" />
+          </Reveal>
 
           <Reveal delay={0.15}>
             <div className="mt-10 text-center">
@@ -136,7 +117,11 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      <CTASection />
+      {/* Each page gets its own closing line — the default belongs to /. */}
+      <CTASection
+        title="Pruébalo con tus propios clientes"
+        subtitle="La mejor forma de saber si te sirve es conectarlo un día y ver qué pasa con tus conversaciones reales."
+      />
     </>
   );
 }

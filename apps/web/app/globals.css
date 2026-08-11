@@ -16,7 +16,9 @@
 :root {
   /* Base — navy-tinted blacks, not neutral greys (matches the logo tile). */
   --bg: #05060d;
-  --bg-tint: #080a14;
+  /* Alternating bands are how the page keeps its rhythm, so this needs a step
+     the eye can actually see against --bg — at #080a14 it was imperceptible. */
+  --bg-tint: #0b0f1c;
   --surface: #0c0e1a;
   --surface-2: #121523;
   --surface-3: #1a1e30;

@@ -1,13 +1,14 @@
 import {
-  Inbox, Bot, Store, LineChart, Package, Users, Megaphone, BookOpen, Sun,
+  Store, Package, Users, Megaphone, BookOpen, Sun,
   Sparkles, Search, Tag, ArrowRightLeft, HandCoins, Bell,
+  AlertTriangle, Percent, Wallet, TrendingUp,
 } from 'lucide-react';
 import { buildMetadata, graph, breadcrumbSchema } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { Container, SectionHeading, Button, Pill } from '@/components/ui';
 import { Reveal } from '@/components/Reveal';
-import { ChatMock, HANDOFF_SCRIPT, DashboardMock, InboxMock, Panel } from '@/components/mocks';
-import { FeatureSpotlight, FeatureRow, VerificationFlow, NotBuilt, CTASection } from '@/components/sections';
+import { DashboardMock, InboxMock, Panel } from '@/components/mocks';
+import { FeatureSpotlight, FeatureRow, DividedList, NotBuilt, CTASection } from '@/components/sections';
 import { REGISTER_URL } from '@/lib/site';
 
 export const metadata = buildMetadata({
@@ -16,12 +17,28 @@ export const metadata = buildMetadata({
   path: '/features',
 });
 
+// Includes the secondary modules because Footer.tsx deep-links #catalogo,
+// #crm and #campanas — they need visible peers here.
 const ANCHORS = [
   { href: '#inbox', label: 'Inbox' },
   { href: '#ia', label: 'Empleado IA' },
   { href: '#cobros', label: 'Cobros' },
   { href: '#pos', label: 'Punto de venta' },
   { href: '#analitica', label: 'Analítica' },
+  { href: '#catalogo', label: 'Catálogo' },
+  { href: '#crm', label: 'CRM' },
+  { href: '#campanas', label: 'Campañas' },
+];
+
+// Mirrors the checks in apps/engine/src/modules/verification.ts. These are the
+// actual reasons a receipt lands in the review queue — /features enumerates
+// them, the landing page only tells the story.
+const REVIEW_REASONS = [
+  { title: 'El monto no coincide', desc: 'Lo que dice el comprobante no calza con el cobro que generaste, fuera de la tolerancia configurada.' },
+  { title: 'El número de operación ya se usó', desc: 'Ese mismo código apareció en otro comprobante antes. Es la forma más común de reciclar una captura vieja.' },
+  { title: 'La fecha está fuera de rango', desc: 'El comprobante es de hace días, o de una fecha que no corresponde al cobro.' },
+  { title: 'No llegó la confirmación del banco', desc: 'La captura se ve bien, pero todavía no aparece la notificación real de tu banco o de Yape que la respalde.' },
+  { title: 'El destinatario no eres tú', desc: 'El nombre o el número al que se pagó no coincide con los datos de cobro que configuraste.' },
 ];
 
 const SECONDARY = [
@@ -73,13 +90,13 @@ export default function FeaturesPage() {
       <FeatureSpotlight
         id="inbox"
         eyebrow="Inbox"
-        title="Cada conversación, en tiempo real"
-        desc="Un solo lugar para todo lo que entra por WhatsApp, con el historial completo de cada cliente a la vista."
+        title="Cómo funciona el inbox"
+        desc="Un hilo por cliente, con todo su historial, sus etiquetas y sus notas al costado."
         bullets={[
-          'Los mensajes llegan en vivo, sin recargar ni refrescar nada',
-          'Cambias entre modo IA y modo humano en cualquier chat, al instante',
-          'Contadores de no leídos y notas internas por contacto',
-          'Conversaciones de prueba para ensayar a tu agente sin gastar mensajes ni escribirle a un cliente real',
+          'Los mensajes entran por websocket: aparecen sin recargar ni refrescar',
+          'Un interruptor IA / humano por conversación, con efecto inmediato',
+          'Contador de no leídos, notas internas y etiquetas por contacto',
+          'Conversaciones de prueba para ensayar a un agente sin gastar mensajes del plan ni escribirle a un cliente real',
         ]}
         media={<InboxMock />}
       />
@@ -112,43 +129,71 @@ export default function FeaturesPage() {
         }
       />
 
-      <VerificationFlow />
+      {/* The landing page owns the verification STORY — the 3-step diagram and
+          the confirmed/review fork live there, and are deliberately not
+          repeated. This page owns the RULES: the exact conditions that send a
+          receipt to the review queue. */}
+      <section id="cobros" className="scroll-mt-24 border-y border-border bg-bg-tint py-20 lg:py-24">
+        <Container>
+          <Reveal>
+            <SectionHeading
+              center
+              eyebrow="Cobros verificados"
+              title="Qué manda un comprobante a revisión"
+              subtitle="La verificación es una lista de condiciones, no una corazonada. Si alguna no se cumple, el caso llega a tu cola con el motivo exacto en vez de aprobarse solo."
+            />
+          </Reveal>
+          <Reveal delay={0.1}>
+            <DividedList items={REVIEW_REASONS} icon={AlertTriangle} tone="warn" className="mx-auto mt-12 max-w-3xl" />
+          </Reveal>
+          <Reveal delay={0.15}>
+            <p className="mx-auto mt-6 max-w-3xl text-center text-xs leading-relaxed text-subtle">
+              Ningún comprobante se rechaza automáticamente: lo que no calza queda esperando tu decisión.
+              Una verificación exitosa significa que el comprobante es consistente con el cobro y con la
+              notificación de tu banco — no sustituye la conciliación de tu cuenta.
+            </p>
+          </Reveal>
+        </Container>
+      </section>
 
       <FeatureSpotlight
         id="pos"
         eyebrow="Punto de venta y caja"
-        title="La venta y la caja, sin cuaderno aparte"
-        desc="Registra lo que vendes por el chat o en el mostrador, y lleva la cuenta del día sin pasar nada a mano."
+        title="Qué registra cada venta"
+        desc="Vendas por el chat o en el mostrador, la venta entra una sola vez y arrastra todo lo demás con ella."
         bullets={[
-          'Registras la venta y el stock se descuenta solo, en la misma operación',
-          'Guarda el costo del producto al momento de venderlo, así el margen es real y no un estimado',
-          'Métodos de pago con su comisión, para saber cuánto te queda de verdad',
-          'Caja del día con gastos e ingresos extra',
-          'Anular una venta devuelve el stock automáticamente',
+          'El stock se descuenta en la misma operación que registra la venta',
+          'Guarda el costo del producto en el momento de venderlo, así el margen no cambia si mañana subes el precio',
+          'Cada método de pago lleva su comisión configurable, y se descuenta del neto',
+          'Anular una venta devuelve el stock',
+          'La caja del día suma ventas, gastos e ingresos extra',
         ]}
-        media={<DashboardMock />}
-        reverse
+        media={
+          <Panel
+            title="Caja · hoy"
+            rows={[
+              { icon: Store, primary: 'Ventas', secondary: '12 operaciones', tag: 'S/ 842' },
+              { icon: Percent, primary: 'Comisiones', secondary: 'Tarjeta 0.35%', tag: '− S/ 23' },
+              { icon: Wallet, primary: 'Gastos del día', secondary: 'Movilidad, envases', tag: '− S/ 95' },
+              { icon: TrendingUp, primary: 'Efectivo en caja', secondary: 'Después de todo', tag: 'S/ 410' },
+            ]}
+          />
+        }
       />
 
       <FeatureSpotlight
         id="analitica"
+        reverse
         eyebrow="Analítica"
-        title="Cuánto ganaste, no cuánto facturaste"
-        desc="La diferencia entre esos dos números es tu negocio. WABOS la calcula sola."
+        title="Qué números calcula"
+        desc="Todo se deriva de las ventas ya registradas, así que no hay nada que llenar aparte."
         bullets={[
-          'Ganancia neta: ingresos menos costo, comisiones y gastos',
-          'Ingresos por día, productos más vendidos y métodos de pago',
-          'Lo que más te buscan tus clientes — para saber qué te falta tener',
-          'Cuánto responde la IA y en cuánto tiempo lo hace',
+          'Ganancia neta: ingresos − costo de lo vendido − comisiones − gastos',
+          'Ingresos por día, productos más vendidos y reparto por método de pago',
+          'Lo que más te buscan y no encontraron, para saber qué te falta tener',
+          'Cuántas respuestas dio la IA y su tiempo mediano de respuesta',
         ]}
-        media={
-          <ChatMock
-            script={HANDOFF_SCRIPT}
-            title="Tech Store"
-            subtitle="Modo humano"
-            ariaLabel="Conversación de ejemplo donde el Empleado IA responde y luego deriva el chat a una persona."
-          />
-        }
+        media={<DashboardMock />}
       />
 
       <Container className="py-16 lg:py-20">
@@ -164,7 +209,10 @@ export default function FeaturesPage() {
       </Container>
 
       <NotBuilt />
-      <CTASection />
+      <CTASection
+        title="La lista completa está bien, pero verlo funcionando es mejor"
+        subtitle="Conéctalo a tu número y mira cómo responde a tus clientes de verdad. Sin tarjeta."
+      />
     </>
   );
 }

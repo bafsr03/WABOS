@@ -3,8 +3,10 @@
 import { useRef } from 'react';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { Image as ImageIcon, ScanEye, Landmark, ShieldCheck, UserCheck } from 'lucide-react';
+import { cn } from '@/lib/cn';
 import { Container, SectionHeading } from '../ui';
 import { Reveal } from '../Reveal';
+import { ReviewQueueMock } from '../mocks/ReviewQueueMock';
 
 const STEPS = [
   {
@@ -39,14 +41,24 @@ const OUTCOMES = [
   },
 ];
 
-export function VerificationFlow({ compact }: { compact?: boolean }) {
+export function VerificationFlow({
+  compact, id, queue, className,
+}: {
+  /** Suppress the built-in heading when the page supplies its own (/features). */
+  compact?: boolean;
+  /** Only the page that owns the #cobros anchor should set it. */
+  id?: string;
+  /** Show the real review queue beside the "algo no calza" fork (landing). */
+  queue?: boolean;
+  className?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.3 });
   const reduced = useReducedMotion();
   const animate = !reduced && inView;
 
   return (
-    <section id="cobros" className="scroll-mt-24 py-20 lg:py-28">
+    <section id={id} className={cn('scroll-mt-24 py-20 lg:py-28', className)}>
       <Container>
         {!compact && (
           <Reveal>
@@ -85,27 +97,42 @@ export function VerificationFlow({ compact }: { compact?: boolean }) {
             })}
           </div>
 
-          {/* Fork */}
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {OUTCOMES.map((o, i) => {
-              const Icon = o.icon;
-              const ok = o.tone === 'ok';
-              return (
-                <motion.div
-                  key={o.title}
-                  initial={reduced ? undefined : { opacity: 0, y: 16 }}
-                  animate={animate ? { opacity: 1, y: 0 } : undefined}
-                  transition={{ duration: 0.5, delay: 0.36 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
-                  className={`rounded-2xl border p-6 ${ok ? 'border-success/25 bg-success/[0.06]' : 'border-warn/25 bg-warn/[0.06]'}`}
-                >
-                  <div className={`grid h-11 w-11 place-items-center rounded-xl ${ok ? 'bg-success/15 text-success' : 'bg-warn/15 text-warn'}`}>
-                    <Icon size={20} />
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold text-fg">{o.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted">{o.desc}</p>
-                </motion.div>
-              );
-            })}
+          {/* Fork. With `queue`, the two outcomes stack beside the real review
+              queue so the "lo decides tú" claim is shown, not just asserted. */}
+          <div className={cn('mt-4 grid gap-4', queue ? 'lg:grid-cols-2 lg:items-center' : 'md:grid-cols-2')}>
+            <div className={cn('grid gap-4', queue ? 'sm:grid-cols-2 lg:grid-cols-1' : 'contents')}>
+              {OUTCOMES.map((o, i) => {
+                const Icon = o.icon;
+                const ok = o.tone === 'ok';
+                return (
+                  <motion.div
+                    key={o.title}
+                    initial={reduced ? undefined : { opacity: 0, y: 16 }}
+                    animate={animate ? { opacity: 1, y: 0 } : undefined}
+                    transition={{ duration: 0.5, delay: 0.36 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+                    className={`rounded-2xl border p-6 ${ok ? 'border-success/25 bg-success/[0.06]' : 'border-warn/25 bg-warn/[0.06]'}`}
+                  >
+                    <div className={`grid h-11 w-11 place-items-center rounded-xl ${ok ? 'bg-success/15 text-success' : 'bg-warn/15 text-warn'}`}>
+                      <Icon size={20} />
+                    </div>
+                    <h3 className="mt-4 text-base font-semibold text-fg">{o.title}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-muted">{o.desc}</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {queue && (
+              <motion.div
+                initial={reduced ? undefined : { opacity: 0, y: 16 }}
+                animate={animate ? { opacity: 1, y: 0 } : undefined}
+                transition={{ duration: 0.5, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className="relative"
+              >
+                <div aria-hidden className="pointer-events-none absolute -inset-8 -z-10 rounded-[2rem] bg-warn/[0.07] blur-3xl" />
+                <ReviewQueueMock />
+              </motion.div>
+            )}
           </div>
 
           <p className="mt-6 text-center text-xs leading-relaxed text-subtle">

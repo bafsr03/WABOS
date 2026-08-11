@@ -1,52 +1,58 @@
-import { ArrowRight, Inbox, Bot, BadgeCheck, Store, LineChart, Megaphone } from 'lucide-react';
+import { ArrowRight, QrCode, PackageSearch, MessageSquareText, Sparkles } from 'lucide-react';
 import { REGISTER_URL } from '@/lib/site';
 import { HOME_FAQS } from '@/lib/faqs';
 import { graph, softwareApplicationSchema, faqSchema } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/JsonLd';
-import { Container, Button, Pill, SectionHeading } from '@/components/ui';
+import { Container, Button, Pill } from '@/components/ui';
 import { Reveal } from '@/components/Reveal';
-import { ChatMock, SALES_SCRIPT, HANDOFF_SCRIPT, DashboardMock, InboxMock, ReviewQueueMock } from '@/components/mocks';
+import { ChatMock, SALES_SCRIPT, HANDOFF_SCRIPT, DashboardMock, InboxMock, Panel } from '@/components/mocks';
 import {
-  FeatureGrid, HowItWorks, FAQ, CTASection, PainGrid, VerificationFlow,
-  StickyShowcase, ProofBand, PeruBand, OwnershipBand, PricingTeaser, type Feature,
+  FeatureSpotlight, FAQ, CTASection, ProblemList, VerificationFlow,
+  StickyShowcase, ProofPanel, TrustBand, PricingTeaser,
 } from '@/components/sections';
 
-const FEATURES: Feature[] = [
-  { icon: Inbox, title: 'Inbox en tiempo real', desc: 'Todas tus conversaciones en un solo lugar, con historial, notas y respuesta al instante desde cualquier dispositivo.', href: '/features#inbox' },
-  { icon: Bot, title: 'Empleado IA', desc: 'Responde con tu catálogo, tus precios y tus FAQs — nunca con información inventada. Le pasas el chat cuando quieras.', href: '/features#ia' },
-  { icon: BadgeCheck, title: 'Cobros verificados', desc: 'Lee el comprobante de Yape o Plin y lo cruza con la notificación real de tu banco antes de darlo por pagado.', href: '/features#cobros' },
-  { icon: Store, title: 'Punto de venta y caja', desc: 'Registra ventas, descuenta stock y lleva la caja del día. Con el costo de cada producto, para saber lo que de verdad ganaste.', href: '/features#pos' },
-  { icon: LineChart, title: 'Analítica real', desc: 'Ingresos, costos, comisiones y gastos. La ganancia neta, no solo cuánto facturaste.', href: '/features#analitica' },
-  { icon: Megaphone, title: 'Campañas seguras', desc: 'Difusiones segmentadas por etiqueta, con espaciado aleatorio de 6 a 12 segundos para cuidar tu número.', href: '/features#campanas' },
-];
+/**
+ * The landing page tells the STORY. /features carries the specs.
+ *
+ * Two rules this file exists to enforce, and which are easy to break by adding
+ * "just one more section":
+ *
+ * 1. No two adjacent sections share a shape or a background. In order the
+ *    fingerprints run: asymmetric hero → divided list → two-column spotlight →
+ *    numbered pipeline + queue → sticky rail → solid brand panel → icon grid →
+ *    price strip + accordion → centered band. Backgrounds alternate
+ *    bg / tint / bg / tint / bg / brand / bg / tint / bg.
+ * 2. Each module is described in exactly one place. Inbox, IA and analítica get
+ *    one angle each inside the sticky tour; POS, catálogo, CRM, campañas,
+ *    conocimiento and cierre de día live only on /features.
+ */
 
 const SHOWCASE = [
   {
     key: 'inbox',
     label: 'Inbox',
-    title: 'Cada conversación, en vivo',
-    desc: 'Ves los mensajes llegar en tiempo real y decides chat por chat si responde la IA o respondes tú. El cambio es instantáneo, sin avisarle a nadie.',
+    title: 'Tú decides quién contesta',
+    desc: 'Cada conversación tiene un interruptor entre la IA y tú. Lo mueves cuando quieras, en medio del chat, y el cliente nunca nota el cambio.',
     media: <InboxMock />,
   },
   {
     key: 'ia',
     label: 'Empleado IA',
-    title: 'Un vendedor que conoce tu catálogo',
-    desc: 'Busca en tus productos, consulta tu base de conocimiento, etiqueta al cliente y te pasa el chat cuando hace falta una persona. Si no está en tu catálogo, no se lo inventa.',
-    media: <ChatMock script={HANDOFF_SCRIPT} title="Boutique Lima" ariaLabel="Conversación donde el Empleado IA responde sobre delivery y luego pasa el chat a una persona." />,
-  },
-  {
-    key: 'cobros',
-    label: 'Cobros',
-    title: 'Lo dudoso lo decides tú',
-    desc: 'Cuando el comprobante no cuadra con el cobro o con tu banco, el caso llega a tu cola de revisión con el motivo exacto. Nada se rechaza solo.',
-    media: <ReviewQueueMock />,
+    title: 'No inventa, y sabe cuándo llamarte',
+    desc: 'Responde con lo que hay en tu catálogo y en tus respuestas guardadas — nada más. Cuando la conversación se sale de ahí, te la pasa en vez de improvisar.',
+    media: (
+      <ChatMock
+        script={HANDOFF_SCRIPT}
+        title="Boutique Lima"
+        ariaLabel="Conversación donde el Empleado IA responde sobre delivery y luego pasa el chat a una persona."
+      />
+    ),
   },
   {
     key: 'analitica',
-    label: 'Analítica',
+    label: 'Números',
     title: 'Cuánto ganaste, no cuánto vendiste',
-    desc: 'Descuenta el costo de lo que vendiste, las comisiones de cada método de pago y tus gastos del día. El número que queda es el que importa.',
+    desc: 'Le descuenta a cada venta lo que te costó el producto, la comisión del método de pago y los gastos del día. Lo que queda es plata de verdad.',
     media: <DashboardMock />,
   },
 ];
@@ -56,7 +62,7 @@ export default function Home() {
     <>
       <JsonLd data={graph(softwareApplicationSchema(), faqSchema(HOME_FAQS))} />
 
-      {/* ---------------- Hero ---------------- */}
+      {/* 1 · Hero — asymmetric two-column, the only section with aurora */}
       <section className="relative overflow-hidden">
         <div aria-hidden className="aurora pointer-events-none absolute inset-0 -z-10"><i /></div>
         <div aria-hidden className="hero-glow pointer-events-none absolute inset-0 -z-10" />
@@ -80,7 +86,7 @@ export default function Home() {
 
               <Reveal delay={0.1}>
                 <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted">
-                  WABOS responde a tus clientes, controla tu inventario y verifica cada pago antes de
+                  WABOS contesta a tus clientes, te lleva el inventario y revisa cada pago antes de
                   darlo por bueno. Todo dentro del WhatsApp que ya usas.
                 </p>
               </Reveal>
@@ -90,15 +96,17 @@ export default function Home() {
                   <Button href={REGISTER_URL} external size="xl">
                     Empezar ahora <ArrowRight size={16} />
                   </Button>
-                  <Button href="/features" size="xl" variant="secondary">Ver cómo funciona</Button>
+                  <Button href="/features" size="xl" variant="secondary">Ver el producto</Button>
                 </div>
               </Reveal>
 
+              {/* The canonical home for these three claims — they appear nowhere
+                  else on the page. */}
               <Reveal delay={0.2}>
                 <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-subtle">
                   <li className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-wa" /> Sin tarjeta</li>
                   <li className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-wa" /> Sin apps para tus clientes</li>
-                  <li className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-wa" /> Tus datos son tuyos</li>
+                  <li className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-wa" /> Listo en una tarde</li>
                 </ul>
               </Reveal>
             </div>
@@ -110,38 +118,62 @@ export default function Home() {
         </Container>
       </section>
 
-      {/* ---------------- Funnel ---------------- */}
-      <PainGrid />
+      {/* 2 · The problem — divided list on a tint band */}
+      <ProblemList />
 
-      <Container className="py-20 lg:py-28">
-        <Reveal>
-          <SectionHeading
-            center
-            eyebrow="Todo en uno"
-            title="Una sola plataforma para vender, atender y cobrar"
-            subtitle="Deja de saltar entre el chat, el cuaderno y la hoja de cálculo. WABOS junta todo lo que tu negocio necesita, sobre WhatsApp."
+      {/* 3 · Setup — two-column spotlight, the format's first use on this page */}
+      <FeatureSpotlight
+        eyebrow="Puesta en marcha"
+        title="Una tarde, y queda andando"
+        desc="No hay migración, ni capacitación, ni un número nuevo que repartir. Sigues con el mismo WhatsApp de siempre."
+        bullets={[
+          'Escaneas un QR desde WhatsApp → Dispositivos vinculados, igual que WhatsApp Web',
+          'Subes tu lista de productos, o la importas de una hoja de cálculo',
+          'Escribes las respuestas que ya das cien veces al día',
+          'Desde ahí, la IA contesta con eso y con nada más',
+        ]}
+        media={
+          <Panel
+            title="Puesta en marcha"
+            rows={[
+              { icon: QrCode, primary: 'Número vinculado', secondary: 'El mismo que ya usas con tus clientes', tag: 'Listo' },
+              { icon: PackageSearch, primary: 'Catálogo cargado', secondary: '48 productos con precio y stock', tag: 'Listo' },
+              { icon: MessageSquareText, primary: 'Respuestas guardadas', secondary: 'Horarios, delivery, garantías', tag: 'Listo' },
+              { icon: Sparkles, primary: 'Empleado IA activo', secondary: 'Contestando desde ahora', tag: 'Activo' },
+            ]}
           />
-        </Reveal>
-        <div className="mt-14">
-          <FeatureGrid features={FEATURES} />
-        </div>
-      </Container>
+        }
+      />
 
-      <VerificationFlow />
+      {/* 4 · The moat — numbered pipeline + the real review queue, tint band.
+          This page owns the #cobros anchor and the narrative; /features owns
+          the enumerated reason codes. */}
+      <div className="border-y border-border bg-bg-tint">
+        <VerificationFlow id="cobros" queue />
+      </div>
 
+      {/* 5 · Sticky product tour — one angle per module, no feature lists */}
       <StickyShowcase
         eyebrow="Por dentro"
-        heading="Así se ve trabajar con WABOS"
-        subtitle="Cuatro módulos que comparten los mismos datos: lo que pasa en el chat se refleja en tu caja, tu stock y tus reportes."
+        heading="Así se ve trabajando"
+        subtitle="Tres partes que comparten los mismos datos: lo que pasa en el chat aparece solo en tu caja, tu stock y tus reportes."
         items={SHOWCASE}
       />
 
-      <ProofBand />
-      <HowItWorks />
-      <PeruBand />
-      <OwnershipBand />
-      <PricingTeaser />
-      <FAQ items={HOME_FAQS} />
+      {/* 6 · The page's only saturated surface */}
+      <ProofPanel />
+
+      {/* 7 · The only icon-card grid left, so the format reads as deliberate */}
+      <TrustBand />
+
+      {/* 8 · Price strip + centered accordion, on a tint band */}
+      <section className="border-y border-border bg-bg-tint">
+        <PricingTeaser />
+        <Container className="pb-20 pt-16 lg:pb-24">
+          <FAQ items={HOME_FAQS} center title="Lo que casi siempre nos preguntan" />
+        </Container>
+      </section>
+
       <CTASection />
     </>
   );

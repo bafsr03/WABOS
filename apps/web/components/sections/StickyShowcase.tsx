@@ -50,8 +50,10 @@ export function StickyShowcase({
       </Container>
 
       {/* Desktop: sticky two-column with scroll-linked media. */}
-      <div ref={ref} className="hidden lg:block" style={{ height: `${items.length * 90}vh` }}>
-        <div className="sticky top-24">
+      <div ref={ref} className="hidden lg:block" style={{ height: `${items.length * 75}vh` }}>
+        {/* Centered in the viewport rather than pinned to the top: the media is
+            shorter than the screen, so top-pinning left a large dead zone. */}
+        <div className="sticky top-0 flex min-h-screen items-center">
           <Container>
             <div className="grid grid-cols-2 items-center gap-16">
               <div>

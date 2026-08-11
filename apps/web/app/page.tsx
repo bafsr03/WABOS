@@ -1,138 +1,148 @@
-import { ArrowRight, MessageCircle, Bot, ShieldCheck, Megaphone, Users, ShoppingBag, Star } from 'lucide-react';
-import { LOGIN_URL } from '@/lib/site';
-import { Container, Button, Pill } from '@/components/ui';
+import { ArrowRight, Inbox, Bot, BadgeCheck, Store, LineChart, Megaphone } from 'lucide-react';
+import { REGISTER_URL } from '@/lib/site';
+import { HOME_FAQS } from '@/lib/faqs';
+import { graph, softwareApplicationSchema, faqSchema } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { Container, Button, Pill, SectionHeading } from '@/components/ui';
 import { Reveal } from '@/components/Reveal';
-import { ChatMock, DashboardMock } from '@/components/mocks';
+import { ChatMock, SALES_SCRIPT, HANDOFF_SCRIPT, DashboardMock, InboxMock, ReviewQueueMock } from '@/components/mocks';
 import {
-  LogoCloud, FeatureGrid, HowItWorks, FeatureSpotlight, Stats, FAQ, CTASection, type Feature,
+  FeatureGrid, HowItWorks, FAQ, CTASection, PainGrid, VerificationFlow,
+  StickyShowcase, ProofBand, PeruBand, OwnershipBand, PricingTeaser, type Feature,
 } from '@/components/sections';
 
 const FEATURES: Feature[] = [
-  { icon: MessageCircle, title: 'Inbox en tiempo real', desc: 'Todas tus conversaciones de WhatsApp en un solo lugar, con historial, notas y respuesta instantánea.', href: '/features#inbox' },
-  { icon: Bot, title: 'Empleado IA', desc: 'Un vendedor con IA que responde por ti usando tu catálogo, tus FAQs y el tono de tu marca. 24/7.', href: '/features#ia' },
-  { icon: ShieldCheck, title: 'Cobros verificados', desc: 'Recibe comprobantes y verifica el pago contra tu banco antes de confirmar. Detecta capturas falsas.', href: '/features#cobros' },
-  { icon: Megaphone, title: 'Campañas segmentadas', desc: 'Envía difusiones por etiquetas, con límites anti-bloqueo para proteger tu número.', href: '/features#campanas' },
-  { icon: Users, title: 'CRM integrado', desc: 'Contactos con etiquetas, notas y segmentos. Conoce a cada cliente sin salir del chat.', href: '/features#crm' },
-  { icon: ShoppingBag, title: 'Catálogo', desc: 'Tus productos y precios listos para que la IA venda y responda al instante.', href: '/features#catalogo' },
+  { icon: Inbox, title: 'Inbox en tiempo real', desc: 'Todas tus conversaciones en un solo lugar, con historial, notas y respuesta al instante desde cualquier dispositivo.', href: '/features#inbox' },
+  { icon: Bot, title: 'Empleado IA', desc: 'Responde con tu catálogo, tus precios y tus FAQs — nunca con información inventada. Le pasas el chat cuando quieras.', href: '/features#ia' },
+  { icon: BadgeCheck, title: 'Cobros verificados', desc: 'Lee el comprobante de Yape o Plin y lo cruza con la notificación real de tu banco antes de darlo por pagado.', href: '/features#cobros' },
+  { icon: Store, title: 'Punto de venta y caja', desc: 'Registra ventas, descuenta stock y lleva la caja del día. Con el costo de cada producto, para saber lo que de verdad ganaste.', href: '/features#pos' },
+  { icon: LineChart, title: 'Analítica real', desc: 'Ingresos, costos, comisiones y gastos. La ganancia neta, no solo cuánto facturaste.', href: '/features#analitica' },
+  { icon: Megaphone, title: 'Campañas seguras', desc: 'Difusiones segmentadas por etiqueta, con espaciado aleatorio de 6 a 12 segundos para cuidar tu número.', href: '/features#campanas' },
 ];
 
-const FAQS = [
-  { q: '¿Necesito instalar algo para mis clientes?', a: 'No. Tus clientes te escriben por WhatsApp como siempre. WABOS trabaja detrás de tu número usando la vinculación de dispositivos.' },
-  { q: '¿Cómo verifica los pagos?', a: 'WABOS lee el comprobante con IA y lo cruza con la notificación real de tu banco (número de operación + monto). Solo confirma cuando el dinero realmente llegó.' },
-  { q: '¿Es seguro para mi número de WhatsApp?', a: 'Incluimos guardas anti-bloqueo: envíos con pausas y límites estrictos en campañas. Aun así, recomendamos usarlo de forma responsable.' },
-  { q: '¿Funciona sin la IA?', a: 'Sí. Todo funciona en modo manual; la IA es opcional y puedes activarla o desactivarla por conversación.' },
-  { q: '¿En qué países funciona?', a: 'En cualquier país. La verificación de pagos está optimizada para Yape y transferencias bancarias, y es extensible a otros medios.' },
+const SHOWCASE = [
+  {
+    key: 'inbox',
+    label: 'Inbox',
+    title: 'Cada conversación, en vivo',
+    desc: 'Ves los mensajes llegar en tiempo real y decides chat por chat si responde la IA o respondes tú. El cambio es instantáneo, sin avisarle a nadie.',
+    media: <InboxMock />,
+  },
+  {
+    key: 'ia',
+    label: 'Empleado IA',
+    title: 'Un vendedor que conoce tu catálogo',
+    desc: 'Busca en tus productos, consulta tu base de conocimiento, etiqueta al cliente y te pasa el chat cuando hace falta una persona. Si no está en tu catálogo, no se lo inventa.',
+    media: <ChatMock script={HANDOFF_SCRIPT} title="Boutique Lima" ariaLabel="Conversación donde el Empleado IA responde sobre delivery y luego pasa el chat a una persona." />,
+  },
+  {
+    key: 'cobros',
+    label: 'Cobros',
+    title: 'Lo dudoso lo decides tú',
+    desc: 'Cuando el comprobante no cuadra con el cobro o con tu banco, el caso llega a tu cola de revisión con el motivo exacto. Nada se rechaza solo.',
+    media: <ReviewQueueMock />,
+  },
+  {
+    key: 'analitica',
+    label: 'Analítica',
+    title: 'Cuánto ganaste, no cuánto vendiste',
+    desc: 'Descuenta el costo de lo que vendiste, las comisiones de cada método de pago y tus gastos del día. El número que queda es el que importa.',
+    media: <DashboardMock />,
+  },
 ];
 
-export default function LandingPage() {
+export default function Home() {
   return (
     <>
-      {/* Hero */}
+      <JsonLd data={graph(softwareApplicationSchema(), faqSchema(HOME_FAQS))} />
+
+      {/* ---------------- Hero ---------------- */}
       <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 -z-10 hero-glow" />
-        <div className="pointer-events-none absolute inset-0 -z-10 grid-bg" />
-        <Container className="pb-8 pt-16 lg:pt-24">
-          <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+        <div aria-hidden className="aurora pointer-events-none absolute inset-0 -z-10"><i /></div>
+        <div aria-hidden className="hero-glow pointer-events-none absolute inset-0 -z-10" />
+        <div aria-hidden className="grid-bg pointer-events-none absolute inset-0 -z-10" />
+
+        <Container className="py-20 lg:py-28">
+          <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
             <div>
               <Reveal>
                 <Pill>
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand" /> Tu negocio, dentro de WhatsApp
+                  <span className="h-1.5 w-1.5 rounded-full bg-wa" /> Tu negocio, dentro de WhatsApp
                 </Pill>
               </Reveal>
+
               <Reveal delay={0.05}>
-                <h1 className="mt-5 text-balance text-4xl font-semibold leading-[1.05] tracking-tight text-fg sm:text-5xl lg:text-6xl">
-                  Convierte tu WhatsApp en tu <span className="text-gradient">empleado más inteligente</span>
+                <h1 className="mt-6 text-balance text-4xl font-semibold leading-[1.05] tracking-tight text-fg sm:text-5xl lg:text-6xl">
+                  Convierte tu WhatsApp en tu{' '}
+                  <span className="text-gradient">empleado más inteligente</span>
                 </h1>
               </Reveal>
+
               <Reveal delay={0.1}>
-                <p className="mt-5 max-w-xl text-pretty text-lg leading-relaxed text-muted">
-                  WABOS responde a tus clientes, gestiona tu inventario y verifica cada pago —
-                  todo automático, sin que tengas que salir del chat.
+                <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted">
+                  WABOS responde a tus clientes, controla tu inventario y verifica cada pago antes de
+                  darlo por bueno. Todo dentro del WhatsApp que ya usas.
                 </p>
               </Reveal>
+
               <Reveal delay={0.15}>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                  <Button href={LOGIN_URL} external size="lg">Empezar gratis <ArrowRight size={16} /></Button>
-                  <Button href="/features" size="lg" variant="secondary">Ver cómo funciona</Button>
+                  <Button href={REGISTER_URL} external size="xl">
+                    Empezar ahora <ArrowRight size={16} />
+                  </Button>
+                  <Button href="/features" size="xl" variant="secondary">Ver cómo funciona</Button>
                 </div>
               </Reveal>
+
               <Reveal delay={0.2}>
-                <div className="mt-8 flex items-center gap-4 text-sm text-muted">
-                  <div className="flex -space-x-2">
-                    {['A', 'M', 'J', 'R'].map((l) => (
-                      <span key={l} className="grid h-8 w-8 place-items-center rounded-full border-2 border-bg bg-surface-3 text-xs font-semibold text-muted">{l}</span>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="flex text-brand">{Array.from({ length: 5 }).map((_, i) => <Star key={i} size={14} fill="currentColor" />)}</div>
-                    <span className="ml-1">+1,200 negocios activos</span>
-                  </div>
-                </div>
+                <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-subtle">
+                  <li className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-wa" /> Sin tarjeta</li>
+                  <li className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-wa" /> Sin apps para tus clientes</li>
+                  <li className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-wa" /> Tus datos son tuyos</li>
+                </ul>
               </Reveal>
             </div>
 
-            <Reveal delay={0.15} className="flex justify-center lg:justify-end">
-              <ChatMock />
+            <Reveal delay={0.15} blur>
+              <ChatMock script={SALES_SCRIPT} />
             </Reveal>
           </div>
         </Container>
       </section>
 
-      <LogoCloud />
+      {/* ---------------- Funnel ---------------- */}
+      <PainGrid />
 
-      {/* Feature grid */}
       <Container className="py-20 lg:py-28">
         <Reveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-wider text-brand">Todo en uno</span>
-            <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-fg sm:text-4xl">
-              Una sola plataforma para vender, atender y cobrar
-            </h2>
-            <p className="mt-4 text-lg text-muted">Deja de saltar entre apps. WABOS reúne todo lo que tu negocio necesita sobre WhatsApp.</p>
-          </div>
+          <SectionHeading
+            center
+            eyebrow="Todo en uno"
+            title="Una sola plataforma para vender, atender y cobrar"
+            subtitle="Deja de saltar entre el chat, el cuaderno y la hoja de cálculo. WABOS junta todo lo que tu negocio necesita, sobre WhatsApp."
+          />
         </Reveal>
-        <div className="mt-14"><FeatureGrid features={FEATURES} /></div>
+        <div className="mt-14">
+          <FeatureGrid features={FEATURES} />
+        </div>
       </Container>
 
+      <VerificationFlow />
+
+      <StickyShowcase
+        eyebrow="Por dentro"
+        heading="Así se ve trabajar con WABOS"
+        subtitle="Cuatro módulos que comparten los mismos datos: lo que pasa en el chat se refleja en tu caja, tu stock y tus reportes."
+        items={SHOWCASE}
+      />
+
+      <ProofBand />
       <HowItWorks />
-
-      {/* Spotlights */}
-      <FeatureSpotlight
-        id="ia"
-        eyebrow="Empleado IA"
-        title="Un vendedor que nunca duerme"
-        desc="El Empleado IA de WABOS conversa con tus clientes como lo harías tú: recomienda productos, responde precios y cierra ventas — con el tono de tu marca."
-        bullets={[
-          'Aprende de tu perfil de negocio, tus FAQs y tu catálogo.',
-          'Responde en segundos, a cualquier hora del día.',
-          'Tú tomas el control de cualquier chat cuando quieras.',
-        ]}
-        media={<ChatMock />}
-      />
-      <FeatureSpotlight
-        id="cobros"
-        reverse
-        eyebrow="Cobros verificados"
-        title="Nunca más te estafan con una captura falsa"
-        desc="WABOS lee el comprobante y lo cruza con la notificación real de tu banco antes de confirmar. Si algo no cuadra, va a revisión."
-        bullets={[
-          'Verificación contra el pago real (número de operación + monto).',
-          'Detecta y envía a revisión los comprobantes sospechosos.',
-          'Cola de revisión para que tú tengas la última palabra.',
-        ]}
-        media={<DashboardMock />}
-      />
-
-      <Stats items={[
-        { value: '1,200+', label: 'Negocios activos' },
-        { value: '30 seg', label: 'Para conectar' },
-        { value: '24/7', label: 'Atención con IA' },
-        { value: '0', label: 'Apps para tus clientes' },
-      ]} />
-
+      <PeruBand />
+      <OwnershipBand />
+      <PricingTeaser />
+      <FAQ items={HOME_FAQS} />
       <CTASection />
- 
-      <FAQ items={FAQS} />     
     </>
   );
 }

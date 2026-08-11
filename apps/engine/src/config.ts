@@ -82,7 +82,10 @@ export const config = {
   smtpPort: Number(process.env.SMTP_PORT ?? 587),
   smtpUser: process.env.SMTP_USER ?? '',
   smtpPass: process.env.SMTP_PASS ?? '',
-  smtpFrom: process.env.SMTP_FROM ?? 'WABOS <no-reply@wabos.pe>',
+  smtpFrom: process.env.SMTP_FROM ?? 'WABOS <no-reply@wabos.co>',
+  // Shared secret between the marketing site and /api/public/contact. Optional:
+  // when blank the endpoint stays open (still rate-limited + honeypotted).
+  contactSecret: process.env.CONTACT_SECRET ?? '',
   aiModel: process.env.AI_MODEL ?? 'claude-sonnet-5',
   aiVisionModel: process.env.AI_VISION_MODEL ?? 'claude-haiku-4-5',
   // Per-conversation model tiering: everyone runs on the cheaper default model
@@ -99,7 +102,7 @@ export const config = {
   // Generate a pair once with `npx web-push generate-vapid-keys`.
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? '',
-  vapidSubject: process.env.VAPID_SUBJECT ?? 'mailto:no-reply@wabos.pe',
+  vapidSubject: process.env.VAPID_SUBJECT ?? 'mailto:no-reply@wabos.co',
   // Firebase Cloud Messaging for native (Capacitor iOS/Android) push. Values come
   // from a Firebase service-account JSON. Empty = native push disabled. The private
   // key's newlines may be escaped as \n in the env var; we unescape at load.

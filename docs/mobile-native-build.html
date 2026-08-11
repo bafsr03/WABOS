@@ -110,7 +110,7 @@ túnel de Cloudflare para probar (ver la <a href="mobile-testing.html">guía PWA
 pnpm install
 
 # Elige a dónde apunta la app (producción o túnel de pruebas)
-export WABOS_APP_URL=https://app.wabos.pe
+export WABOS_APP_URL=https://app.wabos.co
 # export WABOS_APP_URL=https://&lt;tu&gt;.trycloudflare.com   # para probar</code></pre>
 <div class="callout warn">El dashboard y el motor deben estar accesibles por <strong>HTTPS</strong> desde el
 teléfono. Igual que la PWA, un <code>http://IP-local</code> no sirve.</div>
@@ -161,8 +161,8 @@ llaves VAPID).</p>
 <h3>a) Proyecto Firebase</h3>
 <div class="steps">
   <div class="step">Crea un proyecto en <a href="https://console.firebase.google.com">console.firebase.google.com</a>.</div>
-  <div class="step"><strong>Android:</strong> agrega una app Android con el package <code>pe.wabos.app</code>, descarga <code>google-services.json</code> y colócalo en <code>apps/mobile/android/app/google-services.json</code>.</div>
-  <div class="step"><strong>iOS:</strong> agrega una app iOS con el bundle id <code>pe.wabos.app</code>, descarga <code>GoogleService-Info.plist</code> y arrástralo dentro de <code>apps/mobile/ios/App/App/</code> en Xcode.</div>
+  <div class="step"><strong>Android:</strong> agrega una app Android con el package <code>co.wabos.app</code>, descarga <code>google-services.json</code> y colócalo en <code>apps/mobile/android/app/google-services.json</code>.</div>
+  <div class="step"><strong>iOS:</strong> agrega una app iOS con el bundle id <code>co.wabos.app</code>, descarga <code>GoogleService-Info.plist</code> y arrástralo dentro de <code>apps/mobile/ios/App/App/</code> en Xcode.</div>
   <div class="step"><strong>iOS — APNs:</strong> en Apple Developer crea una <em>APNs Auth Key</em> (.p8) y súbela en Firebase → Configuración del proyecto → Cloud Messaging → Apple app configuration. En Xcode, target App → Signing &amp; Capabilities → <strong>+ Capability → Push Notifications</strong> (y <em>Background Modes → Remote notifications</em>).</div>
 </div>
 

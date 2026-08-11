@@ -68,6 +68,8 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
   <a href="developer-manual.html">Desarrollador</a>
   <a href="production-readiness.html">Producción</a>
   <a href="deploy-vps.html" class="active">Despliegue</a>
+  <a href="wabos-co-setup.html">wabos.co</a>
+  <a href="updates-guide.html">Actualizar en vivo</a>
   <a href="v2-roadmap.html">v2</a>
 </div>
 <div class="hero"><div class="wrap">
@@ -102,9 +104,9 @@ footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;colo
 <main>
 
 <h2 id="como-funciona">Cómo funciona (y cómo funcionará)</h2>
-<p><span class="pill new">AHORA</span> WABOS está corriendo <b>en la Mac del dueño</b> con Docker, y sale a internet por un <b>túnel de Cloudflare</b> — sin abrir puertos, sin IP pública, con HTTPS real en <code>https://wabos.bouldhq.com</code>. El hermano lo abre desde su teléfono como cualquier web/PWA.</p>
+<p><span class="pill new">AHORA</span> WABOS está corriendo <b>en la Mac del dueño</b> con Docker, y sale a internet por un <b>túnel de Cloudflare</b> — sin abrir puertos, sin IP pública, con HTTPS real en <code>https://app.wabos.co</code>. El hermano lo abre desde su teléfono como cualquier web/PWA.</p>
 <pre><code>Teléfono del hermano
-      │  https://wabos.bouldhq.com
+      │  https://app.wabos.co
       ▼
 Cloudflare (HTTPS + CDN)          ← termina el TLS, edges en Lima/Santiago
       │  túnel cifrado (cloudflared, servicio launchd)
@@ -122,7 +124,7 @@ Mac del dueño  ── Caddy :80 ─┬─ /api  /ws ─▶ engine (Fastify + Wh
   <thead><tr><th>Concepto</th><th>Ahora (local + túnel)</th><th>Full live (VPS)</th></tr></thead>
   <tbody>
     <tr><td>Servidor</td><td>S/ 0 — la Mac + luz</td><td>Hetzner <b>CX23</b> ≈ <b>€4.5/mes</b> (~S/ 18)</td></tr>
-    <tr><td>Dominio</td><td>Gratis (subdominio de <code>bouldhq.com</code>)</td><td>Propio ≈ <b>$10–12/año</b>, o sigue con el subdominio</td></tr>
+    <tr><td>Dominio</td><td><code>wabos.co</code> — ya comprado</td><td><code>wabos.co</code> (marketing) + <code>app.wabos.co</code> (dashboard)</td></tr>
     <tr><td>HTTPS / túnel</td><td>Gratis (Cloudflare)</td><td>Gratis (Caddy + Let's Encrypt)</td></tr>
     <tr><td>Fotos de productos (R2)</td><td>Opcional — gratis hasta 10&nbsp;GB</td><td>Gratis hasta 10&nbsp;GB, luego ~$0.015/GB·mes</td></tr>
     <tr><td>IA (Anthropic)</td><td colspan="2"><b>Pago por uso</b> — depende de cuántos mensajes responde la IA. Ya está <b>activa</b>. Se controla con el modelo (<code>AI_MODEL</code>) y se puede apagar dejando la key en blanco.</td></tr>
@@ -135,7 +137,7 @@ Mac del dueño  ── Caddy :80 ─┬─ /api  /ws ─▶ engine (Fastify + Wh
 <h3>Qué hacer cuando haya plata (pasar a 24/7)</h3>
 <ol class="steps">
   <li><b>Rentar el VPS</b> (Hetzner CX23, Ubuntu) e instalar Docker — ver la <a href="#hetzner">Ruta rápida: Hetzner</a> y §2.</li>
-  <li><b>Apuntar el dominio</b> al VPS (registro A). Puede ser el mismo <code>wabos.bouldhq.com</code> o uno propio de WABOS.</li>
+  <li><b>Apuntar el dominio</b> al VPS: registro A para <code>wabos.co</code> (marketing) y otro para <code>app.wabos.co</code> (dashboard), ambos al mismo VPS.</li>
   <li><b>Copiar el repo + el <code>.env</code></b> al servidor (rotando los secretos y la key de Anthropic), poner <code>APP_DOMAIN=tudominio</code>, y <code>docker compose up -d --build</code>. Caddy saca el HTTPS solo.</li>
   <li><b>Mudar los datos</b> de la Mac al VPS con un backup de Postgres (ver abajo) — o empezar limpio si aún no hay data real.</li>
   <li><b>Apagar el túnel</b> de la Mac (<code>launchctl unload ~/Library/LaunchAgents/com.wabos.cloudflared.plist</code>) y listo: ya no depende de tu computadora.</li>

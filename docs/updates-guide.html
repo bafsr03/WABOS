@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Cómo actualizar y probar nuevas funciones</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}
+.topbar a:hover,.topbar a.active{color:#fff}
+.hero{background:linear-gradient(135deg,#0f172a,#128c7e);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:900px;margin:0 auto}
+.hero h1{margin:0;font-size:30px}
+.hero p{margin:10px 0 0;color:#cbd5e1;max-width:720px}
+.layout{max-width:900px;margin:0 auto;display:grid;grid-template-columns:220px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 0;border-left:2px solid transparent;padding-left:10px}
+nav.toc a:hover{color:var(--ink)}
+main{min-width:0}
+main h2{font-size:22px;margin:40px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:16.5px;margin:22px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.callout.tip{border-color:#3b82f6;background:#eff6ff}
+.step{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:16px 18px;margin:14px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.step .n{display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#0f172a;color:#fff;padding:2px 9px;border-radius:6px;margin-right:8px}
+.diagram{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0;font-size:14px}
+.diagram .box{background:#f1f5f9;border:1px solid var(--line);border-radius:10px;padding:12px 16px;text-align:center;flex:1;min-width:140px}
+.diagram .box b{display:block;font-size:14px;margin-bottom:2px}
+.diagram .box span{color:var(--muted);font-size:12.5px}
+.diagram .arrow{color:var(--wa-dark);font-size:20px}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:900px;margin:0 auto}
+@media(max-width:760px){.layout{grid-template-columns:1fr}nav.toc{display:none}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="developer-manual.html">Desarrollador</a>
+  <a href="deploy-vps.html">Despliegue</a>
+  <a href="wabos-co-setup.html">wabos.co</a>
+  <a href="updates-guide.html" class="active">Actualizar en vivo</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🔄 Cómo actualizar WABOS en vivo</h1>
+  <p>La forma correcta de probar algo nuevo sin romper lo que ya funciona: desarrolla en tu Mac, pruébalo ahí con calma, y solo cuando estés seguro lo subes al servidor (VPS) donde corre <code>wabos.co</code>. Nunca edites archivos directamente en el servidor — ese fue el problema que tuvimos al desplegar la primera vez.</p>
+</div></div>
+
+<div class="layout">
+<nav class="toc">
+  <a href="#panorama">Panorama</a>
+  <a href="#local">1 · Desarrollar en local</a>
+  <a href="#probar">2 · Probar antes de subir</a>
+  <a href="#subir">3 · Guardar el cambio</a>
+  <a href="#deploy">4 · Llevarlo al VPS</a>
+  <a href="#verificar">5 · Verificar en vivo</a>
+  <a href="#comandos">Chuleta de comandos</a>
+  <a href="#problemas">Si algo sale mal</a>
+</nav>
+
+<main>
+
+<h2 id="panorama">Panorama: dos lugares donde vive WABOS</h2>
+<p>Hay dos copias del código funcionando al mismo tiempo, y es importante no confundirlas:</p>
+<div class="diagram">
+  <div class="box"><b>💻 Tu Mac</b><span>Donde escribes y pruebas código nuevo. Nadie más lo ve. Puedes romperlo y arreglarlo sin problema.</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>🐙 GitHub</b><span>El repositorio — la versión "oficial" del código. Es el punto intermedio entre tu Mac y el servidor.</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><b>🌐 VPS (OVH)</b><span>El servidor real, corriendo 24/7, sirviendo wabos.co y app.wabos.co a tus clientes de verdad.</span></div>
+</div>
+<div class="callout warn"><b>Regla de oro:</b> el código siempre viaja en una sola dirección: <b>Mac → GitHub → VPS</b>. Nunca al revés, y nunca edites algo directo en el VPS que no exista también en tu Mac — si lo haces, la próxima actualización lo puede borrar sin que te des cuenta.</div>
+
+<h2 id="local">1 · Desarrollar y probar en tu Mac</h2>
+<p>Todo cambio empieza aquí, nunca en el servidor.</p>
+<div class="step"><span class="n">1</span> Abre una terminal en la carpeta del proyecto:
+<pre><code>cd ~/Desktop/WABOS</code></pre>
+</div>
+<div class="step"><span class="n">2</span> Prende los tres servicios a la vez (motor + dashboard + sitio web), cada uno con recarga automática al guardar un archivo:
+<pre><code>pnpm dev</code></pre>
+Esto abre:
+<ul>
+<li><code>localhost:3000</code> — el dashboard (la app que usan tus clientes)</li>
+<li><code>localhost:3001</code> — el sitio web / marketing (wabos.co)</li>
+<li>el motor (API + WhatsApp) corriendo en segundo plano</li>
+</ul>
+<p>Si solo quieres prender uno: <code>pnpm dev:dashboard</code>, <code>pnpm dev:web</code> o <code>pnpm dev:engine</code>.</p>
+</div>
+<div class="step"><span class="n">3</span> Haz tu cambio: edita el archivo, guarda, y revisa en el navegador (<code>localhost:3000</code> o <code>3001</code>) que se vea/funcione como esperabas. Con <code>pnpm dev</code> no hace falta reiniciar nada — recarga solo.</div>
+<div class="callout tip">Esto corre completamente separado de <code>wabos.co</code>. Puedes experimentar, romper cosas y probar ideas a medio terminar sin ningún riesgo para tus clientes reales.</div>
+
+<h2 id="probar">2 · Antes de subir nada, pruébalo bien</h2>
+<p>Una vez que el cambio se ve bien en <code>localhost</code>, antes de mandarlo al servidor conviene revisar dos cosas rápidas:</p>
+<ul>
+<li><b>¿Compila sin errores?</b> Corre <code>pnpm build</code> en la raíz del proyecto — esto es exactamente lo que el servidor va a intentar hacer. Si falla acá, fallará en el VPS también, así que es mejor descubrirlo ahora.</li>
+<li><b>¿Probaste el flujo completo?</b> No solo el botón que cambiaste — usa la app un poco alrededor de tu cambio para asegurarte que no rompiste algo cercano (por ejemplo, si tocaste el login, prueba registrar, iniciar sesión y cerrar sesión).</li>
+</ul>
+
+<h2 id="subir">3 · Guardar el cambio (commit y push)</h2>
+<p>Cuando estés conforme con el cambio, lo guardas en git y lo subes a GitHub:</p>
+<pre><code>git add -A
+git commit -m "descripción corta de qué cambiaste"
+git push origin main</code></pre>
+<div class="callout">Si trabajas en una rama separada (por ejemplo <code>feat/algo-nuevo</code>) en vez de <code>main</code>, primero haz el <code>push</code> a esa rama, revisa que todo esté bien, y luego mézclala a <code>main</code> con <code>git checkout main && git merge feat/algo-nuevo && git push origin main</code>. El VPS siempre actualiza desde <code>main</code>.</div>
+
+<h2 id="deploy">4 · Llevarlo al VPS (el paso que lo pone en vivo)</h2>
+<p>Con el cambio ya en GitHub, ahora sí entras al servidor a traerlo y reconstruir la app.</p>
+<div class="step"><span class="n">1</span> Conéctate al servidor:
+<pre><code>ssh ubuntu@149.56.102.114</code></pre>
+</div>
+<div class="step"><span class="n">2</span> Entra a la carpeta del proyecto y trae el código nuevo:
+<pre><code>cd ~/wabos
+git pull origin main</code></pre>
+</div>
+<div class="step"><span class="n">3</span> Reconstruye la imagen y reinicia todo:
+<pre><code>docker build --no-cache \
+  --build-arg NEXT_PUBLIC_APP_URL=https://app.wabos.co \
+  --build-arg NEXT_PUBLIC_GOOGLE_CLIENT_ID=$(grep -m1 '^NEXT_PUBLIC_GOOGLE_CLIENT_ID=' .env | cut -d= -f2-) \
+  -t wabos:latest . && docker compose up -d --force-recreate</code></pre>
+<p>Tarda 1–3 minutos. Usamos <code>docker build</code> directo (no <code>docker compose build</code>) porque en este servidor el "cache" de Docker a veces no detecta bien los cambios y sirve una versión vieja — <code>--no-cache</code> fuerza a reconstruir todo desde cero, garantizando que el cambio realmente quede adentro.</p>
+</div>
+<div class="callout warn"><b>¿Solo cambiaste algo que no afecta el sitio web/dashboard</b> (por ejemplo lógica del motor de WhatsApp)? Puedes usar <code>docker compose restart engine</code> en vez de reconstruir todo — es más rápido. Pero si tocaste cualquier archivo dentro de <code>apps/dashboard</code> o <code>apps/web</code>, sí necesitas el <code>docker build</code> completo, porque esos son sitios compilados de antemano (no se actualizan solo con un restart).</div>
+
+<h2 id="verificar">5 · Verificar que quedó bien</h2>
+<ul>
+<li>Abre <code>https://app.wabos.co</code> y <code>https://wabos.co</code> en el navegador (con <b>Cmd+Shift+R</b> para forzar que no use una versión guardada en caché).</li>
+<li>Revisa que los contenedores estén sanos: <code>docker compose ps</code> — todos deben decir <code>Up</code> / <code>running</code>, sin reinicios en bucle.</li>
+<li>Si algo no carga, revisa los registros del servicio correspondiente: <code>docker compose logs engine --tail 50</code> (o <code>dashboard</code> / <code>web</code> / <code>caddy</code>).</li>
+</ul>
+
+<h2 id="comandos">Chuleta de comandos del día a día</h2>
+<table style="border-collapse:collapse;width:100%;margin:14px 0;font-size:14px">
+<tr style="background:#f1f5f9"><th style="border:1px solid var(--line);padding:9px 12px;text-align:left">Qué quieres hacer</th><th style="border:1px solid var(--line);padding:9px 12px;text-align:left">Comando</th></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Prender todo en local</td><td style="border:1px solid var(--line);padding:9px 12px"><code>pnpm dev</code></td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Probar que compila antes de subir</td><td style="border:1px solid var(--line);padding:9px 12px"><code>pnpm build</code></td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Guardar y subir a GitHub</td><td style="border:1px solid var(--line);padding:9px 12px"><code>git add -A && git commit -m "..." && git push</code></td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Entrar al servidor</td><td style="border:1px solid var(--line);padding:9px 12px"><code>ssh ubuntu@149.56.102.114</code></td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Traer el código nuevo al servidor</td><td style="border:1px solid var(--line);padding:9px 12px"><code>cd ~/wabos && git pull origin main</code></td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Reconstruir y reiniciar todo</td><td style="border:1px solid var(--line);padding:9px 12px">ver comando completo en el paso 4 arriba</td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Reiniciar solo el motor (sin reconstruir)</td><td style="border:1px solid var(--line);padding:9px 12px"><code>docker compose restart engine</code></td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Ver que todo esté sano</td><td style="border:1px solid var(--line);padding:9px 12px"><code>docker compose ps</code></td></tr>
+<tr><td style="border:1px solid var(--line);padding:9px 12px">Ver errores de un servicio</td><td style="border:1px solid var(--line);padding:9px 12px"><code>docker compose logs engine --tail 50</code></td></tr>
+</table>
+
+<h2 id="problemas">Si algo sale mal después de actualizar</h2>
+<p>No entres en pánico — el paso anterior que sí funcionaba sigue guardado en git. Puedes volver atrás:</p>
+<div class="step"><span class="n">1</span> En el servidor, mira el historial reciente y encuentra el commit anterior (el que sí funcionaba):
+<pre><code>git log --oneline -5</code></pre>
+</div>
+<div class="step"><span class="n">2</span> Vuelve a ese punto:
+<pre><code>git checkout &lt;hash-del-commit-anterior&gt;</code></pre>
+</div>
+<div class="step"><span class="n">3</span> Reconstruye igual que en el paso 4 de arriba. Esto te devuelve exactamente a la última versión que funcionaba mientras arreglas el problema con calma en tu Mac.</div>
+<div class="callout tip">Después de arreglarlo en local, vuelve a hacer <code>git checkout main</code> en el servidor antes del siguiente <code>git pull</code>, para no quedarte "congelado" en un commit viejo.</div>
+
+</main>
+</div>
+<footer>WABOS · Guía de actualización y desarrollo · <a href="deploy-vps.html">Ver guía completa de despliegue inicial →</a></footer>
+</body>
+</html>

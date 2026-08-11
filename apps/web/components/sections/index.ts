@@ -1,0 +1,13 @@
+export { FeatureGrid, type Feature } from './FeatureGrid';
+export { FeatureSpotlight, FeatureRow } from './FeatureSpotlight';
+export { HowItWorks } from './HowItWorks';
+export { FAQ } from './FAQ';
+export { CTASection } from './CTASection';
+export { PainGrid } from './PainGrid';
+export { VerificationFlow } from './VerificationFlow';
+export { StickyShowcase, type ShowcaseItem } from './StickyShowcase';
+export { ProofBand } from './ProofBand';
+export { PeruBand } from './PeruBand';
+export { OwnershipBand } from './OwnershipBand';
+export { NotBuilt } from './NotBuilt';
+export { PricingTeaser } from './PricingTeaser';

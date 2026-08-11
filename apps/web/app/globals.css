@@ -1,35 +1,62 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   WABOS marketing — Whop-style design tokens (kept in sync with
-   apps/dashboard/app/globals.css). Neutral grayscale + Electric Indigo accent.
+   WABOS marketing — DARK theme.
+
+   Token NAMES are deliberately identical to apps/dashboard/app/globals.css
+   (bg / bg-tint / surface / surface-2 / surface-3 / border / border-strong /
+   fg / fg-muted / fg-subtle / brand / brand-strong / brand-glow / wa / …) so
+   markup and utility classes port between the two apps unchanged.
+
+   The VALUES intentionally diverge: the dashboard is a light product UI, the
+   marketing site is a dark brand surface built from the logo (near-black navy
+   tile + Electric Indigo W). Adding a token here means adding the same NAME
+   there (any value) — never copy values across.
 --------------------------------------------------------------------------- */
 :root {
-  --bg: #ffffff;
-  --bg-tint: #f7f7f8;
-  --surface: #ffffff;
-  --surface-2: #f4f4f6;
-  --surface-3: #ececef;
-  --border: #ececee;
-  --border-strong: #dedee3;
-  --fg: #0b0b0f;
-  --fg-muted: #6b6b73;
-  --fg-subtle: #9a9aa2;
+  /* Base — navy-tinted blacks, not neutral greys (matches the logo tile). */
+  --bg: #05060d;
+  --bg-tint: #080a14;
+  --surface: #0c0e1a;
+  --surface-2: #121523;
+  --surface-3: #1a1e30;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
 
+  /* Text — three steps, all AA or better on --surface. */
+  --fg: #f4f5fa;
+  --fg-muted: #a2a8bd;
+  --fg-subtle: #6d7490;
+
+  /* Brand. NOTE: on dark, hover goes LIGHTER — --brand-strong is inverted
+     relative to the dashboard's light theme (where it is darker than --brand). */
   --brand: #5b4bff;
-  --brand-strong: #4a3ae0;
-  --brand-glow: #6d5bff;
+  --brand-strong: #6f61ff;
+  --brand-deep: #3f31c9;
+  --brand-glow: #8a7dff;
   --accent: #5b4bff;
+
+  /* WhatsApp — the focal accent. The chat-mock values live here rather than
+     inline so the mocks restyle with the theme. */
   --wa: #25d366;
+  --wa-deep: #075e54;
+  --wa-bubble: #dcf8c6;
+  --wa-wallpaper: #e6ddd4;
 
-  --success: #16a34a;
-  --warn: #d97706;
-  --danger: #dc2626;
-  --info: #2563eb;
+  /* Status — brightened so they read on a dark canvas. */
+  --success: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
 
-  --ring: color-mix(in oklab, var(--brand) 45%, transparent);
-  --shadow-card: 0 1px 2px rgba(11, 11, 15, 0.04), 0 1px 3px rgba(11, 11, 15, 0.06);
-  --shadow-lg: 0 4px 12px rgba(11, 11, 15, 0.05), 0 24px 48px -24px rgba(11, 11, 15, 0.18);
+  --ring: color-mix(in oklab, var(--brand) 60%, transparent);
+
+  /* Elevation on dark is an inner top highlight + deep ambient shadow —
+     a light-theme drop shadow is invisible here. */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -16px rgba(0, 0, 0, 0.8);
+  --shadow-lg: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 60px -24px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--brand) 35%, transparent),
+                 0 8px 40px -8px color-mix(in oklab, var(--brand) 45%, transparent);
 }
 
 @theme inline {
@@ -45,23 +72,27 @@
   --color-subtle: var(--fg-subtle);
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
+  --color-brand-deep: var(--brand-deep);
   --color-brand-glow: var(--brand-glow);
   --color-accent: var(--accent);
   --color-wa: var(--wa);
+  --color-wa-deep: var(--wa-deep);
+  --color-wa-bubble: var(--wa-bubble);
+  --color-wa-wallpaper: var(--wa-wallpaper);
   --color-success: var(--success);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-info: var(--info);
 
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: var(--font-display-src), var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
 }
 
 * { border-color: var(--border); }
-html { color-scheme: light; scroll-behavior: smooth; }
+html { color-scheme: dark; scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--fg);
@@ -69,32 +100,102 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-::selection { background: color-mix(in oklab, var(--brand) 24%, transparent); color: var(--fg); }
+::selection { background: color-mix(in oklab, var(--brand) 35%, transparent); color: var(--fg); }
 
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
 
-h1, h2, h3, h4, .font-display { font-family: var(--font-display); letter-spacing: -0.025em; }
+h1, h2, h3, h4, .font-display { font-family: var(--font-display); letter-spacing: -0.03em; }
 .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
 
+/* Headline gradient — light text falling into brand glow. (On the old light
+   theme this ran --fg → --brand; that reads as dark-on-dark here.) */
 .text-gradient {
-  background: linear-gradient(100deg, var(--fg) 30%, var(--brand) 130%);
+  background: linear-gradient(100deg, var(--fg) 25%, var(--brand-glow) 115%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 
-/* Subtle indigo grid / glow atmosphere for hero sections. */
+/* ---------------------------------------------------------------------------
+   Atmosphere. All decorative — every consumer must set aria-hidden and
+   pointer-events-none. Animate transform/opacity only.
+--------------------------------------------------------------------------- */
 .hero-glow {
   background:
-    radial-gradient(60% 50% at 50% -10%, color-mix(in oklab, var(--brand) 12%, transparent), transparent 70%);
+    radial-gradient(60% 50% at 50% -10%, color-mix(in oklab, var(--brand) 28%, transparent), transparent 70%),
+    radial-gradient(40% 40% at 85% 20%, color-mix(in oklab, var(--wa) 8%, transparent), transparent 70%);
 }
 .grid-bg {
   background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--fg) 4%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--fg) 4%, transparent) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in oklab, var(--fg) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--fg) 6%, transparent) 1px, transparent 1px);
   background-size: 56px 56px;
   -webkit-mask-image: radial-gradient(70% 60% at 50% 0%, #000 40%, transparent 100%);
   mask-image: radial-gradient(70% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+/* Slow drifting colour field. Capped at 3 blobs site-wide for perf. */
+.aurora { position: absolute; inset: 0; overflow: hidden; }
+.aurora::before,
+.aurora::after,
+.aurora > i {
+  content: ''; position: absolute; border-radius: 50%;
+  filter: blur(80px); opacity: 0.5; will-change: transform;
+}
+.aurora::before {
+  width: 40rem; height: 40rem; top: -14rem; left: -10rem;
+  background: radial-gradient(circle, var(--brand) 0%, transparent 70%);
+  animation: aurora-a 34s ease-in-out infinite alternate;
+}
+.aurora::after {
+  width: 32rem; height: 32rem; top: -6rem; right: -8rem;
+  background: radial-gradient(circle, var(--brand-deep) 0%, transparent 70%);
+  animation: aurora-b 42s ease-in-out infinite alternate;
+}
+.aurora > i {
+  width: 26rem; height: 26rem; bottom: -12rem; left: 40%;
+  background: radial-gradient(circle, var(--wa) 0%, transparent 70%);
+  opacity: 0.16;
+  animation: aurora-c 38s ease-in-out infinite alternate;
+}
+@keyframes aurora-a { to { transform: translate3d(6rem, 3rem, 0) scale(1.15); } }
+@keyframes aurora-b { to { transform: translate3d(-5rem, 4rem, 0) scale(1.2); } }
+@keyframes aurora-c { to { transform: translate3d(-4rem, -3rem, 0) scale(1.1); } }
+
+/* Film grain over the big gradients — kills banding. Inline SVG, no asset. */
+.noise::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  opacity: 0.035; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Gradient hairline border (for the ★ pricing card, hero mock frame). */
+.glow-border { position: relative; }
+.glow-border::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  background: linear-gradient(140deg, color-mix(in oklab, var(--brand) 70%, transparent), transparent 45%, color-mix(in oklab, var(--brand-glow) 45%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Cursor-tracked sheen. --mx/--my are written by SpotlightCard. */
+.spotlight { position: relative; }
+.spotlight::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0;
+  transition: opacity 0.25s; pointer-events: none;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.055), transparent 70%);
+}
+@media (pointer: fine) {
+  .spotlight:hover::before { opacity: 1; }
+}
+
+/* The card chrome repeated ~14× across sections/pages. */
+.card {
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 @keyframes pulse-ring {
@@ -104,5 +205,30 @@ h1, h2, h3, h4, .font-display { font-family: var(--font-display); letter-spacing
 }
 .pulse-ring { animation: pulse-ring 2.4s ease-out infinite; }
 
-@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.marquee { animation: marquee 28s linear infinite; }
+/* Long-form legal copy (no typography plugin in this app). */
+.prose-dark h2 { margin: 2.25rem 0 0.75rem; font-size: 1.25rem; font-weight: 600; color: var(--fg); }
+.prose-dark h3 { margin: 1.5rem 0 0.5rem; font-size: 1rem; font-weight: 600; color: var(--fg); }
+.prose-dark p, .prose-dark li { color: var(--fg-muted); line-height: 1.75; font-size: 0.9375rem; }
+.prose-dark p { margin: 0.75rem 0; }
+.prose-dark ul { margin: 0.75rem 0; padding-left: 1.25rem; list-style: disc; }
+.prose-dark li { margin: 0.375rem 0; }
+.prose-dark a { color: var(--brand-glow); text-decoration: underline; text-underline-offset: 2px; }
+.prose-dark strong { color: var(--fg); font-weight: 600; }
+
+/* Belt-and-braces with framer-motion's MotionConfig reducedMotion="user". */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Scroll-reveal wrappers start at opacity:0 and are animated in by JS. If the
+     animation is suppressed, that content would be stranded invisible — so pin
+     it visible. !important is required: framer-motion writes inline styles. */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}

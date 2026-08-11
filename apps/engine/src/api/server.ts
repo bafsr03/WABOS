@@ -9,7 +9,7 @@ import { bus, type WabosEvent } from '../events.js';
 import { one, many, none, getAllSettings, getSetting, setSetting } from '../db/index.js';
 import { DEFAULT_BUSINESS_ID, runWithBusiness, currentBusinessId } from '../context.js';
 import { registerUser, loginUser, loginWithGoogle, deleteAccount, verifyToken, resolveBusinessForUser, getUser, listUserBusinesses, createBusinessForUser, requestPasswordReset, resetPassword, changePassword } from '../modules/auth.js';
-import { sendPasswordReset } from '../modules/mailer.js';
+import { sendPasswordReset, sendMail, isEmailEnabled } from '../modules/mailer.js';
 import { waState, waLogout, waChangeNumber, waSessionOpen, waSessionClose, waPurge } from '../wa/state.js';
 import { registerInternalRoutes } from '../wa/internal-routes.js';
 import { runsWhatsapp } from '../roles.js';
@@ -57,6 +57,41 @@ import { templateCsv, importProductsCsv, PRODUCT_CSV_COLUMNS } from '../modules/
 import { isStorageConfigured, uploadProductImage } from '../modules/storage.js';
 import fs from 'node:fs';
 
+/* ---------------------------------------------------------------------------
+   Public contact form (see POST /api/public/contact).
+
+   CONTACT_TO is a module constant and is NEVER taken from the request body —
+   that is what keeps an unauthenticated endpoint from becoming an open relay.
+--------------------------------------------------------------------------- */
+const CONTACT_TO = 'support@wabos.co';
+
+const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const contactHits = new Map<string, number[]>();
+let contactGlobal: number[] = [];
+const CONTACT_WINDOW = 60 * 60_000;
+const CONTACT_PER_IP = 5;
+const CONTACT_GLOBAL = 50;
+
+/** Second line of defence — the web tier limits too, but must not be trusted. */
+function contactRateLimited(ip: string): boolean {
+  const now = Date.now();
+  contactGlobal = contactGlobal.filter((t) => now - t < CONTACT_WINDOW);
+  if (contactGlobal.length >= CONTACT_GLOBAL) return true;
+
+  const seen = (contactHits.get(ip) ?? []).filter((t) => now - t < CONTACT_WINDOW);
+  if (seen.length >= CONTACT_PER_IP) { contactHits.set(ip, seen); return true; }
+
+  seen.push(now);
+  contactHits.set(ip, seen);
+  contactGlobal.push(now);
+  if (contactHits.size > 5000) {
+    for (const [k, v] of contactHits) if (!v.some((t) => now - t < CONTACT_WINDOW)) contactHits.delete(k);
+  }
+  return false;
+}
+
 // Builds the fully-wired Fastify instance WITHOUT binding a port, so tests can
 // drive it via app.inject(). startApi() below is the production entrypoint.
 export async function buildApi() {
@@ -95,6 +130,9 @@ export async function buildApi() {
     // Webhooks authenticate with their own per-business secret; register/login
     // are the unauthenticated entry points.
     if (url.startsWith('/api/webhooks/')) return done();
+    // /api/public/* is the deliberately unauthenticated namespace (marketing
+    // contact form). Handlers there are tenant-less and rate-limited on their own.
+    if (url.startsWith('/api/public/')) return done();
     if (url.startsWith('/api/auth/register') || url.startsWith('/api/auth/login') || url.startsWith('/api/auth/google')
         || url.startsWith('/api/auth/forgot') || url.startsWith('/api/auth/reset')) return done();
 
@@ -117,6 +155,59 @@ export async function buildApi() {
       (req as any).uid = uid;
       runWithBusiness(businessId, done);
     })().catch(done);
+  });
+
+  // ---- public (unauthenticated) routes ---------------------------------------
+  // Contact form on wabos.co. The marketing site forwards to this over the
+  // internal network; it is NOT called by a browser (the engine's CORS is locked
+  // to the dashboard origin).
+  app.post('/api/public/contact', async (req, reply) => {
+    if (config.contactSecret && req.headers['x-wabos-contact'] !== config.contactSecret) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
+
+    const ip = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || req.ip;
+    if (contactRateLimited(ip)) {
+      return reply.code(429).send({ error: 'Demasiados intentos' });
+    }
+
+    const body = z.object({
+      nombre: z.string().trim().min(2).max(80),
+      email: z.string().trim().email().max(160),
+      mensaje: z.string().trim().min(10).max(2000),
+      negocio: z.string().trim().max(120).optional().default(''),
+      telefono: z.string().trim().max(30).optional().default(''),
+    }).parse(req.body);
+
+    const lines = [
+      `Nombre: ${body.nombre}`,
+      `Correo: ${body.email}`,
+      body.negocio ? `Negocio: ${body.negocio}` : null,
+      body.telefono ? `Teléfono: ${body.telefono}` : null,
+      '',
+      body.mensaje,
+    ].filter(Boolean).join('\n');
+
+    if (!isEmailEnabled()) {
+      // Nothing vanishes silently while SMTP is unconfigured.
+      logger.warn({ contact: body }, 'CONTACT SUBMISSION (email disabled — configure SMTP_* to deliver)');
+      return { ok: true, delivered: false };
+    }
+
+    await sendMail({
+      to: CONTACT_TO,
+      replyTo: body.email,
+      subject: `[wabos.co] ${body.nombre}`,
+      text: lines,
+      html: `<table cellpadding="6">
+<tr><td><b>Nombre</b></td><td>${esc(body.nombre)}</td></tr>
+<tr><td><b>Correo</b></td><td>${esc(body.email)}</td></tr>
+${body.negocio ? `<tr><td><b>Negocio</b></td><td>${esc(body.negocio)}</td></tr>` : ''}
+${body.telefono ? `<tr><td><b>Teléfono</b></td><td>${esc(body.telefono)}</td></tr>` : ''}
+</table>
+<p style="white-space:pre-wrap">${esc(body.mensaje)}</p>`,
+    });
+    return { ok: true, delivered: true };
   });
 
   // ---- auth routes ----------------------------------------------------------

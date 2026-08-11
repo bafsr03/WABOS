@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { LOGIN_URL, FOOTER_SECTIONS } from '@/lib/site';
+import { REGISTER_URL, FOOTER_SECTIONS, SUPPORT_EMAIL } from '@/lib/site';
 import { Container, Button } from './ui';
 import Logo from './Logo';
 
@@ -14,8 +14,14 @@ export default function Footer() {
               El sistema operativo de tu negocio dentro de WhatsApp. Vende, responde y cobra sin salir del chat.
             </p>
             <div className="mt-5">
-              <Button href={LOGIN_URL} external size="sm">Empezar gratis</Button>
+              <Button href={REGISTER_URL} external size="sm">Empezar</Button>
             </div>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="mt-5 inline-block text-sm text-muted transition-colors hover:text-fg"
+            >
+              {SUPPORT_EMAIL}
+            </a>
           </div>
 
           {FOOTER_SECTIONS.map((section) => (
@@ -24,15 +30,9 @@ export default function Footer() {
               <ul className="mt-4 space-y-2.5">
                 {section.links.map((link) => (
                   <li key={link.href}>
-                    {'external' in link && link.external ? (
-                      <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-sm text-muted transition-colors hover:text-fg">
-                        {link.label}
-                      </a>
-                    ) : (
-                      <Link href={link.href} className="text-sm text-muted transition-colors hover:text-fg">
-                        {link.label}
-                      </Link>
-                    )}
+                    <Link href={link.href} className="text-sm text-muted transition-colors hover:text-fg">
+                      {link.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -43,10 +43,10 @@ export default function Footer() {
         <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 text-sm text-subtle sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} WABOS. Todos los derechos reservados.</p>
           <div className="flex items-center gap-5">
-            <Link href="/about" className="hover:text-fg">Privacidad</Link>
-            <Link href="/about" className="hover:text-fg">Términos</Link>
+            <Link href="/legal/privacidad" className="hover:text-fg">Privacidad</Link>
+            <Link href="/legal/terminos" className="hover:text-fg">Términos</Link>
             <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-wa" /> Hecho para WhatsApp
+              <span className="h-2 w-2 rounded-full bg-wa" /> Hecho en Perú
             </span>
           </div>
         </div>

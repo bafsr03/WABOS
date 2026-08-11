@@ -26,6 +26,7 @@ services:
       args:
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: "${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}"
         NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-}"
+        NEXT_PUBLIC_SITE_URL: "${NEXT_PUBLIC_SITE_URL:-https://wabos.co}"
     image: wabos
     restart: unless-stopped
     env_file: .env
@@ -56,8 +57,15 @@ services:
     image: wabos
     restart: unless-stopped
     command: ["pnpm", "--filter", "@wabos/web", "start"]
+    # Explicit vars only — deliberately NOT env_file: .env, which would inject
+    # ANTHROPIC_API_KEY / JWT_SECRET / DATABASE_URL into the public marketing
+    # container for no reason.
     environment:
       NODE_ENV: production
+      ENGINE_ORIGIN: http://engine:4000        # server-side target for /api/contact
+      CONTACT_SECRET: "${CONTACT_SECRET:-}"
+    depends_on:
+      - engine
 
   caddy:
     image: caddy:2-alpine

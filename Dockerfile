@@ -31,10 +31,13 @@ ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
 ARG NEXT_PUBLIC_ENGINE_URL=""
 ARG NEXT_PUBLIC_CONTACT_URL=""
 ARG NEXT_PUBLIC_APP_URL=""
+# Marketing site's own origin — canonical URLs, sitemap and robots.
+ARG NEXT_PUBLIC_SITE_URL="https://wabos.co"
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID \
     NEXT_PUBLIC_ENGINE_URL=$NEXT_PUBLIC_ENGINE_URL \
     NEXT_PUBLIC_CONTACT_URL=$NEXT_PUBLIC_CONTACT_URL \
-    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 # ---- build the Next apps (engine needs no build) ----
 RUN pnpm --filter @wabos/dashboard build && pnpm --filter @wabos/web build

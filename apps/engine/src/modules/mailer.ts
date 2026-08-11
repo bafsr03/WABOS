@@ -19,7 +19,7 @@ export function isEmailEnabled(): boolean {
   return transport !== null;
 }
 
-export async function sendMail(opts: { to: string; subject: string; text: string; html?: string }): Promise<void> {
+export async function sendMail(opts: { to: string; subject: string; text: string; html?: string; replyTo?: string }): Promise<void> {
   if (!transport) {
     logger.warn({ to: opts.to, subject: opts.subject }, 'email disabled (no SMTP) — not sent');
     return;

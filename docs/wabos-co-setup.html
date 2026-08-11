@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WABOS — Puesta en marcha de wabos.co</title>
+<style>
+:root{--wa:#25d366;--wa-dark:#128c7e;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f8fafc;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+a{color:var(--wa-dark)}
+.topbar{position:sticky;top:0;z-index:20;background:#0f172a;color:#fff;display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.topbar .brand{font-weight:800;font-size:17px}.topbar .brand span{color:var(--wa)}
+.topbar a{color:#cbd5e1;font-size:13.5px;text-decoration:none}
+.topbar a:hover,.topbar a.active{color:#fff}
+.topbar .sp{flex:1}
+.hero{background:linear-gradient(135deg,#0f172a,#128c7e);color:#fff;padding:44px 24px}
+.hero .wrap{max-width:1080px;margin:0 auto}
+.hero h1{margin:0;font-size:32px}
+.hero p{margin:10px 0 0;color:#cbd5e1;max-width:760px}
+.hero .meta{margin-top:14px;font-size:13px;color:#9fb4c9}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:250px 1fr;gap:36px;padding:32px 24px}
+nav.toc{position:sticky;top:64px;align-self:start;font-size:13.5px;max-height:calc(100vh - 90px);overflow:auto}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0;border-left:2px solid transparent;padding-left:10px}
+nav.toc a:hover{color:var(--ink)}
+nav.toc .grp{font-weight:700;color:var(--ink);margin-top:12px;padding-left:10px;text-transform:uppercase;font-size:11px;letter-spacing:.04em}
+main{min-width:0}
+main h2{font-size:23px;margin:40px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+main h2:first-child{border-top:0;margin-top:0}
+main h3{font-size:17px;margin:24px 0 6px}
+p,li{font-size:15px}
+code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#f1f5f9}
+.callout{border-left:4px solid var(--wa);background:#f0fdf4;padding:12px 16px;border-radius:8px;margin:16px 0;font-size:14.5px}
+.callout.warn{border-color:#f59e0b;background:#fffbeb}
+.callout.danger{border-color:#ef4444;background:#fef2f2}
+.callout.tip{border-color:#3b82f6;background:#eff6ff}
+.pill{display:inline-block;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.pill.new{background:#eef2ff;color:#4338ca}
+footer{border-top:1px solid var(--line);padding:26px 24px;text-align:center;color:var(--muted);font-size:13px;max-width:1080px;margin:0 auto}
+.expect{border-left:4px solid var(--wa);background:#f0fdf4;padding:10px 14px;border-radius:8px;margin:12px 0 4px;font-size:14px}
+.expect b{color:#047857}
+.checklist{list-style:none;padding:0;margin:8px 0}
+.checklist li{position:relative;padding:8px 0 8px 30px;border-bottom:1px solid var(--line);font-size:14.5px}
+.checklist li:last-child{border-bottom:0}
+.checklist li::before{content:'';position:absolute;left:0;top:11px;width:16px;height:16px;border:2px solid var(--wa-dark);border-radius:4px}
+.pathcard{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:18px 20px;margin:12px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.pathcard h3{margin:0 0 6px}
+.pathgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+@media(max-width:840px){.layout{grid-template-columns:1fr}nav.toc{display:none}.pathgrid{grid-template-columns:1fr}}
+@media print{.topbar,nav.toc{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">WAB<span>OS</span></span>
+  <a href="index.html">Inicio</a>
+  <a href="deploy-vps.html">Despliegue</a>
+  <a href="wabos-co-setup.html" class="active">wabos.co</a>
+  <a href="updates-guide.html">Actualizar en vivo</a>
+</div>
+<div class="hero"><div class="wrap">
+  <h1>🌐 Puesta en marcha de wabos.co</h1>
+  <p>Checklist para tener <code>wabos.co</code> (landing) y <code>app.wabos.co</code> (dashboard) en vivo — empezando <b>hoy en la Mac</b> (sin VPS, gratis) con un túnel de Cloudflare, y con un camino limpio para pasar a un <b>VPS</b> más adelante sin rehacer el DNS desde cero.</p>
+  <p class="meta">⏱️ Camino Mac: <b>30–45 min</b> hoy · Cambiar a VPS después: <b>~15 min</b> (solo DNS + 2 líneas del .env, sin reconstruir) · Complementa <a href="deploy-vps.html" style="color:#fff;text-decoration:underline">la guía de despliegue</a>.</p>
+</div></div>
+<div class="layout">
+<nav class="toc">
+  <div class="grp">Panorama</div>
+  <a href="#panorama">Qué estás armando</a>
+  <a href="#paso0">Paso 0 · DNS a Cloudflare</a>
+  <div class="grp">Camino A · Ahora (Mac)</div>
+  <a href="#a1">A1 · cloudflared</a>
+  <a href="#a2">A2 · Crear el túnel</a>
+  <a href="#a3">A3 · Apuntar los hosts</a>
+  <a href="#a4">A4 · Configurar ingress</a>
+  <a href="#a5">A5 · El .env</a>
+  <a href="#a6">A6 · Lanzar</a>
+  <a href="#a7">A7 · Verificar</a>
+  <div class="grp">Camino B · Después (VPS)</div>
+  <a href="#switch">Cambiar al VPS</a>
+  <div class="grp">Ayuda</div>
+  <a href="#trouble">Solución de problemas</a>
+</nav>
+<main>
+
+<h2 id="panorama">Qué estás armando</h2>
+<p>Dos nombres públicos, un solo Caddy, apuntando a la máquina que esté corriendo el stack en cada momento:</p>
+<pre><code>wabos.co        → Caddy → web:3001        (landing — apps/web)
+app.wabos.co    → Caddy → dashboard:3000  (el dashboard)
+                        → engine:4000     (/api/* y /ws, vía Caddy)</code></pre>
+<div class="pathgrid">
+  <div class="pathcard">
+    <h3>🖥️ Hoy — Camino A</h3>
+    <p style="margin:0">Caddy corre en Docker en la Mac del dueño; un <b>túnel de Cloudflare</b> lo expone a internet con HTTPS real — sin VPS, sin abrir puertos, sin IP pública.</p>
+  </div>
+  <div class="pathcard">
+    <h3>☁️ Después — Camino B</h3>
+    <p style="margin:0">El mismo stack de Docker Compose, movido a un VPS; Caddy emite su propio HTTPS con Let's Encrypt directamente. Cambiar es DNS + dos líneas del <code>.env</code>, no una reconstrucción.</p>
+  </div>
+</div>
+
+<h2 id="paso0">Paso 0 (una vez, habilita los dos caminos) — DNS de wabos.co en Cloudflare</h2>
+<p>El túnel de Cloudflare necesita administrar el DNS de <code>wabos.co</code>, y no puede hacerlo mientras el dominio use los nameservers por defecto de GoDaddy — un CNAME hacia un túnel no se puede poner en GoDaddy en el <b>dominio raíz</b> (<code>wabos.co</code> mismo, no solo <code>app.wabos.co</code>); es una limitación general de DNS, no una rareza de GoDaddy. La solución es gratis y no cambia tu registrador:</p>
+<ol class="steps">
+  <li>Panel de Cloudflare → <b>Add a site</b> → escribe <code>wabos.co</code> → elige el plan <b>Free</b>.</li>
+  <li>Cloudflare escanea tu DNS actual de GoDaddy y muestra una pantalla <b>"Review your DNS records"</b>. Es probable que incluya uno o dos <b>registros A para <code>@</code></b> apuntando a una IP de GoDaddy (su página de dominio aparcado por defecto) — eso no es nada que WABOS use. <b>Borra esos registros A</b> en esa misma pantalla (deja <code>TXT _dmarc</code>, <code>CNAME www</code> y <code>CNAME _domainconnect</code> tal cual — son inofensivos, no tienen que ver con este montaje), y luego <b>Continue to activation</b>.
+    <div class="callout tip">No pierdas tiempo agregando o editando registros A directamente en el editor de DNS de GoDaddy antes de esto — en cuanto cambies los nameservers en el siguiente paso, el editor de GoDaddy deja de ser lo que internet realmente lee, así que cualquier registro agregado ahí ahora es esfuerzo perdido. Limpia dentro de la pantalla de revisión de Cloudflare.</div>
+  </li>
+  <li>Cloudflare te muestra dos <b>nameservers</b> (p.ej. <code>xxx.ns.cloudflare.com</code>, <code>yyy.ns.cloudflare.com</code>). En <b>GoDaddy</b> → My Products → <code>wabos.co</code> → <b>DNS</b> → <b>Nameservers</b> → <b>Change</b> → <b>Enter my own nameservers</b> → pega los dos de Cloudflare (reemplazando el par <code>nsXX.domaincontrol.com</code> por defecto de GoDaddy). GoDaddy sigue siendo tu registrador (donde renuevas/pagas); Cloudflare pasa a ser donde viven los registros DNS.</li>
+  <li>Espera a que Cloudflare muestre la zona como <b>Active</b> (normalmente bastante menos de una hora, a veces minutos). Revisa cuando quieras con:
+    <pre><code>dig +short NS wabos.co</code></pre>
+    Cuando muestre los nameservers de Cloudflare, ya puedes seguir — no avances al Paso A2 antes de esto, o los comandos de DNS del túnel van a fallar.
+  </li>
+</ol>
+<div class="callout tip">
+  Este cambio único es también lo que hace que pasar a un VPS más adelante sea trivial: solo vas a editar <b>registros</b> dentro de la misma zona de Cloudflare (CNAME → A), sin tocar nameservers otra vez.
+</div>
+
+<h2 id="a1">Camino A — Ahora mismo: Mac + túnel de Cloudflare</h2>
+<h3 id="a1b">A1 · Asegúrate de tener <code>cloudflared</code> instalado y logueado</h3>
+<pre><code>brew install cloudflared
+cloudflared tunnel login       # abre el navegador, elige la zona wabos.co</code></pre>
+
+<h3 id="a2">A2 · Crea (o reutiliza) un túnel con nombre</h3>
+<p>Si todavía no tienes uno para WABOS:</p>
+<pre><code>cloudflared tunnel create wabos</code></pre>
+<p>Esto imprime un <b>tunnel ID</b> y guarda las credenciales en <code>~/.cloudflared/&lt;tunnel-id&gt;.json</code>. Si ya tienes un túnel <code>wabos</code> de un montaje anterior, reutilízalo — no hace falta crear un segundo.</p>
+
+<h3 id="a3">A3 · Apunta los dos hosts al túnel</h3>
+<pre><code>cloudflared tunnel route dns wabos wabos.co
+cloudflared tunnel route dns wabos app.wabos.co</code></pre>
+<p>Cada comando agrega un registro CNAME en Cloudflare apuntando ese host a <code>&lt;tunnel-id&gt;.cfargotunnel.com</code>. Cloudflare termina el HTTPS para los dos — Caddy en la Mac solo ve HTTP plano.</p>
+
+<h3 id="a4">A4 · Configura el túnel para reenviar los dos hosts a Caddy</h3>
+<p>Edita (o crea) <code>~/.cloudflared/wabos-config.yml</code>:</p>
+<pre><code>tunnel: wabos
+credentials-file: /Users/&lt;tu-usuario&gt;/.cloudflared/&lt;tunnel-id&gt;.json
+
+ingress:
+  - hostname: wabos.co
+    service: http://localhost:80
+  - hostname: app.wabos.co
+    service: http://localhost:80
+  - service: http_status:404</code></pre>
+<p>Los dos hosts reenvían al <b>mismo</b> puerto local 80 — Caddy los distingue por el header <code>Host</code> (que cloudflared preserva) y enruta internamente al contenedor correcto, igual que haría en un VPS.</p>
+<p>Instálalo como servicio en segundo plano para que sobreviva reinicios:</p>
+<pre><code>sudo cloudflared service install --config ~/.cloudflared/wabos-config.yml</code></pre>
+<div class="callout tip">Si ya tienes un agente launchd <code>com.wabos.cloudflared</code> de un montaje anterior, edita su config en el mismo lugar en vez de instalar un segundo servicio.</div>
+
+<h3 id="a5">A5 · El <code>.env</code> — la única diferencia con el camino VPS</h3>
+<pre><code>cp .env.example .env
+nano .env</code></pre>
+<pre><code>APP_DOMAIN=http://app.wabos.co
+MARKETING_DOMAIN=http://wabos.co
+ALLOWED_ORIGIN=https://app.wabos.co
+DASHBOARD_URL=https://app.wabos.co
+NEXT_PUBLIC_APP_URL=https://app.wabos.co</code></pre>
+<div class="callout warn">
+  <b>⚠️ El prefijo <code>http://</code> en <code>APP_DOMAIN</code>/<code>MARKETING_DOMAIN</code> es todo el truco.</b> Le dice a Caddy "sirve exactamente este host por HTTP plano, sin certificado" en vez de su comportamiento por defecto de "consígueme un certificado real de Let's Encrypt para este host" — que fallaría acá, porque el TLS público lo maneja Cloudflare, no Caddy. Todo lo demás (las URLs <code>https://</code> que ven tus usuarios, <code>NEXT_PUBLIC_APP_URL</code> para los botones de la landing) queda exactamente igual que en el montaje con VPS, porque esa sí es la dirección externa real.
+</div>
+<p>Llena el resto de los secretos (<code>POSTGRES_PASSWORD</code>, <code>JWT_SECRET</code>, etc.) según <a href="deploy-vps.html#env">la §4 de la guía de despliegue</a> — es idéntico en los dos caminos.</p>
+
+<h3 id="a6">A6 · Lanzar</h3>
+<pre><code>docker compose up -d --build
+docker compose logs -f engine     # espera "WABOS engine is running"</code></pre>
+<p>Activa que <b>Docker Desktop arranque al iniciar sesión</b> (Settings → General) para que el stack vuelva solo después de un reinicio — mismo límite de siempre: la Mac tiene que quedarse despierta y con internet, o WABOS deja de responder y WhatsApp puede desvincularse. Está bien como puente; no es 24/7 de verdad.</p>
+
+<h3 id="a7">A7 · Verifica</h3>
+<ul class="checklist">
+  <li><code>https://wabos.co</code> carga la landing (se ve el candado — es el certificado de Cloudflare, no el de Caddy).</li>
+  <li>"Empezar gratis" apunta a <code>https://app.wabos.co/login</code>.</li>
+  <li><code>https://app.wabos.co</code> carga el login del dashboard.</li>
+  <li><code>docker compose exec engine pnpm --filter @wabos/engine create-user</code>, y luego entra en <code>https://app.wabos.co</code>.</li>
+</ul>
+<p>Continúa con <a href="deploy-vps.html#whatsapp">la guía de despliegue desde §8 en adelante</a> para vincular WhatsApp, la prueba de humo, R2 y backups.</p>
+
+<h2 id="switch">Camino B — Más adelante: pasar al VPS</h2>
+<p>Cuando quieras salir de la Mac, el trabajo de DNS del Paso 0 se reutiliza — solo cambias <b>registros</b>, no nameservers otra vez.</p>
+<ol class="steps">
+  <li><b>Levanta el VPS:</b> Hetzner Cloud → <b>CX23</b> (2 vCPU/4 GB), Ubuntu 24.04, región cercana a tus usuarios. Agrega tu llave SSH, anota la IPv4 pública.</li>
+  <li><b>Cambia el DNS</b> en el panel de Cloudflare (la misma zona del Paso 0) — borra los dos registros CNAME del túnel, agrega dos <b>registros A</b> en su lugar:
+    <table>
+    <tr><th>Tipo</th><th>Nombre</th><th>Valor</th><th>Estado de proxy</th></tr>
+    <tr><td>A</td><td><code>@</code></td><td><code>&lt;IP del VPS&gt;</code></td><td><b>DNS only</b> (nube gris)</td></tr>
+    <tr><td>A</td><td><code>app</code></td><td><code>&lt;IP del VPS&gt;</code></td><td><b>DNS only</b> (nube gris)</td></tr>
+    </table>
+    Pon el estado de proxy en <b>DNS only</b>, no proxied — Caddy necesita completar su propio desafío de Let's Encrypt y dejar pasar <code>/ws</code> sin tocar, y el proxy de Cloudflare interferiría con eso.
+  </li>
+  <li><b>Instala Docker en el VPS</b> — sigue <a href="deploy-vps.html#docker">la §2 de la guía de despliegue</a>.</li>
+  <li><b>Sube el código al servidor</b> y en el <code>.env</code>:
+    <pre><code>APP_DOMAIN=app.wabos.co
+MARKETING_DOMAIN=wabos.co</code></pre>
+    (quita los prefijos <code>http://</code> — todo lo demás del <code>.env</code> queda igual, incluido <code>NEXT_PUBLIC_APP_URL</code>, así que <b>no hace falta reconstruir las imágenes</b>, solo el nuevo <code>.env</code> en la máquina nueva.)
+  </li>
+  <li><code>docker compose up -d --build</code> en el VPS. Sigue <code>docker compose logs -f caddy</code> — esta vez debería obtener certificados reales para los dos dominios.</li>
+  <li><b>Apaga el túnel de la Mac</b> una vez que confirmes que el VPS funciona:
+    <pre><code>sudo launchctl unload /Library/LaunchDaemons/com.cloudflare.&lt;tunnel-id&gt;.plist
+# o: cloudflared service uninstall</code></pre>
+    Detén también el <code>docker compose</code> local en la Mac (o déjalo como respaldo frío — tú decides).
+  </li>
+</ol>
+<p>Desde aquí, todo lo de <a href="deploy-vps.html">docs/deploy-vps.md</a> aplica sin cambios (backups, R2, operación día a día, el split de backends).</p>
+
+<h2 id="trouble">Solución de problemas</h2>
+<ul>
+  <li><b>La zona de Cloudflare queda "Pending":</b> los nameservers no propagaron todavía desde GoDaddy. <code>dig +short NS wabos.co</code> debería mostrar los de Cloudflare — si después de varias horas sigue mostrando los de GoDaddy, revisa que hayas guardado el cambio de nameservers en el panel de GoDaddy (no solo los registros DNS).</li>
+  <li><b><code>cloudflared tunnel route dns</code> falla con "zone not found":</b> la zona todavía no está Active en Cloudflare — termina el Paso 0 primero.</li>
+  <li><b>La landing o la app muestran la página de error por defecto de Cloudflare, no WABOS:</b> revisa <code>docker compose ps</code> (¿Caddy está arriba?) y que el <code>ingress</code> de <code>wabos-config.yml</code> tenga los dos hosts apuntando a <code>http://localhost:80</code>.</li>
+  <li><b>Avisos de certificado en el VPS después de cambiar del túnel:</b> confirma que los registros DNS en Cloudflare estén en <b>DNS only</b> (nube gris), no proxied — un registro proxied (nube naranja) rompe el desafío ACME de Caddy.</li>
+  <li><b>Los botones de la landing apuntan a <code>localhost:3000</code>:</b> no se puso <code>NEXT_PUBLIC_APP_URL</code> antes del build — ponlo y reconstruye con <code>--build</code> (queda compilado en el JS, sea túnel o VPS).</li>
+  <li><b>Todo lo demás</b> (WhatsApp no conecta, la subida de imagen dice "no configurado", resetear la base de datos): ver <a href="deploy-vps.html#trouble">la sección de Solución de problemas</a> de la guía de despliegue.</li>
+</ul>
+
+</main>
+</div>
+<footer>
+  WABOS — Your Business. Powered by WhatsApp. · Ver también <a href="deploy-vps.html">la guía completa de despliegue</a>.
+</footer>
+</body>
+</html>

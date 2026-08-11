@@ -9,6 +9,11 @@ last section. Nothing about the split blocks going live today.
 
 Estimated time: **30–45 minutes.**
 
+> WABOS's real domains: **wabos.co** (marketing/landing, `apps/web`) and
+> **app.wabos.co** (dashboard + API/WS, `apps/dashboard` + `apps/engine`). The
+> `tudominio.com` examples below are generic placeholders — substitute
+> `wabos.co` / `app.wabos.co` when following this runbook for the real deploy.
+
 ---
 
 ## Quick path: Hetzner + a subdomain you already own

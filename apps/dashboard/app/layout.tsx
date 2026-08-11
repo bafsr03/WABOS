@@ -6,6 +6,8 @@ import { ConfirmProvider } from '@/components/ui/Modal';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import NativeBridge from '@/components/NativeBridge';
 import OrientationLock from '@/components/OrientationLock';
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { ThemeScript } from '@/components/ThemeScript';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -38,7 +40,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#5b4bff',
+  // Keyed to the OS preference so it's right before JS runs; ThemeProvider
+  // overrides it at runtime when the user picks a theme explicitly.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#5b4bff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f1119' },
+  ],
   viewportFit: 'cover', // so env(safe-area-inset-*) has real values on notched iPhones
   width: 'device-width',
   initialScale: 1,
@@ -47,11 +54,18 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
+    // suppressHydrationWarning is required: ThemeScript mutates <html>'s class
+    // and style before React hydrates.
     <html lang="es" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body className="grain">
-        <Toaster>
-          <ConfirmProvider>{children}</ConfirmProvider>
-        </Toaster>
+        <ThemeProvider>
+          <Toaster>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </Toaster>
+        </ThemeProvider>
         <ServiceWorkerRegister />
         <NativeBridge />
         <OrientationLock />

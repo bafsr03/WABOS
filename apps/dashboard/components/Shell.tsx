@@ -7,7 +7,7 @@ import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import {
   LayoutDashboard, MessageCircle, Users, ShoppingBag, Wallet, Megaphone,
   Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3,
-  Receipt, Coins, type LucideIcon,
+  Receipt, Coins, Sun, Moon, Monitor, type LucideIcon,
 } from 'lucide-react';
 import { api, clearToken, getToken, getStatus, getFlag, setFlag } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
@@ -17,6 +17,9 @@ import BusinessSwitcher from '@/components/BusinessSwitcher';
 import InstallPrompt from '@/components/InstallPrompt';
 import Tour from '@/components/onboarding/Tour';
 import { TOUR_STEPS } from '@/components/onboarding/steps';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useTheme } from '@/components/ThemeProvider';
+import type { ThemePref } from '@/lib/theme';
 import { unsubscribeFromPush } from '@/lib/push';
 import { unregisterNativePush } from '@/lib/native';
 
@@ -80,6 +83,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [sheet, setSheet] = useState(false);
   const [overCap, setOverCap] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+
+  const { pref: themePref, resolved: themeResolved, setPref: setThemePref } = useTheme();
+  const cycleTheme = () => {
+    const order: ThemePref[] = ['light', 'dark', 'system'];
+    setThemePref(order[(order.indexOf(themePref) + 1) % order.length]);
+  };
 
   const checkCap = () => getStatus()
     .then((s) => setOverCap(s.usage.aiMessagesLimit != null && s.usage.aiMessages >= s.usage.aiMessagesLimit))
@@ -174,7 +183,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      <div className="border-t border-border p-3">
+      <div className="space-y-2 border-t border-border p-3">
+        <ThemeToggle compact />
         <button onClick={signOut}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-danger">
           <LogOut size={17} /> Cerrar sesión
@@ -253,7 +263,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <AnimatePresence>
         {sheet && (
           <div className="fixed inset-0 z-50 lg:hidden">
-            <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(false)} />
+            <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm dark:bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(false)} />
             <motion.div
               className="liquid-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 340, damping: 34 }}
@@ -289,6 +299,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                     </Link>
                   );
                 })}
+
+                {/* Cycling is right here — cramped grid, quick toggle, and the
+                    current state is printed in the label. The canonical 3-way
+                    control is one tap away in Ajustes → Apariencia. The sheet
+                    deliberately stays open so the change is visible. */}
+                <button onClick={cycleTheme}
+                  className="group flex items-center gap-3 rounded-2xl border border-border bg-surface-2/50 p-3.5 text-left text-sm font-medium text-fg transition hover:border-border-strong">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-3 text-subtle transition group-hover:text-fg">
+                    {themePref === 'system' ? <Monitor size={18} /> : themeResolved === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
+                  </span>
+                  Tema · {themePref === 'system' ? 'Auto' : themeResolved === 'dark' ? 'Oscuro' : 'Claro'}
+                </button>
 
                 <button onClick={signOut}
                   className="group flex items-center gap-3 rounded-2xl border border-border bg-surface-2/50 p-3.5 text-left text-sm font-medium text-fg transition hover:border-danger/30 hover:bg-danger/10 hover:text-danger">

@@ -1,4 +1,5 @@
 import { api, getToken } from './api';
+import { getResolvedTheme, type Resolved } from './theme';
 
 // Native-only integration for the Capacitor shell. Everything here is guarded by
 // Capacitor.isNativePlatform(), so in a normal browser (or the PWA) it is inert
@@ -16,8 +17,8 @@ export async function initNative(): Promise<void> {
 
   // Native chrome: translucent status bar for the glass look, hide the splash.
   try {
-    const { StatusBar, Style } = await import('@capacitor/status-bar');
-    await StatusBar.setStyle({ style: Style.Light });
+    const { StatusBar } = await import('@capacitor/status-bar');
+    await applyNativeStatusBar(getResolvedTheme());
     if (platform === 'android') await StatusBar.setOverlaysWebView({ overlay: true });
   } catch { /* plugin unavailable */ }
   try {
@@ -38,6 +39,24 @@ export async function initNative(): Promise<void> {
   } catch { /* ignore */ }
 
   await registerPush(platform);
+}
+
+/**
+ * Match the native status bar to the theme. Capacitor's naming is inverted from
+ * what you'd guess: Style.Light means DARK text (for a light background) and
+ * Style.Dark means light text. Without this the installed app's clock and
+ * battery stay black on a navy header.
+ *
+ * Safe to call in a browser — it no-ops when Capacitor isn't native.
+ */
+export async function applyNativeStatusBar(theme: Resolved): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    if (!Capacitor.isNativePlatform()) return;
+    const { StatusBar, Style } = await import('@capacitor/status-bar');
+    await StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light });
+  } catch { /* plugin unavailable */ }
 }
 
 // Ask for notification permission, register with APNs/FCM, and hand the device

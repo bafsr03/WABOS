@@ -143,6 +143,9 @@ export default function ConnectPage() {
                 <li className="flex gap-2"><span className="text-brand">2.</span> Ajustes → Dispositivos vinculados</li>
                 <li className="flex gap-2"><span className="text-brand">3.</span> Vincular un dispositivo → escanea</li>
               </ol>
+              {/* bg-white is deliberate and must NOT be tokenized: the QR is
+                  black-on-white and needs a true white quiet zone to stay
+                  scannable, including in dark mode. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={status.qrDataUrl} alt="QR de WhatsApp" className="mx-auto mt-5 h-60 w-60 rounded-2xl border border-border bg-white p-2" />
               <p className="mt-2 text-xs text-subtle">El código se renueva automáticamente.</p>

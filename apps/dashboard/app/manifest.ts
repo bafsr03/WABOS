@@ -9,7 +9,10 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#ffffff',
+    // Splash screen only, and baked in at install time — a PWA manifest can't
+    // vary at runtime. Brand indigo rather than white so dark-mode users get a
+    // branded flash instead of a white one before first paint.
+    background_color: '#5b4bff',
     theme_color: '#5b4bff',
     lang: 'es',
     icons: [

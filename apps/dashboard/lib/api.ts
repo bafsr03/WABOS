@@ -46,6 +46,23 @@ export function setFlag(key: string, on = true) {
   api('/api/settings', { method: 'PUT', body: JSON.stringify({ [key]: on ? '1' : '' }) }).catch(() => {});
 }
 
+// String-valued, device-local preferences (theme). Deliberately NOT mirrored to
+// /api/settings the way setFlag is: server settings are scoped per-BUSINESS via
+// X-Business-Id, so a mirrored appearance choice would follow the workspace
+// across users and devices. localStorage is the source of truth here.
+export function getPref(key: string, fallback = ''): string {
+  if (typeof window === 'undefined') return fallback;
+  try { return localStorage.getItem(`wabos_${key}`) ?? fallback; } catch { return fallback; }
+}
+
+export function setPref(key: string, value: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) localStorage.setItem(`wabos_${key}`, value);
+    else localStorage.removeItem(`wabos_${key}`);
+  } catch { /* private mode — preference just won't persist */ }
+}
+
 async function authRequest(path: string, payload: object): Promise<void> {
   const res = await fetch(`${ENGINE_URL}${path}`, {
     method: 'POST',

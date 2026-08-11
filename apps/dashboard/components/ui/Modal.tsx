@@ -14,7 +14,7 @@ export function Modal({ open, onClose, title, children, className }: {
       {open && (
         <div className="fixed inset-0 z-[9000] grid place-items-center p-4">
           <motion.div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm dark:bg-black/65"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
           />

@@ -100,7 +100,7 @@ export default function Tour({ steps, open, onClose, onFinish }: {
         <div className="fixed inset-0 z-[9490]" role="dialog" aria-modal="true" aria-label="Recorrido de bienvenida">
           {/* Click catcher — blocks the page underneath; backdrop clicks are a no-op. */}
           {!rect && (
-            <motion.div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+            <motion.div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] dark:bg-black/72"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
           )}
           {rect && (
@@ -111,7 +111,8 @@ export default function Tour({ steps, open, onClose, onFinish }: {
                 initial={false}
                 animate={{ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }}
                 transition={spring}
-                style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)' }}
+                // Token, not a literal: an inline style can't take a dark: variant.
+                style={{ boxShadow: '0 0 0 9999px var(--tour-scrim)' }}
               />
             </>
           )}

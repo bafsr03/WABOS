@@ -128,8 +128,9 @@ Textarea.displayName = 'Textarea';
 
 export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, children, ...props }, ref) => (
-    <select ref={ref} className={cn(field, 'cursor-pointer appearance-none bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat pr-9', className)}
-      style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238b978f' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" }}
+    // Chevron comes from the .select-chevron utility in globals.css rather than
+    // an inline data-URI, so its colour can follow the theme.
+    <select ref={ref} className={cn(field, 'select-chevron cursor-pointer appearance-none bg-[length:1rem] pr-9', className)}
       {...props}>{children}</select>
   ),
 );
@@ -156,7 +157,9 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
     >
       <motion.span
         layout transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-        className={cn('absolute top-1 h-[1.1rem] w-[1.1rem] rounded-full bg-white shadow', checked ? 'left-[1.45rem]' : 'left-1')}
+        // --knob rather than white: pure white is a hot spot against the dark
+        // off-track, and this keeps one value for both themes.
+        className={cn('absolute top-1 h-[1.1rem] w-[1.1rem] rounded-full bg-knob shadow', checked ? 'left-[1.45rem]' : 'left-1')}
       />
     </button>
   );

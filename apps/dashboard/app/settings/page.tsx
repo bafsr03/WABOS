@@ -3,18 +3,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, Coins, Send, Download, Database, Plus, ChevronDown, BookOpen, type LucideIcon } from 'lucide-react';
+import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, Store, Wand2, CreditCard, Check, Bell, Coins, Send, Download, Database, Plus, ChevronDown, BookOpen, SunMoon, type LucideIcon } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, changePassword, getToken, getBusinessId, ENGINE_URL, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/Modal';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useTheme } from '@/components/ThemeProvider';
 
-type TabId = 'ia' | 'perfil' | 'plan' | 'pagos' | 'caja' | 'faqs';
+type TabId = 'ia' | 'perfil' | 'apariencia' | 'plan' | 'pagos' | 'caja' | 'faqs';
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'ia', label: 'Empleado IA', icon: Bot },
   { id: 'perfil', label: 'Perfil', icon: Store },
+  { id: 'apariencia', label: 'Apariencia', icon: SunMoon },
   { id: 'plan', label: 'Plan', icon: CreditCard },
   { id: 'pagos', label: 'Pagos', icon: Wallet },
   { id: 'caja', label: 'Caja y reportes', icon: Coins },
@@ -175,6 +178,9 @@ export default function SettingsPage() {
         <DangerZone />
         </div>
         )}
+
+        {/* ── Apariencia ── */}
+        {tab === 'apariencia' && <div className="fade-up"><AppearanceTab /></div>}
 
         {/* ── Plan / facturación ── */}
         {tab === 'plan' && <div className="fade-up"><PlanTab toast={toast} /></div>}
@@ -348,9 +354,58 @@ const SELF_SERVE: { tier: CheckoutTier; monthly: number; annual: number; popular
 ];
 
 // Where the Empresarial "Contáctanos" button points. Override per deployment.
-const CONTACT_URL = process.env.NEXT_PUBLIC_CONTACT_URL ?? 'mailto:hola@wabos.pe';
+const CONTACT_URL = process.env.NEXT_PUBLIC_CONTACT_URL ?? 'mailto:hola@wabos.co';
 
 const MANAGEABLE = ['active', 'on_trial', 'past_due', 'cancelled', 'paused'];
+
+/**
+ * Appearance. No preview pane on purpose: the whole app repaints instantly, so
+ * a preview would just mirror the page behind it. The swatch card exists only
+ * to surface tokens this screen doesn't otherwise render (status tones, the
+ * elevated surface, a disabled control) so the theme can be judged at a glance.
+ */
+function AppearanceTab() {
+  const { pref, resolved } = useTheme();
+
+  return (
+    <div className="space-y-5">
+      <SectionCard title="Tema" desc="Se guarda solo en este dispositivo, no en tu cuenta.">
+        <ThemeToggle />
+        <p className="mt-3 text-xs text-subtle">
+          {pref === 'system'
+            ? `Sigue la configuración de tu sistema — ahora mismo se ve ${resolved === 'dark' ? 'oscuro' : 'claro'}.`
+            : 'Se mantiene así aunque tu sistema cambie de apariencia.'}
+        </p>
+      </SectionCard>
+
+      <SectionCard title="Muestra" desc="Cómo se ven los elementos con el tema activo.">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="success" dot>Pagado</Badge>
+          <Badge tone="warn" dot>Por revisar</Badge>
+          <Badge tone="danger" dot>Rechazado</Badge>
+          <Badge tone="brand">Avanzado</Badge>
+          <Badge>Neutro</Badge>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border bg-surface-2 p-4">
+            <div className="text-xs text-subtle">Ingresos hoy</div>
+            <div className="tabular mt-1 text-xl font-semibold text-fg">S/ 842.00</div>
+            <div className="mt-1 text-xs text-success">+12% vs. ayer</div>
+          </div>
+          <div className="rounded-xl border border-border bg-surface-3 p-4">
+            <div className="text-xs text-subtle">Superficie elevada</div>
+            <div className="mt-1 text-sm text-muted">Bordes, sombras y contraste</div>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button>Botón principal</Button>
+          <Button variant="secondary">Secundario</Button>
+          <Button variant="ghost">Terciario</Button>
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
 
 function PlanTab({ toast }: { toast: (msg: string, tone?: 'success' | 'info' | 'error') => void }) {
   const confirm = useConfirm();

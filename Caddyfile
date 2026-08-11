@@ -5,8 +5,11 @@
 # single public origin covers the UI, the API and the realtime socket.
 #
 # APP_DOMAIN examples:
-#   app.tudominio.com   → real domain, automatic HTTPS
-#   :80                 → plain HTTP, for quick IP-only testing (no certificate)
+#   app.tudominio.com        → real domain, automatic HTTPS
+#   :80                      → plain HTTP, for quick IP-only testing (no certificate)
+#   http://app.tudominio.com → plain HTTP on a real hostname, no certificate —
+#                              use this when something else already terminates
+#                              TLS in front of Caddy (e.g. a Cloudflare Tunnel)
 
 {$APP_DOMAIN} {
 	encode zstd gzip
@@ -26,9 +29,9 @@
 	}
 }
 
-# Optional public marketing site (apps/web). Uncomment and set MARKETING_DOMAIN
-# in .env to serve it; otherwise the `web` container just idles.
-# {$MARKETING_DOMAIN} {
-# 	encode zstd gzip
-# 	reverse_proxy web:3001
-# }
+# Public marketing site (apps/web). Served whenever MARKETING_DOMAIN is set
+# in .env; otherwise the `web` container just idles.
+{$MARKETING_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3001
+}

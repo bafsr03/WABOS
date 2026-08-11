@@ -4,7 +4,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // web changes ship instantly without a new store build. Set WABOS_APP_URL to the
 // dashboard's public HTTPS origin before running `cap sync`:
 //
-//   WABOS_APP_URL=https://app.wabos.pe pnpm --filter @wabos/mobile sync
+//   WABOS_APP_URL=https://app.wabos.co pnpm --filter @wabos/mobile sync
 //   WABOS_APP_URL=https://<your>.trycloudflare.com pnpm --filter @wabos/mobile sync   # testing
 //
 // When WABOS_APP_URL is unset, the app falls back to the bundled www/ page (a
@@ -12,7 +12,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const appUrl = process.env.WABOS_APP_URL?.trim();
 
 const config: CapacitorConfig = {
-  appId: 'pe.wabos.app',
+  appId: 'co.wabos.app',
   appName: 'WABOS',
   webDir: 'www',
   ...(appUrl

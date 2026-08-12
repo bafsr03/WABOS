@@ -73,7 +73,7 @@ export default function RegisterPage() {
           {loading ? 'Creando…' : <>Crear cuenta <ArrowRight size={15} /></>}
         </Button>
 
-        <SocialAuth onAuthed={() => { window.location.href = '/connect'; }} onError={(msg) => setError(msg)} />
+        <SocialAuth next="/connect" />
 
         <p className="mt-4 text-center text-sm text-muted">
           ¿Ya tienes cuenta? <Link href="/login" className="font-medium text-brand hover:underline">Inicia sesión</Link>

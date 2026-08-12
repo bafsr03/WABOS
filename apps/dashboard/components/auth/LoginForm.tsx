@@ -85,10 +85,7 @@ export default function LoginForm() {
           {loading ? 'Ingresando…' : <>Entrar <ArrowRight size={15} /></>}
         </Button>
 
-        <SocialAuth
-          onAuthed={async () => { await api('/api/session/open', { method: 'POST' }).catch(() => {}); window.location.href = '/'; }}
-          onError={(msg) => setError(msg)}
-        />
+        <SocialAuth next="/" />
 
         <p className="mt-4 text-center text-sm text-muted">
           ¿No tienes cuenta? <Link href="/register" className="font-medium text-brand hover:underline">Regístrate</Link>

@@ -1,21 +1,39 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { googleLogin } from '@/lib/api';
-import { useTheme } from '@/components/ThemeProvider';
+import { useState } from 'react';
 
-// Social sign-in. Google uses Google Identity Services: the button returns an ID
-// token we verify server-side. We render Google's OWN official button (rather than
-// hiding it under a custom-styled one) because on mobile the transparent-overlay
-// trick often eats the tap and the sign-in silently fails. Set
-// NEXT_PUBLIC_GOOGLE_CLIENT_ID to enable it.
+// Google sign-in, our own button.
+//
+// We used to render Google's official widget (accounts.google.com/gsi/client).
+// It is their markup styled by their cross-origin stylesheet, which our CSS
+// cannot reach — and on iOS Safari that stylesheet lands wrong: a white slab and
+// an oversized white disc behind the G, which on our dark card reads as a broken
+// page. There is no way to fix someone else's stylesheet from outside, so the
+// widget is gone.
+//
+// Instead we send the browser to Google's OpenID Connect endpoint with
+// response_type=id_token and come back to /auth/google with the token in the URL
+// fragment. That is the same ID token the widget used to hand us, so the server
+// side (POST /api/auth/google, verified against Google's JWKS) is untouched, and
+// no client secret is involved. Full-page redirect also sidesteps the popup and
+// tap-target problems that mobile webviews cause.
+//
+// Requires NEXT_PUBLIC_GOOGLE_CLIENT_ID *and* this exact URI registered as an
+// authorized redirect URI on that client in Google Cloud Console:
+//   https://<your-domain>/auth/google
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
+
+// Keys the /auth/google page reads back to validate the response.
+export const GOOGLE_STATE_KEY = 'wabos_google_state';
+export const GOOGLE_NONCE_KEY = 'wabos_google_nonce';
+export const GOOGLE_NEXT_KEY = 'wabos_google_next';
 
 // In-app browsers (WhatsApp/Instagram/Facebook/TikTok webviews) are blocked by
-// Google's sign-in for security ("disallowed_useragent"), so the button will
-// never work there. Detect the common ones so we can tell the user to open the
-// page in a real browser instead of leaving them stuck.
+// Google's sign-in for security ("disallowed_useragent"), so this will never work
+// there. Detect the common ones so we can tell the user to open the page in a
+// real browser instead of leaving them stuck.
 function isEmbeddedBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
@@ -26,59 +44,34 @@ function isEmbeddedBrowser(): boolean {
   return /FBAN|FBAV|FB_IAB|Instagram|Line\/|Twitter|TikTok|musical_ly|Snapchat|; wv\)|WebView/i.test(ua);
 }
 
-export default function SocialAuth({ onAuthed, onError }: {
-  onAuthed: () => void;
-  onError: (msg: string) => void;
+export default function SocialAuth({ next = '/' }: {
+  /** Where to land once Google comes back and the session is live. */
+  next?: string;
 }) {
-  const googleRef = useRef<HTMLDivElement>(null);
-  const [embedded, setEmbedded] = useState(false);
-  const [ready, setReady] = useState(false);
-  const { resolved } = useTheme();
+  const [going, setGoing] = useState(false);
+  const embedded = typeof window !== 'undefined' && isEmbeddedBrowser();
 
-  useEffect(() => {
-    if (!CLIENT_ID) return;
-    if (isEmbeddedBrowser()) { setEmbedded(true); return; }
-    if (!googleRef.current) return;
+  function start() {
+    setGoing(true);
+    // state ties the response to this tab; nonce ties the ID token to this
+    // request. /auth/google refuses anything that doesn't match both.
+    const state = crypto.randomUUID();
+    const nonce = crypto.randomUUID();
+    sessionStorage.setItem(GOOGLE_STATE_KEY, state);
+    sessionStorage.setItem(GOOGLE_NONCE_KEY, nonce);
+    sessionStorage.setItem(GOOGLE_NEXT_KEY, next);
 
-    // Google renders into a cross-origin iframe, so CSS can't reach it — the
-    // only lever is its own `theme` option, which means re-rendering the button
-    // whenever ours changes. Hence `resolved` in the deps.
-    const render = () => {
-      const g = (window as any).google;
-      if (!g?.accounts?.id || !googleRef.current) {
-        onError('Google no está disponible en este navegador. Ábrelo en Safari o Chrome.');
-        return;
-      }
-      g.accounts.id.initialize({
-        client_id: CLIENT_ID,
-        callback: async (resp: any) => {
-          try { await googleLogin(resp.credential); onAuthed(); }
-          catch (e: any) { onError(e?.message ?? 'No se pudo iniciar con Google'); }
-        },
-      });
-      // Replace rather than append — renderButton adds a child each call.
-      googleRef.current.innerHTML = '';
-      const width = Math.min(googleRef.current.offsetWidth || 340, 400);
-      g.accounts.id.renderButton(googleRef.current, {
-        type: 'standard',
-        theme: resolved === 'dark' ? 'filled_black' : 'outline',
-        size: 'large',
-        text: 'continue_with', shape: 'pill', locale: 'es', width,
-      });
-      setReady(true);
-    };
-
-    // Already loaded (e.g. a theme flip): just re-render, don't refetch.
-    if ((window as any).google?.accounts?.id) { render(); return; }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.onerror = () => onError('No se pudo cargar Google. Revisa tu conexión o abre la página en Safari o Chrome.');
-    script.onload = render;
-    document.body.appendChild(script);
-    return () => { script.remove(); };
-  }, [onAuthed, onError, resolved]);
+    const url = new URL(AUTH_ENDPOINT);
+    url.searchParams.set('client_id', CLIENT_ID);
+    url.searchParams.set('response_type', 'id_token');
+    url.searchParams.set('scope', 'openid email profile');
+    url.searchParams.set('redirect_uri', `${window.location.origin}/auth/google`);
+    url.searchParams.set('state', state);
+    url.searchParams.set('nonce', nonce);
+    // Always let them pick the account — shared phones are the norm here.
+    url.searchParams.set('prompt', 'select_account');
+    window.location.href = url.toString();
+  }
 
   if (!CLIENT_ID) {
     return (
@@ -103,20 +96,31 @@ export default function SocialAuth({ onAuthed, onError }: {
           </p>
         </div>
       ) : (
-        <div className="mt-4 flex justify-center">
-          {/* Google renders its official button here, styled by its own cross-origin
-              stylesheet. Some browsers (iOS Safari especially) paint an opaque white
-              box around that markup, which on our dark card reads as a bug. We can't
-              reach inside their CSS, but the pill itself is a known 40px tall and as
-              wide as we ask for — so clip this box to exactly that silhouette and
-              anything painted outside the pill simply can't show. */}
-          <div className="relative h-10 w-full max-w-[340px] overflow-hidden rounded-full" style={{ colorScheme: resolved }}>
-            <div ref={googleRef} className="absolute inset-0 [&>div]:!w-full [&_iframe]:!mx-auto" />
-            {!ready && <div className="absolute inset-0 animate-pulse bg-surface-2" />}
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={start}
+          disabled={going}
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-border bg-surface-2 text-sm font-medium text-fg transition hover:border-border-strong hover:bg-surface-3 disabled:opacity-60"
+        >
+          <GoogleMark />
+          {going ? 'Abriendo Google…' : 'Continuar con Google'}
+        </button>
       )}
     </div>
+  );
+}
+
+// Google's mark, inlined. Their branding rules want the logo unaltered on a
+// button we may otherwise style, and inlining keeps it identical in both themes
+// with no network request.
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
   );
 }
 

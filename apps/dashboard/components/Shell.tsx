@@ -3,23 +3,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
+import { LayoutGroup, motion } from 'framer-motion';
 import {
   LayoutDashboard, MessageCircle, Users, ShoppingBag, Wallet, Megaphone,
   Smartphone, Settings, LogOut, Plus, MoreHorizontal, X, Sparkles, Bot, BookOpen, BarChart3,
-  Receipt, Coins, Boxes, Sun, Moon, Monitor, type LucideIcon,
+  Receipt, Coins, Boxes, type LucideIcon,
 } from 'lucide-react';
 import { api, clearToken, getToken, getStatus, getFlag, setFlag } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { cn } from '@/lib/cn';
 import { StatusDot } from '@/components/ui/primitives';
 import BusinessSwitcher from '@/components/BusinessSwitcher';
+import MobileMenuSheet from '@/components/MobileMenuSheet';
 import InstallPrompt from '@/components/InstallPrompt';
 import Tour from '@/components/onboarding/Tour';
 import { TOUR_STEPS } from '@/components/onboarding/steps';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { useTheme } from '@/components/ThemeProvider';
-import type { ThemePref } from '@/lib/theme';
 import { unsubscribeFromPush } from '@/lib/push';
 import { unregisterNativePush } from '@/lib/native';
 
@@ -57,19 +56,14 @@ const PRIMARY: NavItem[] = [
   { href: '/catalog', label: 'Catálogo', icon: ShoppingBag },
   { href: '/sales', label: 'Punto de venta', icon: Receipt },
 ];
-const OVERFLOW: NavItem[] = [
-  { href: '/inventory', label: 'Inventario', icon: Boxes },
-  { href: '/payments', label: 'Cobros', icon: Wallet },
-  { href: '/cashflow', label: 'Caja', icon: Coins },
-  { href: '/contacts', label: 'Contactos', icon: Users },
-  { href: '/analytics', label: 'Analítica', icon: BarChart3 },
-  { href: '/knowledge', label: 'Conocimiento', icon: BookOpen },
-  { href: '/agents', label: 'Agentes IA', icon: Bot },
-  { href: '/voice', label: 'ADN de voz', icon: Sparkles },
-  { href: '/broadcasts', label: 'Campañas', icon: Megaphone },
-  { href: '/connect', label: 'Conexión', icon: Smartphone },
-  { href: '/settings', label: 'Ajustes', icon: Settings },
-];
+// Everything not already in the bar, kept in the sidebar's own groups so the menu
+// and the desktop nav tell the same story. A flat grid of 13 identical cards gave
+// Inventario the same weight as Ajustes and read as a wall — the group headings
+// are what make it scannable.
+const OVERFLOW_GROUPS: { group: string; items: NavItem[] }[] = NAV
+  .map((g) => ({ group: g.group, items: g.items.filter((i) => !PRIMARY.some((p) => p.href === i.href)) }))
+  .filter((g) => g.items.length > 0);
+const OVERFLOW: NavItem[] = OVERFLOW_GROUPS.flatMap((g) => g.items);
 const WA_LABEL: Record<string, string> = { connected: 'Conectado', qr: 'Escanea QR', connecting: 'Conectando…', disconnected: 'Desconectado' };
 // data-tour anchors — shared by the desktop sidebar link and the mobile pill for
 // each destination, so the first-run tour highlights whichever is on screen.
@@ -85,12 +79,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [sheet, setSheet] = useState(false);
   const [overCap, setOverCap] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
-
-  const { pref: themePref, resolved: themeResolved, setPref: setThemePref } = useTheme();
-  const cycleTheme = () => {
-    const order: ThemePref[] = ['light', 'dark', 'system'];
-    setThemePref(order[(order.indexOf(themePref) + 1) % order.length]);
-  };
 
   const checkCap = () => getStatus()
     .then((s) => setOverCap(s.usage.aiMessagesLimit != null && s.usage.aiMessages >= s.usage.aiMessagesLimit))
@@ -261,71 +249,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </LayoutGroup>
 
-      {/* "Más" bottom sheet (mobile) */}
-      <AnimatePresence>
-        {sheet && (
-          <div className="fixed inset-0 z-50 lg:hidden">
-            <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm dark:bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(false)} />
-            <motion.div
-              className="liquid-glass absolute inset-x-0 bottom-0 rounded-t-3xl p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 340, damping: 34 }}
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 0 }}
-              dragElastic={{ top: 0, bottom: 0.6 }}
-              dragMomentum={false}
-              onDragEnd={(_, info) => { if (info.offset.y > 120 || info.velocity.y > 600) setSheet(false); }}>
-              <div className="mx-auto -mt-1 mb-3 flex h-6 w-full cursor-grab touch-none items-center justify-center active:cursor-grabbing">
-                <span className="h-1.5 w-10 rounded-full bg-border-strong" />
-              </div>
+      <MobileMenuSheet
+        open={sheet}
+        onClose={() => setSheet(false)}
+        groups={OVERFLOW_GROUPS}
+        activeHref={active?.href}
+        waStatus={waStatus}
+        onSignOut={signOut}
+      />
 
-              <div className="mb-3"><BusinessSwitcher /></div>
-
-              <Link href="/connect" className="flex items-center gap-2 rounded-xl border border-border bg-surface-2/60 px-3 py-2.5 text-sm transition hover:border-border-strong">
-                <StatusDot tone={waTone} pulse={waStatus === 'connected'} />
-                <span className="text-muted">WhatsApp</span>
-                <span className="ml-auto font-medium text-fg">{WA_LABEL[waStatus] ?? waStatus}</span>
-              </Link>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {OVERFLOW.map((item) => {
-                  const Icon = item.icon;
-                  const on = active?.href === item.href;
-                  return (
-                    <Link key={item.href} href={item.href}
-                      className={cn('flex items-center gap-3 rounded-2xl border p-3.5 text-sm font-medium transition',
-                        on ? 'border-brand/30 bg-brand/10 text-brand' : 'border-border bg-surface-2/50 text-fg hover:border-border-strong')}>
-                      <span className={cn('grid h-9 w-9 place-items-center rounded-xl', on ? 'bg-brand/15 text-brand' : 'bg-surface-3 text-subtle')}>
-                        <Icon size={18} />
-                      </span>
-                      {item.label}
-                    </Link>
-                  );
-                })}
-
-                {/* Cycling is right here — cramped grid, quick toggle, and the
-                    current state is printed in the label. The canonical 3-way
-                    control is one tap away in Ajustes → Apariencia. The sheet
-                    deliberately stays open so the change is visible. */}
-                <button onClick={cycleTheme}
-                  className="group flex items-center gap-3 rounded-2xl border border-border bg-surface-2/50 p-3.5 text-left text-sm font-medium text-fg transition hover:border-border-strong">
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-3 text-subtle transition group-hover:text-fg">
-                    {themePref === 'system' ? <Monitor size={18} /> : themeResolved === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
-                  </span>
-                  Tema · {themePref === 'system' ? 'Auto' : themeResolved === 'dark' ? 'Oscuro' : 'Claro'}
-                </button>
-
-                <button onClick={signOut}
-                  className="group flex items-center gap-3 rounded-2xl border border-border bg-surface-2/50 p-3.5 text-left text-sm font-medium text-fg transition hover:border-danger/30 hover:bg-danger/10 hover:text-danger">
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-3 text-subtle transition group-hover:bg-danger/15 group-hover:text-danger">
-                    <LogOut size={18} />
-                  </span>
-                  Cerrar sesión
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -12,9 +12,11 @@ import { useEffect, useState } from 'react';
 
 const rows: [string, () => string][] = [
   ['window.innerHeight', () => String(window.innerHeight)],
+  ['--app-h', () => document.documentElement.style.getPropertyValue('--app-h') || 'UNSET'],
   ['document height', () => String(document.documentElement.scrollHeight)],
   ['body height', () => String(Math.round(document.body.getBoundingClientRect().height))],
   ['screen.height', () => String(window.screen.height)],
+  ['screen − inner', () => String(window.screen.height - window.innerHeight)],
   ['visualViewport', () => (window.visualViewport ? `${Math.round(window.visualViewport.height)}` : 'n/a')],
   ['100dvh', () => measure('100dvh')],
   ['100svh', () => measure('100svh')],
@@ -61,6 +63,32 @@ export default function Diag() {
         el documento es más corto que la pantalla.
       </p>
       <div className="mt-3 h-1 w-full bg-red-500" />
+
+      <p className="mt-6 text-xs text-subtle">
+        El marco rosado es el borde exacto de la ventana web (position: fixed, inset: 0). Si el marco no
+        llega al borde de la pantalla, el problema no es el CSS: la vista web no ocupa todo el teléfono.
+      </p>
+      <ViewportFrame />
+    </div>
+  );
+}
+
+/**
+ * The decisive picture. This is `fixed inset-0` — the browser's own idea of the
+ * viewport, untouched by any of the app's sizing. Screenshot it: if the magenta
+ * frame stops above the home indicator, the web view itself is smaller than the
+ * screen and no stylesheet can reach those pixels; it has to be fixed in the
+ * native shell. If the frame runs to the edge of the phone, the viewport is
+ * fine and anything sitting short of it is ours to fix.
+ */
+function ViewportFrame() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[9998] border-2 border-fuchsia-500">
+      <span className="absolute left-1 top-1 bg-fuchsia-500 px-1 text-[10px] font-bold text-white">top: 0</span>
+      <span className="absolute bottom-1 left-1 bg-fuchsia-500 px-1 text-[10px] font-bold text-white">bottom: 0</span>
+      {/* Where the safe-area inset says the home indicator starts. If the frame
+          is right, this band sits exactly over it. */}
+      <div className="absolute inset-x-0 bottom-0 bg-fuchsia-500/30" style={{ height: 'env(safe-area-inset-bottom)' }} />
     </div>
   );
 }

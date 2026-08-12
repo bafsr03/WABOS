@@ -45,7 +45,6 @@ function fill(){
   if(prev)e.style.setProperty('--app-h',prev);
   return h;
 }
-function native(){try{return !!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());}catch(x){return false;}}
 function set(){
   var ih=window.innerHeight||0;
   if(!ih)return;
@@ -57,10 +56,11 @@ function set(){
   var cap=ih+160;
   var fa=fill();
   if(fa>h&&fa<cap)h=fa;
-  /* Only in the native shell, where the web view owns the whole screen, so
-     screen.height IS the window. In a browser it is the screen behind the
-     toolbars, which would hide the bar underneath them. */
-  if(native()&&window.screen&&screen.height>h&&screen.height<cap)h=screen.height;
+  /* screen.height is deliberately NOT a candidate. If the web view is smaller
+     than the screen, sizing the shell to the screen doesn't reclaim those
+     pixels — it just draws the nav bar into the strip the web view can't
+     paint, i.e. off the bottom. Whether the web view owns the whole screen is
+     a question for the native shell, not for CSS. */
   e.style.setProperty('--app-h',Math.round(h)+'px');
 }
 set();

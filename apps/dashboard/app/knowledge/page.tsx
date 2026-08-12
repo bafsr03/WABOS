@@ -184,7 +184,7 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
 
       {/* Collection filter bar */}
       <div className="-mx-1 mb-4 overflow-x-auto px-1 pb-1">
-        <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
+        <div className="flex w-max items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
           <button onClick={() => setFilter('all')} className={chip(filter === 'all')}>Todas</button>
           {collections.map((c) => (
             <span key={c.id} className={cn('group inline-flex items-center', filter === c.id && 'rounded-lg bg-surface shadow-[var(--shadow-card)]')}>

@@ -87,7 +87,7 @@ export default function SettingsPage() {
 
         {/* Segmented tabs */}
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
+          <div className="flex w-max items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
             {TABS.map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;

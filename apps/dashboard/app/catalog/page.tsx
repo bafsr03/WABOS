@@ -200,7 +200,7 @@ function ListView({ products, onNew, onOpen, onDelete, onChanged, toast }: {
 
       {/* Segmented tabs */}
       <div className="-mx-1 mb-4 overflow-x-auto px-1 pb-1">
-        <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
+        <div className="flex w-max items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
           {FILTERS.map((f) => {
             const active = filter === f.id;
             return (

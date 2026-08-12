@@ -213,13 +213,14 @@ export default function Shell({ children, fill = false }: { children: React.Reac
   );
 
   return (
-    // `relative` makes this box the containing block for the floating bar below.
-    // It is h-full of <body>, which globals.css pins to the real window height —
-    // so it is the same box on every route, which `position: fixed` turned out
-    // not to be: on the phone the bar measured a different height per page even
-    // though it is one element with one set of rules. Anchoring it to the shell
-    // instead of the viewport takes the WebView's opinion out of the layout.
-    <div className="relative flex h-full overflow-hidden bg-bg text-fg">
+    // Height comes straight from --app-h (window.innerHeight, see
+    // ViewportScript) rather than from `h-full`: a percentage against a body
+    // sized with -webkit-fill-available resolves to auto on iOS, which made this
+    // box as tall as the page's content and let the document scroll under a
+    // `fixed` bar. `relative` then makes it the containing block for that bar,
+    // so the bar is placed against a box the app measured itself instead of
+    // against whatever the web view currently calls the viewport.
+    <div data-shell className="relative flex h-[var(--app-h,100%)] overflow-hidden bg-bg text-fg">
       {/* Static sidebar (desktop) */}
       <aside className="relative hidden w-60 shrink-0 border-r border-border lg:block">{sidebar()}</aside>
 

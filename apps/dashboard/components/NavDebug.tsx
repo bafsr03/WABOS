@@ -32,11 +32,16 @@ export default function NavDebug() {
       const bar = document.querySelector('[data-nav-bar]');
       const r = bar?.getBoundingClientRect();
       const pill = bar?.querySelector('nav')?.getBoundingClientRect();
+      const shell = document.querySelector('[data-shell]')?.getBoundingClientRect();
       const cs = getComputedStyle(document.documentElement);
       const de = document.documentElement;
       const vv = window.visualViewport;
       setRows([
         ['route', pathname],
+        // The one that broke everything: if the shell box isn't the window, the
+        // bar can't be either. It must equal innerHeight on every route.
+        ['shell h (want innerH)', shell ? String(Math.round(shell.height)) : '—'],
+        ['--app-h', cs.getPropertyValue('--app-h').trim() || 'UNSET'],
         // The number that matters: how far the pill's bottom edge is from the
         // bottom of the window. If this differs between two pages, the bar is
         // being laid out against different viewports, not different CSS.

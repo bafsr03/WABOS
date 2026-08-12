@@ -8,6 +8,7 @@ import NativeBridge from '@/components/NativeBridge';
 import OrientationLock from '@/components/OrientationLock';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ThemeScript } from '@/components/ThemeScript';
+import { ViewportScript } from '@/components/ViewportScript';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -64,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={inter.variable} suppressHydrationWarning>
       <head>
         <ThemeScript />
+        <ViewportScript />
       </head>
       <body className="grain">
         <ThemeProvider>

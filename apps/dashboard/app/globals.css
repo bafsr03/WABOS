@@ -179,16 +179,24 @@ html, body {
   /* The app's full-height shells size against this instead of 100dvh. In the
      installed iOS app dvh resolves short of the real window, which left an
      unpainted black band under the content on every screen; a percentage of the
-     document always matches the window exactly. */
-  height: 100%;
+     document always matches the window exactly.
+
+     --app-h is window.innerHeight, published by ViewportScript before the first
+     paint — the only source here that is both correct on iOS *and* a definite
+     length, which is what `height: 100%` on the shell needs to resolve against.
+     The fallbacks below are what the page used before and still apply if the
+     script somehow doesn't run. */
+  height: var(--app-h, 100%);
 }
-/* …except on iOS, where the layout viewport a standalone web app gets is the
-   *safe* area while the window itself is taller, so 100% still stops short and
-   leaves that band. -webkit-fill-available is the one length that resolves to
-   the real window there. Guarded to iOS (only WebKit has -webkit-touch-callout)
-   so no other browser sees it. */
+/* …the no-JS fallback on iOS, where the layout viewport a standalone web app
+   gets is the *safe* area while the window itself is taller, so 100% stops
+   short and leaves that band. -webkit-fill-available resolves to the real
+   window there — it just doesn't resolve to a *definite* height, so a
+   percentage-height child of body silently becomes auto. That is exactly the
+   bug --app-h exists to close; this line only covers the case where --app-h is
+   unset. Guarded to iOS (only WebKit has -webkit-touch-callout). */
 @supports (-webkit-touch-callout: none) {
-  html, body { height: -webkit-fill-available; }
+  html, body { height: var(--app-h, -webkit-fill-available); }
 }
 body {
   background: var(--bg);

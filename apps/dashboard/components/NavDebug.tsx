@@ -41,7 +41,9 @@ export default function NavDebug() {
         // The one that broke everything: if the shell box isn't the window, the
         // bar can't be either. It must equal innerHeight on every route.
         ['shell h (want innerH)', shell ? String(Math.round(shell.height)) : '—'],
-        ['--app-h', cs.getPropertyValue('--app-h').trim() || 'UNSET'],
+        ['--app-h', de.style.getPropertyValue('--app-h') || 'UNSET'],
+        ['fill-available', fillAvailable()],
+        ['screen.height', String(window.screen?.height ?? '—')],
         // The number that matters: how far the pill's bottom edge is from the
         // bottom of the window. If this differs between two pages, the bar is
         // being laid out against different viewports, not different CSS.
@@ -90,6 +92,22 @@ export default function NavDebug() {
       ))}
     </div>
   );
+}
+
+// The same measurement ViewportScript makes, so the panel shows what it saw:
+// an in-flow child of <body>, with --app-h cleared so it can't just read back
+// its own last answer.
+function fillAvailable(): string {
+  const e = document.documentElement;
+  const prev = e.style.getPropertyValue('--app-h');
+  if (prev) e.style.removeProperty('--app-h');
+  const d = document.createElement('div');
+  d.style.cssText = 'position:static;width:0;height:-webkit-fill-available;visibility:hidden;pointer-events:none';
+  document.body.appendChild(d);
+  const h = d.getBoundingClientRect().height;
+  d.remove();
+  if (prev) e.style.setProperty('--app-h', prev);
+  return String(Math.round(h));
 }
 
 function probe(value: string): string {

@@ -31,7 +31,10 @@ export function Toaster({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[10000] flex w-[min(92vw,360px)] flex-col gap-2">
+      {/* Content bleeds under the iOS status bar (see layout.tsx), so a toast
+          pinned at top-4 would land on the clock. */}
+      <div className="pointer-events-none fixed right-4 z-[10000] flex w-[min(92vw,360px)] flex-col gap-2"
+        style={{ top: 'calc(env(safe-area-inset-top) + 1rem)' }}>
         <AnimatePresence>
           {items.map((t) => {
             const Icon = ICON[t.kind];

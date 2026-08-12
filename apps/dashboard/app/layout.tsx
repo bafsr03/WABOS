@@ -23,10 +23,15 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: 'WABOS',
-    // 'default' = dark, legible clock over the light frosted header. Content still
-    // bleeds under the status bar (viewport-fit: cover), and the header pads itself
-    // with env(safe-area-inset-top) so the title clears the clock. See Shell.tsx.
-    statusBarStyle: 'default',
+    // 'black-translucent' is the only value that lets the web view own the whole
+    // screen. With 'default' iOS letterboxes an installed web app between black
+    // bars top and bottom and reports env(safe-area-inset-*) as 0 — which is
+    // where the dead strip under every page came from, and why the floating nav
+    // bar sat high (it was hugging the bottom of the box, not of the phone).
+    // Content now bleeds under the status bar and the home indicator, so Shell
+    // pads itself with env(safe-area-inset-top) and the nav bar with
+    // env(safe-area-inset-bottom). See Shell.tsx.
+    statusBarStyle: 'black-translucent',
   },
   icons: {
     icon: '/icons/192.png',

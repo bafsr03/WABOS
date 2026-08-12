@@ -229,7 +229,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       {/* Floating bottom bar (mobile) — Whop-style grouped pills. LayoutGroup lets the
           single navHighlight glide across both pills (primary tabs ↔ "Más" button). */}
       <LayoutGroup>
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[max(0.85rem,env(safe-area-inset-bottom))] lg:hidden">
+        {/* The full safe-area inset (34px on a notched iPhone) is more clearance
+            than the home indicator needs and leaves the bar visibly floating; a
+            few pixels back sits it where a native tab bar does. */}
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[max(0.85rem,calc(env(safe-area-inset-bottom)-0.5rem))] lg:hidden">
           <nav className={barPill}>
             {PRIMARY.map((item) => (
               <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} data-tour={TOUR_ANCHOR[item.href]} className={tabCls(active?.href === item.href)}>

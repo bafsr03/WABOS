@@ -132,6 +132,33 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Floating mobile nav bar — one source of truth for its geometry.
+
+   Every page has to keep the same room free at the bottom, otherwise the bar
+   looks like it sits at a different height from screen to screen. Anything that
+   needs to clear it (page scrollers, chat composers, the POS cart bar, the
+   install prompt) must use these vars instead of its own hand-picked number.
+
+     --nav-inset      how far the bar floats above the screen bottom. The full
+                      safe-area inset (34px on a notched iPhone) is more than the
+                      home indicator needs, so we sit a few pixels back into it.
+     --nav-h          the pills themselves: h-11 icon + p-1.5 = 3.5rem.
+     --nav-clearance  what a page must reserve at its bottom. Floored at 7rem so
+                      the breathing room above the bar stays the same on phones
+                      with and without a home indicator.
+
+   All three collapse to 0 at lg, where the sidebar replaces the bar entirely.
+--------------------------------------------------------------------------- */
+:root {
+  --nav-inset: max(0.85rem, calc(env(safe-area-inset-bottom) - 0.5rem));
+  --nav-h: 3.5rem;
+  --nav-clearance: max(7rem, calc(var(--nav-h) + var(--nav-inset) + 1rem));
+}
+@media (min-width: 64rem) {
+  :root { --nav-inset: 0px; --nav-h: 0px; --nav-clearance: 0px; }
+}
+
+/* ---------------------------------------------------------------------------
    Base
 --------------------------------------------------------------------------- */
 * { border-color: var(--border); }
@@ -263,6 +290,22 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 .dark .aurora::before {
   background: radial-gradient(38% 55% at 20% 0%, color-mix(in oklab, var(--brand) 15%, transparent), transparent 70%);
   opacity: .85;
+}
+
+/* PageBody is a full-height column so a short page still covers the screen; this
+   hands the leftover room to the block the page ends with.
+   Deliberately one level only. Pushing it into the block's own children — to
+   stretch the card inside a wrapper div — turns a list of one agent into a lone
+   row floating in the middle of a tall card. Real content keeps its natural
+   size; what fills the screen is the empty state (see EmptyState `tall`) and,
+   under it, the background. Opt out with `grow-0` on the last child. Phones
+   only: a settings card pulled to 900px on a desktop is worse than the gap. */
+@media (max-width: 1023.98px) {
+  /* Also usable on its own, one level in, where the page's last block is a bare
+     wrapper — Ajustes puts it on each tab panel so the tab's own last card is
+     what reaches the bottom, instead of an invisible div growing behind it. */
+  .page-fill { display: flex; flex-direction: column; }
+  .page-fill > :last-child:not(.grow-0) { flex-grow: 1; }
 }
 
 /* Grain overlay retained but off by default (--grain-opacity: 0). */

@@ -7,7 +7,7 @@ import { Search, Plus, Minus, Trash2, X, Check, ShoppingCart, Lock, Tag } from '
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, Input, Button, Badge, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Input, Button, Badge, EmptyState } from '@/components/ui/primitives';
 import { Modal, useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -110,8 +110,8 @@ export default function SalesPage() {
 
   return (
     <Shell>
-      {/* Room for the mobile cart bar so the last row is never trapped under it. */}
-      <div className="mx-auto max-w-6xl p-6 pb-32 lg:p-8 lg:pb-8">
+      {/* Extra room for the mobile cart bar, which sits above the nav bar. */}
+      <PageBody className="max-w-6xl p-6 pb-16 lg:p-8 lg:pb-8">
         <PageHeader title="Punto de venta" subtitle="Registra tus ventas del día por efectivo, Yape, Plin o tarjeta." />
 
         {session && !session.session && (
@@ -180,7 +180,7 @@ export default function SalesPage() {
             </Card>
           )}
         </div>
-      </div>
+      </PageBody>
 
       <MobileCartBar count={cartCount} total={cartTotal} onOpen={() => setSheetOpen(true)} />
       <CartSheet open={sheetOpen} onClose={() => setSheetOpen(false)}>
@@ -235,8 +235,8 @@ function MobileCartBar({ count, total, onOpen }: { count: number; total: number;
         <motion.div
           initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-          // Sits just above the floating nav pill (h-11 + p-1.5 = 3.5rem tall).
-          className="fixed inset-x-0 bottom-[calc(4rem+max(0.85rem,env(safe-area-inset-bottom)))] z-30 px-3 lg:hidden"
+          // Sits just above the floating nav pill — see --nav-* in globals.css.
+          className="fixed inset-x-0 bottom-[calc(var(--nav-h)+var(--nav-inset)+0.5rem)] z-30 px-3 lg:hidden"
         >
           <button
             onClick={onOpen}

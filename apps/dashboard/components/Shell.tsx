@@ -16,6 +16,7 @@ import { StatusDot } from '@/components/ui/primitives';
 import BusinessSwitcher from '@/components/BusinessSwitcher';
 import MobileMenuSheet from '@/components/MobileMenuSheet';
 import InstallPrompt from '@/components/InstallPrompt';
+import NavDebug from '@/components/NavDebug';
 import Tour from '@/components/onboarding/Tour';
 import { TOUR_STEPS } from '@/components/onboarding/steps';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -71,7 +72,14 @@ const TOUR_ANCHOR: Record<string, string> = {
   '/connect': 'connect', '/catalog': 'catalog', '/sales': 'sales', '/cashflow': 'cashflow', '/inbox': 'inbox',
 };
 
-export default function Shell({ children }: { children: React.ReactNode }) {
+/**
+ * `fill` — for pages that lay themselves out to the full height instead of
+ * scrolling (the inbox thread, with its pinned composer). They keep the bottom
+ * bar clear themselves, on the element that actually ends at the screen bottom,
+ * so they must not also inherit <main>'s clearance — counting it twice is what
+ * pushed the whole page up and made the bar look higher there than elsewhere.
+ */
+export default function Shell({ children, fill = false }: { children: React.ReactNode; fill?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -219,20 +227,26 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             Alcanzaste el límite de mensajes de IA de tu plan — la IA dejó de responder. Actualiza para reactivarla.
           </Link>
         )}
-        <main className="aurora min-h-0 flex-1 overflow-y-auto overscroll-contain pb-28 lg:pb-0">{children}</main>
+        {/* Deliberately NOT a flex container: a scroller with display:flex drops
+            its own padding-bottom from the scrollable area (measured: 2226px vs
+            2362px on the same page), which would let the floating bar cover the
+            last card. PageBody fills the height with min-h-full, which needs no
+            flex parent, and this padding is what keeps "full" clear of the bar. */}
+        <main className={cn('aurora min-h-0 flex-1 overflow-y-auto overscroll-contain', !fill && 'pb-[var(--nav-clearance)]')}>{children}</main>
       </div>
 
       <InstallPrompt />
+
+      <NavDebug />
 
       <Tour steps={TOUR_STEPS} open={tourOpen} onClose={endTour} onFinish={endTour} />
 
       {/* Floating bottom bar (mobile) — Whop-style grouped pills. LayoutGroup lets the
           single navHighlight glide across both pills (primary tabs ↔ "Más" button). */}
       <LayoutGroup>
-        {/* The full safe-area inset (34px on a notched iPhone) is more clearance
-            than the home indicator needs and leaves the bar visibly floating; a
-            few pixels back sits it where a native tab bar does. */}
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[max(0.85rem,calc(env(safe-area-inset-bottom)-0.5rem))] lg:hidden">
+        {/* Geometry lives in --nav-* (globals.css) so every page that has to
+            clear this bar measures it the same way. */}
+        <div data-nav-bar className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[var(--nav-inset)] lg:hidden">
           <nav className={barPill}>
             {PRIMARY.map((item) => (
               <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} data-tour={TOUR_ANCHOR[item.href]} className={tabCls(active?.href === item.href)}>

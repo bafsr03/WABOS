@@ -118,14 +118,14 @@ export default function InboxPage() {
   }
 
   return (
-    <Shell>
+    <Shell fill>
       <div className="flex h-full">
         {/* conversation list */}
         <div className={cn('w-full shrink-0 flex-col border-r border-border bg-surface/50 lg:flex lg:w-80', selected ? 'hidden' : 'flex')}>
           <div className="border-b border-border px-4 py-3.5">
             <h1 className="font-display text-2xl font-semibold text-fg">Conversaciones</h1>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pb-[var(--nav-clearance)]">
             {conversations.length === 0 && (
               <div className="p-4"><EmptyState icon={<MessageCircle size={22} />} title="Sin conversaciones" desc="Cuando alguien escriba a tu WhatsApp aparecerá aquí." tall /></div>
             )}
@@ -218,7 +218,7 @@ export default function InboxPage() {
                 <div ref={bottomRef} />
               </div>
 
-              <form onSubmit={send} className="glass flex items-center gap-2 border-t border-border p-3">
+              <form onSubmit={send} className="glass flex items-center gap-2 border-t border-border p-3 pb-[max(0.75rem,var(--nav-clearance))]">
                 <input value={draft} onChange={(e) => setDraft(e.target.value)}
                   placeholder={isTest ? 'Escribe como cliente para probar al agente…' : 'Escribe una respuesta… (pasa la conversación a modo humano)'}
                   className="flex-1 rounded-full border border-border bg-surface-2 px-4 py-2.5 text-sm text-fg placeholder:text-subtle focus:border-brand/50 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]" />

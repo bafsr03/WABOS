@@ -6,7 +6,7 @@ import { Wallet, Clock, ShieldCheck, MessageCircle, ArrowUpRight, Plus, QrCode }
 import Shell from '@/components/Shell';
 import { api, getToken } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
-import { StatCard, Card, SectionCard, Badge, Avatar, EmptyState, Button } from '@/components/ui/primitives';
+import { StatCard, PageBody, Card, SectionCard, Badge, Avatar, EmptyState, Button } from '@/components/ui/primitives';
 import { Sparkline, MiniBars } from '@/components/ui/Sparkline';
 import GettingStarted from '@/components/onboarding/GettingStarted';
 import LoginForm from '@/components/auth/LoginForm';
@@ -79,7 +79,7 @@ export default function Home() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-6xl space-y-6 p-6 lg:p-8">
+      <PageBody className="max-w-6xl space-y-6 p-6 lg:p-8">
         <div className="fade-up">
           <p className="text-sm text-muted">Buen día{businessName ? ',' : ''} <span className="font-medium text-fg">{businessName || 'bienvenido'}</span> 👋</p>
           <h1 className="mt-1 font-display text-3xl font-semibold text-gradient">Resumen del negocio</h1>
@@ -176,7 +176,7 @@ export default function Home() {
             )}
           </SectionCard>
         </div>
-      </div>
+      </PageBody>
     </Shell>
   );
 }

@@ -7,7 +7,7 @@ import { Bot, Sparkles, Wallet, ShieldCheck, HelpCircle, Trash2, AlertTriangle, 
 import Shell from '@/components/Shell';
 import { api, deleteAccount, getStatus, startCheckout, openBillingPortal, changePlan, cancelSubscription, resumeSubscription, syncBilling, changePassword, getToken, getBusinessId, ENGINE_URL, type Status, type CheckoutTier, type BillingInterval } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, SectionCard, Input, Textarea, Select, Switch, Button, Field, Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/Modal';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -79,7 +79,7 @@ export default function SettingsPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-3xl space-y-5 p-6 lg:p-8">
+      <PageBody className="max-w-3xl space-y-5 p-6 lg:p-8">
         <PageHeader title="Ajustes" subtitle="Perfil del negocio y configuración del Empleado IA."
           actions={
             <Link href="/?tour=1"><Button variant="secondary" size="sm"><Sparkles size={15} /> Ver tutorial</Button></Link>
@@ -110,7 +110,7 @@ export default function SettingsPage() {
 
         {/* ── Empleado IA ── */}
         {tab === 'ia' && (
-        <div className="space-y-5 fade-up">
+        <div className="page-fill space-y-5 fade-up">
         {/* AI employee */}
         <Card className="flex items-center justify-between p-5">
           <div className="flex items-start gap-3">
@@ -156,7 +156,7 @@ export default function SettingsPage() {
 
         {/* ── Perfil del negocio ── */}
         {tab === 'perfil' && (
-        <div className="space-y-5 fade-up">
+        <div className="page-fill space-y-5 fade-up">
         {/* Business profile */}
         <form onSubmit={save}>
           <SectionCard title="Perfil del negocio">
@@ -180,14 +180,14 @@ export default function SettingsPage() {
         )}
 
         {/* ── Apariencia ── */}
-        {tab === 'apariencia' && <div className="fade-up"><AppearanceTab /></div>}
+        {tab === 'apariencia' && <div className="page-fill fade-up"><AppearanceTab /></div>}
 
         {/* ── Plan / facturación ── */}
-        {tab === 'plan' && <div className="fade-up"><PlanTab toast={toast} /></div>}
+        {tab === 'plan' && <div className="page-fill fade-up"><PlanTab toast={toast} /></div>}
 
         {/* ── Pagos ── */}
         {tab === 'pagos' && (
-        <div className="space-y-5 fade-up">
+        <div className="page-fill space-y-5 fade-up">
         {/* Payments identity */}
         <form onSubmit={save}>
           <SectionCard title="Pagos (Yape / Plin)" desc="WABOS compara los comprobantes de tus clientes contra estos datos.">
@@ -303,12 +303,12 @@ export default function SettingsPage() {
 
         {/* ── Caja y reportes ── */}
         {tab === 'caja' && (
-          <div className="fade-up"><CajaTab settings={settings} saveOne={saveOne} toast={toast} /></div>
+          <div className="page-fill fade-up"><CajaTab settings={settings} saveOne={saveOne} toast={toast} /></div>
         )}
 
         {/* ── Ayuda (WABOS FAQs) ── */}
         {tab === 'faqs' && (
-        <div className="space-y-5 fade-up">
+        <div className="page-fill space-y-5 fade-up">
         <SectionCard title="Ayuda de WABOS" desc="Cómo usar WABOS. ¿Buscas las preguntas frecuentes de TU tienda? Están en Conocimiento."
           actions={<HelpCircle size={16} className="text-subtle" />}>
           <div className="space-y-2">
@@ -329,7 +329,7 @@ export default function SettingsPage() {
         </SectionCard>
         </div>
         )}
-      </div>
+      </PageBody>
     </Shell>
   );
 }

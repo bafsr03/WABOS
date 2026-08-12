@@ -6,7 +6,7 @@ import Shell from '@/components/Shell';
 import { api, fetchMediaUrl } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, SectionCard, Select, Input, Button, Badge, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, SectionCard, Select, Input, Button, Badge, EmptyState } from '@/components/ui/primitives';
 import { Modal, useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -115,7 +115,7 @@ export default function PaymentsPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-4xl p-6 lg:p-8">
+      <PageBody className="max-w-4xl p-6 lg:p-8">
         <PageHeader title="Cobros" subtitle="Crea cobros y WABOS valida los comprobantes Yape/Plin."
           actions={<Button onClick={() => setShowForm(true)}><Plus size={15} /> Nuevo cobro</Button>} />
 
@@ -223,7 +223,7 @@ export default function PaymentsPage() {
             </Card>
           )}
         </div>
-      </div>
+      </PageBody>
 
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Nuevo cobro">
         <form onSubmit={createCharge} className="space-y-3">

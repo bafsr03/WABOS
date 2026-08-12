@@ -183,6 +183,27 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   );
 }
 
+/* ---------------- PageBody ---------------- */
+/**
+ * The standard page container: centered, capped, padded — and, unlike the bare
+ * div every page used to write by hand, *tall*. A page whose content ran short
+ * simply stopped, leaving the bottom of the phone blank, which read as a
+ * rendering fault rather than as an empty page.
+ *
+ * min-h-full resolves against <main> in Shell, whose own bottom padding keeps
+ * the floating nav bar out of the way — so "full" already means "as tall as the
+ * part of the screen the bar doesn't cover", which is where a page should stop.
+ *
+ * The last block on the page absorbs the slack (see `.page-fill` in globals.css)
+ * — that's the list or card the page ends with, which is exactly the thing that
+ * should reach the bottom. A page that shouldn't stretch puts `grow-0` on its
+ * last child. Phones only: on a desktop a settings card pulled to 900px tall
+ * would be worse than the gap it fixes.
+ */
+export function PageBody({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn('page-fill mx-auto flex min-h-full w-full flex-col', className)}>{children}</div>;
+}
+
 /* ---------------- EmptyState ---------------- */
 /**
  * `tall` is for the case where the empty state *is* the page — an account with
@@ -194,7 +215,10 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 export function EmptyState({ icon, title, desc, action, tall }: { icon?: React.ReactNode; title: string; desc?: string; action?: React.ReactNode; tall?: boolean }) {
   return (
     <div className={cn('flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-6 py-14 text-center',
-      tall && 'min-h-[min(52vh,26rem)]')}>
+      // Just a floor. The real filling is done by PageBody handing this block
+      // the leftover height; a taller minimum only forced pages to scroll by a
+      // few dozen pixels for nothing.
+      tall && 'min-h-56')}>
       {icon && <div className="text-subtle">{icon}</div>}
       <div>
         <p className="font-medium text-fg">{title}</p>

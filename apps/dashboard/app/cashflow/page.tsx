@@ -5,7 +5,7 @@ import { Coins, ArrowDownCircle, ArrowUpCircle, Plus } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, Input, Button, Field, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Input, Button, Field, EmptyState } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import CashSessionCard, { type CashSession } from '@/components/cash/CashSessionCard';
 
@@ -56,7 +56,7 @@ export default function CashflowPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-3xl p-6 lg:p-8">
+      <PageBody className="max-w-3xl p-6 lg:p-8">
         <PageHeader
           title="Caja"
           subtitle="Inicio del día, movimientos y cierre con conteo."
@@ -136,7 +136,7 @@ export default function CashflowPage() {
             </Card>
           )}
         </div>
-      </div>
+      </PageBody>
     </Shell>
   );
 }

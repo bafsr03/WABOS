@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import Shell from '@/components/Shell';
 import { api, startAgentTest } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Input, Textarea, Field, Button, Badge, EmptyState } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -99,7 +99,7 @@ function ListView({ agents, testing, onNew, onOpen, onDelete, onTest }: {
   onTest: (a: Agent) => void;
 }) {
   return (
-    <div className="mx-auto max-w-4xl p-6 lg:p-8">
+    <PageBody className="max-w-4xl p-6 lg:p-8">
       <PageHeader
         title="Agentes IA"
         subtitle="Crea agentes con tareas dedicadas (Ventas, Soporte, Envíos). Se derivan las conversaciones entre sí según lo que necesita el cliente."
@@ -158,7 +158,7 @@ function ListView({ agents, testing, onNew, onOpen, onDelete, onTest }: {
           ))}
         </Card>
       )}
-    </div>
+    </PageBody>
   );
 }
 

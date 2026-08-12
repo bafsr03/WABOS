@@ -7,7 +7,7 @@ import {
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, Button, Badge, EmptyState, StatCard } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Button, Badge, EmptyState, StatCard } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import EntryEditor, { type PickableProduct } from '@/components/inventory/EntryEditor';
@@ -68,7 +68,7 @@ export default function InventoryPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-5xl p-6 lg:p-8">
+      <PageBody className="max-w-5xl p-6 lg:p-8">
         <PageHeader title="Inventario" subtitle="Lo que tienes, lo que entró y quién lo movió." />
 
         <div className="mb-6 inline-flex items-center gap-1 rounded-xl border border-border bg-surface-2 p-1">
@@ -97,7 +97,7 @@ export default function InventoryPage() {
         )}
 
         <StockAdjustSheet product={adjusting} onClose={() => setAdjusting(null)} onSaved={load} />
-      </div>
+      </PageBody>
     </Shell>
   );
 }

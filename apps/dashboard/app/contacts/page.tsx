@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, Plus, Trash2, StickyNote, Tag as TagIcon, Users, MoreHorizontal, MessageCircle, Download } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
-import { PageHeader, Card, Input, Button, Avatar, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Input, Button, Avatar, EmptyState } from '@/components/ui/primitives';
 import { Modal, useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -86,7 +86,7 @@ export default function ContactsPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-4xl p-6 lg:p-8">
+      <PageBody className="max-w-4xl p-6 lg:p-8">
         <PageHeader title="Contactos" subtitle="Tu CRM: clientes, etiquetas y notas." />
 
         <Card className="p-4">
@@ -141,7 +141,7 @@ export default function ContactsPage() {
             </div>
           ))}
         </Card>
-      </div>
+      </PageBody>
 
       <Modal open={!!actionsFor} onClose={() => setActionsFor(null)} title={actionsFor?.name || (actionsFor ? `+${actionsFor.phone}` : '')}>
         <div className="space-y-2">

@@ -6,7 +6,7 @@ import { Wallet, Bot, Clock, TrendingUp, Search, PhoneOutgoing, BarChart3, Recei
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, SectionCard, StatCard, Select, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, SectionCard, StatCard, Select, EmptyState } from '@/components/ui/primitives';
 import { Sparkline } from '@/components/ui/Sparkline';
 
 // Money and the Empleado IA are two different questions, so they get two
@@ -88,7 +88,7 @@ export default function AnalyticsPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-5xl p-6 lg:p-8">
+      <PageBody className="max-w-5xl p-6 lg:p-8">
         <PageHeader
           title="Analítica"
           subtitle="Tu dinero primero; la actividad del Empleado IA, aparte."
@@ -264,7 +264,7 @@ export default function AnalyticsPage() {
             </div>
           </>
         )}
-      </div>
+      </PageBody>
     </Shell>
   );
 }

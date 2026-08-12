@@ -5,7 +5,7 @@ import { Plus, Trash2, BookOpen, Check, ChevronRight, Star, Pin, Sparkles, HelpC
 import Shell from '@/components/Shell';
 import { api, getFlag, setFlag } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Select, Switch } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Input, Textarea, Field, Button, Badge, EmptyState, Select, Switch } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -149,7 +149,7 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
   );
 
   return (
-    <div className="mx-auto max-w-4xl p-6 lg:p-8">
+    <PageBody className="max-w-4xl p-6 lg:p-8">
       <PageHeader
         title="Conocimiento"
         subtitle="Políticas de envío, guías e info de marca que el Empleado IA consulta para responder."
@@ -282,7 +282,7 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
           )}
         </Card>
       </div>
-    </div>
+    </PageBody>
   );
 }
 

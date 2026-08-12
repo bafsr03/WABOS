@@ -6,7 +6,7 @@ import { CheckCircle2, AlertTriangle, Smartphone, History, DownloadCloud, Square
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
-import { PageHeader, Card, Button, Spinner, Badge } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Button, Spinner, Badge } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -105,7 +105,7 @@ export default function ConnectPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-2xl p-6 lg:p-8">
+      <PageBody className="max-w-2xl p-6 lg:p-8">
         <PageHeader title="Conexión de WhatsApp" subtitle="Vincula el número de tu negocio para que WABOS trabaje por ti." />
 
         <Card className="relative overflow-hidden p-8 text-center">
@@ -209,7 +209,7 @@ export default function ConnectPage() {
             )}
           </Card>
         )}
-      </div>
+      </PageBody>
     </Shell>
   );
 }

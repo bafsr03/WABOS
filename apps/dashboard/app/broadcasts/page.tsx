@@ -6,7 +6,7 @@ import { Megaphone, Send, Users } from 'lucide-react';
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
-import { PageHeader, Card, Input, Textarea, Select, Button, Badge, EmptyState } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Input, Textarea, Select, Button, Badge, EmptyState } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -59,7 +59,7 @@ export default function BroadcastsPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-4xl p-6 lg:p-8">
+      <PageBody className="max-w-4xl p-6 lg:p-8">
         <PageHeader title="Campañas" subtitle="Envía mensajes a segmentos de clientes. WABOS espacia los envíos para proteger tu número." />
 
         <Card className="space-y-3 p-5">
@@ -109,7 +109,7 @@ export default function BroadcastsPage() {
             );
           })}
         </div>
-      </div>
+      </PageBody>
     </Shell>
   );
 }

@@ -6,7 +6,7 @@ import { Sparkles, Wand2, MessageSquareQuote, Tag, Check, Lock } from 'lucide-re
 import Shell from '@/components/Shell';
 import { api } from '@/lib/api';
 import { connectWs } from '@/lib/ws';
-import { PageHeader, Card, SectionCard, Button, Badge, Spinner, EmptyState, Select } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, SectionCard, Button, Badge, Spinner, EmptyState, Select } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 
 interface AgentLite { id: number; name: string; is_default: number; enabled: number }
@@ -96,7 +96,7 @@ export default function VoicePage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-4xl p-6 lg:p-8">
+      <PageBody className="max-w-4xl p-6 lg:p-8">
         <PageHeader
           title="ADN de voz"
           subtitle="La IA lee tu historial de WhatsApp para aprender cómo escribe tu negocio y etiquetar a tus contactos."
@@ -201,7 +201,7 @@ export default function VoicePage() {
             )}
           </div>
         )}
-      </div>
+      </PageBody>
     </Shell>
   );
 }

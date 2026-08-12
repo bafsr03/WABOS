@@ -9,7 +9,7 @@ import Link from 'next/link';
 import Shell from '@/components/Shell';
 import { api, apiDownload, importProductsCsv, uploadProductImage } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { PageHeader, Card, Input, Textarea, Field, Button, Badge, EmptyState, Switch } from '@/components/ui/primitives';
+import { PageHeader, PageBody, Card, Input, Textarea, Field, Button, Badge, EmptyState, Switch } from '@/components/ui/primitives';
 import { useConfirm } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import StockAdjustSheet, { type AdjustTarget } from '@/components/inventory/StockAdjustSheet';
@@ -158,7 +158,7 @@ function ListView({ products, onNew, onOpen, onDelete, onChanged, toast }: {
   const cycleSort = () => setSort((s) => SORTS[(SORTS.findIndex((x) => x.id === s) + 1) % SORTS.length].id);
 
   return (
-    <div className="mx-auto max-w-4xl p-6 lg:p-8">
+    <PageBody className="max-w-4xl p-6 lg:p-8">
       <PageHeader
         title="Catálogo"
         subtitle="El Empleado IA usa este catálogo para responder y recomendar."
@@ -289,7 +289,7 @@ function ListView({ products, onNew, onOpen, onDelete, onChanged, toast }: {
           ))}
         </Card>
       )}
-    </div>
+    </PageBody>
   );
 }
 

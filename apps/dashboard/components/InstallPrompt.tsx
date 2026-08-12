@@ -66,8 +66,9 @@ export default function InstallPrompt() {
   }
 
   return (
-    // Sits above the floating nav bar, which itself clears the home indicator.
-    <div className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4 lg:hidden"
+    // Sits above the floating nav bar, and like the bar is absolute against the
+    // shell rather than fixed to the viewport, so the two never drift apart.
+    <div className="pointer-events-none absolute inset-x-0 z-40 flex justify-center px-4 lg:hidden"
       style={{ bottom: 'calc(var(--nav-h) + var(--nav-inset) + 0.75rem)' }}>
       <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-border bg-surface/95 p-3.5 shadow-[0_10px_34px_-10px_rgba(11,11,15,0.4)] backdrop-blur-xl">
         <button onClick={close} aria-label="Cerrar" className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-lg text-subtle hover:bg-surface-2 hover:text-fg">

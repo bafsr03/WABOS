@@ -213,7 +213,13 @@ export default function Shell({ children, fill = false }: { children: React.Reac
   );
 
   return (
-    <div className="flex h-full overflow-hidden bg-bg text-fg">
+    // `relative` makes this box the containing block for the floating bar below.
+    // It is h-full of <body>, which globals.css pins to the real window height —
+    // so it is the same box on every route, which `position: fixed` turned out
+    // not to be: on the phone the bar measured a different height per page even
+    // though it is one element with one set of rules. Anchoring it to the shell
+    // instead of the viewport takes the WebView's opinion out of the layout.
+    <div className="relative flex h-full overflow-hidden bg-bg text-fg">
       {/* Static sidebar (desktop) */}
       <aside className="relative hidden w-60 shrink-0 border-r border-border lg:block">{sidebar()}</aside>
 
@@ -244,9 +250,10 @@ export default function Shell({ children, fill = false }: { children: React.Reac
       {/* Floating bottom bar (mobile) — Whop-style grouped pills. LayoutGroup lets the
           single navHighlight glide across both pills (primary tabs ↔ "Más" button). */}
       <LayoutGroup>
-        {/* Geometry lives in --nav-* (globals.css) so every page that has to
-            clear this bar measures it the same way. */}
-        <div data-nav-bar className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[var(--nav-inset)] lg:hidden">
+        {/* absolute, not fixed — see the shell root. Geometry lives in --nav-*
+            (globals.css) so everything that has to clear this bar measures it
+            the same way. */}
+        <div data-nav-bar className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex items-center justify-center gap-2 px-3 pb-[var(--nav-inset)] lg:hidden">
           <nav className={barPill}>
             {PRIMARY.map((item) => (
               <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} data-tour={TOUR_ANCHOR[item.href]} className={tabCls(active?.href === item.href)}>

@@ -125,32 +125,43 @@ export default function InboxPage() {
           <div className="border-b border-border px-4 py-3.5">
             <h1 className="font-display text-2xl font-semibold text-fg">Conversaciones</h1>
           </div>
-          <div className="flex-1 overflow-y-auto pb-[var(--nav-clearance)]">
-            {conversations.length === 0 && (
-              <div className="p-4"><EmptyState icon={<MessageCircle size={22} />} title="Sin conversaciones" desc="Cuando alguien escriba a tu WhatsApp aparecerá aquí." tall /></div>
+          <div className="flex-1 overflow-y-auto">
+            {conversations.length === 0 ? (
+              // h-full + page-fill so an empty inbox reaches the bottom of the
+              // screen the way every other page's empty state does (PageBody),
+              // instead of stopping two-thirds down and leaving the bar floating
+              // in blank space. The clearance lives on this box rather than on
+              // the scroller: a scroller with display:flex drops its own
+              // padding-bottom from the scrollable area (see Shell).
+              <div className="page-fill h-full p-4 pb-[var(--nav-clearance)]">
+                <EmptyState icon={<MessageCircle size={22} />} title="Sin conversaciones" desc="Cuando alguien escriba a tu WhatsApp aparecerá aquí." tall />
+              </div>
+            ) : (
+            <div className="pb-[var(--nav-clearance)]">
+              {conversations.map((c) => (
+                <button key={c.id} onClick={() => setSelectedId(c.id)}
+                  className={cn('flex w-full items-center gap-3 border-b border-border/60 px-3 py-3 text-left transition',
+                    c.id === selectedId ? 'bg-surface-3' : 'hover:bg-surface-2')}>
+                  <Avatar name={c.name || c.phone} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium text-fg">{c.name || `+${c.phone}`}</span>
+                      <span className="shrink-0 text-[10px] text-subtle">{timeLabel(c.last_message_at)}</span>
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-muted">{c.last_direction === 'out' ? '↩ ' : ''}{c.last_message ?? ''}</span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {c.is_test
+                          ? <Badge tone="warn" className="!px-1.5 !py-0 text-[10px]">Prueba</Badge>
+                          : <Badge tone={c.mode === 'ai' ? 'brand' : 'neutral'} className="!px-1.5 !py-0 text-[10px]">{c.mode === 'ai' ? 'IA' : 'Humano'}</Badge>}
+                        {c.unread_count > 0 && <span className="tabular grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">{c.unread_count}</span>}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
             )}
-            {conversations.map((c) => (
-              <button key={c.id} onClick={() => setSelectedId(c.id)}
-                className={cn('flex w-full items-center gap-3 border-b border-border/60 px-3 py-3 text-left transition',
-                  c.id === selectedId ? 'bg-surface-3' : 'hover:bg-surface-2')}>
-                <Avatar name={c.name || c.phone} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-fg">{c.name || `+${c.phone}`}</span>
-                    <span className="shrink-0 text-[10px] text-subtle">{timeLabel(c.last_message_at)}</span>
-                  </div>
-                  <div className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className="truncate text-xs text-muted">{c.last_direction === 'out' ? '↩ ' : ''}{c.last_message ?? ''}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      {c.is_test
-                        ? <Badge tone="warn" className="!px-1.5 !py-0 text-[10px]">Prueba</Badge>
-                        : <Badge tone={c.mode === 'ai' ? 'brand' : 'neutral'} className="!px-1.5 !py-0 text-[10px]">{c.mode === 'ai' ? 'IA' : 'Humano'}</Badge>}
-                      {c.unread_count > 0 && <span className="tabular grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">{c.unread_count}</span>}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            ))}
           </div>
         </div>
 

@@ -104,10 +104,15 @@ export default function SocialAuth({ onAuthed, onError }: {
         </div>
       ) : (
         <div className="mt-4 flex justify-center">
-          <div className="relative w-full max-w-[340px]">
-            {/* Google renders its official button here. */}
-            <div ref={googleRef} className="[&>div]:!w-full [&_iframe]:!mx-auto" />
-            {!ready && <div className="absolute inset-0 h-11 animate-pulse rounded-full bg-surface-2" />}
+          {/* Google renders its official button here, styled by its own cross-origin
+              stylesheet. Some browsers (iOS Safari especially) paint an opaque white
+              box around that markup, which on our dark card reads as a bug. We can't
+              reach inside their CSS, but the pill itself is a known 40px tall and as
+              wide as we ask for — so clip this box to exactly that silhouette and
+              anything painted outside the pill simply can't show. */}
+          <div className="relative h-10 w-full max-w-[340px] overflow-hidden rounded-full" style={{ colorScheme: resolved }}>
+            <div ref={googleRef} className="absolute inset-0 [&>div]:!w-full [&_iframe]:!mx-auto" />
+            {!ready && <div className="absolute inset-0 animate-pulse bg-surface-2" />}
           </div>
         </div>
       )}

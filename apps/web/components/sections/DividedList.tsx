@@ -17,8 +17,8 @@ const TONE: Record<Tone, string> = {
 };
 
 /**
- * A bordered card split into rows by hairlines. Extracted from NotBuilt so the
- * landing problem list, the /features reason codes and /about all share one
+ * A bordered card split into rows by hairlines. The landing problem list, the
+ * /features reason codes and /about all share this one
  * format — it's the site's main alternative to a grid of cards, and having it
  * in one place is what stops those sections drifting back into looking alike.
  */

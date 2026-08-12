@@ -7,5 +7,4 @@ export { VerificationFlow } from './VerificationFlow';
 export { StickyShowcase, type ShowcaseItem } from './StickyShowcase';
 export { ProofPanel } from './ProofPanel';
 export { TrustBand } from './TrustBand';
-export { NotBuilt } from './NotBuilt';
 export { PricingTeaser } from './PricingTeaser';

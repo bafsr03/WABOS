@@ -8,7 +8,7 @@ import { JsonLd } from '@/components/seo/JsonLd';
 import { Container, SectionHeading, Button, Pill } from '@/components/ui';
 import { Reveal } from '@/components/Reveal';
 import { DashboardMock, InboxMock, Panel } from '@/components/mocks';
-import { FeatureSpotlight, FeatureRow, DividedList, NotBuilt, CTASection } from '@/components/sections';
+import { FeatureSpotlight, FeatureRow, DividedList, CTASection } from '@/components/sections';
 import { REGISTER_URL } from '@/lib/site';
 
 export const metadata = buildMetadata({
@@ -208,7 +208,6 @@ export default function FeaturesPage() {
         </div>
       </Container>
 
-      <NotBuilt />
       <CTASection
         title="La lista completa está bien, pero verlo funcionando es mejor"
         subtitle="Conéctalo a tu número y mira cómo responde a tus clientes de verdad. Sin tarjeta."

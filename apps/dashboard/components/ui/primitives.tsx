@@ -184,9 +184,17 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 }
 
 /* ---------------- EmptyState ---------------- */
-export function EmptyState({ icon, title, desc, action }: { icon?: React.ReactNode; title: string; desc?: string; action?: React.ReactNode }) {
+/**
+ * `tall` is for the case where the empty state *is* the page — an account with
+ * no contacts, no cobros, no campañas. At the default height it sat squashed
+ * under the header with the rest of the phone screen left blank; this gives it
+ * enough of the viewport to look like the page's content rather than a leftover.
+ * Empty states nested inside a section keep the compact default.
+ */
+export function EmptyState({ icon, title, desc, action, tall }: { icon?: React.ReactNode; title: string; desc?: string; action?: React.ReactNode; tall?: boolean }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+    <div className={cn('flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-6 py-14 text-center',
+      tall && 'min-h-[min(52vh,26rem)]')}>
       {icon && <div className="text-subtle">{icon}</div>}
       <div>
         <p className="font-medium text-fg">{title}</p>

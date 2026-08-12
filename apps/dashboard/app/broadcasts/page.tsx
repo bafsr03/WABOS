@@ -84,7 +84,7 @@ export default function BroadcastsPage() {
 
         <div className="mt-5 space-y-3">
           {broadcasts.length === 0 && (
-            <EmptyState icon={<Megaphone size={24} />} title="Sin campañas todavía" desc="Crea una arriba para llegar a tus clientes." />
+            <EmptyState icon={<Megaphone size={24} />} title="Sin campañas todavía" desc="Crea una arriba para llegar a tus clientes." tall />
           )}
           {broadcasts.map((b) => {
             const s = STATUS[b.status] ?? { label: b.status, tone: 'neutral' };

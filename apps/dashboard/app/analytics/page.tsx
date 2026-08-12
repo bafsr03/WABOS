@@ -119,7 +119,7 @@ export default function AnalyticsPage() {
           </div>
         ) : !hasData ? (
           <EmptyState icon={<BarChart3 size={24} />} title="Aún no hay datos"
-            desc="En cuanto empieces a recibir mensajes y cobros, verás aquí tus métricas." />
+            desc="En cuanto empieces a recibir mensajes y cobros, verás aquí tus métricas." tall />
         ) : data && (
           <>
             <SectionHeading>Dinero</SectionHeading>

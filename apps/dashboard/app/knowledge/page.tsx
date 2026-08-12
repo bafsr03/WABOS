@@ -212,6 +212,7 @@ function ListView({ collections, docs, onReloadCollections, onNew, onOpen, onDel
           title={docs.length === 0 ? 'Base de conocimiento vacía' : 'Sin documentos aquí'}
           desc={docs.length === 0 ? 'Agrega políticas de envío, guías o info de tu marca.' : 'Esta colección no tiene documentos todavía.'}
           action={<Button onClick={() => onNew()}><Plus size={15} /> Nuevo documento</Button>}
+          tall
         />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">

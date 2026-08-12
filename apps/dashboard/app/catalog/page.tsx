@@ -246,6 +246,7 @@ function ListView({ products, onNew, onOpen, onDelete, onChanged, toast }: {
           title={products.length === 0 ? 'Catálogo vacío' : 'Sin resultados'}
           desc={products.length === 0 ? 'Agrega tu primer producto para empezar.' : 'Prueba con otra búsqueda o filtro.'}
           action={products.length === 0 ? <Button onClick={onNew}><Plus size={15} /> Nuevo producto</Button> : undefined}
+          tall
         />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">

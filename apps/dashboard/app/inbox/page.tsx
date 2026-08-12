@@ -127,7 +127,7 @@ export default function InboxPage() {
           </div>
           <div className="flex-1 overflow-y-auto">
             {conversations.length === 0 && (
-              <div className="p-4"><EmptyState icon={<MessageCircle size={22} />} title="Sin conversaciones" desc="Cuando alguien escriba a tu WhatsApp aparecerá aquí." /></div>
+              <div className="p-4"><EmptyState icon={<MessageCircle size={22} />} title="Sin conversaciones" desc="Cuando alguien escriba a tu WhatsApp aparecerá aquí." tall /></div>
             )}
             {conversations.map((c) => (
               <button key={c.id} onClick={() => setSelectedId(c.id)}

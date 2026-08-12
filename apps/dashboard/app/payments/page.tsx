@@ -165,7 +165,7 @@ export default function PaymentsPage() {
         </div>
         <Card className="overflow-hidden">
           {charges.length === 0 ? (
-            <div className="p-4"><EmptyState icon={<Wallet size={24} />} title="Sin cobros todavía" desc="Crea uno con “Nuevo cobro”." /></div>
+            <div className="p-4"><EmptyState icon={<Wallet size={24} />} title="Sin cobros todavía" desc="Crea uno con “Nuevo cobro”." tall /></div>
           ) : charges.map((c) => {
             const overdue = c.status === 'pending' && c.due_at !== null && c.due_at < Date.now() / 1000;
             return (

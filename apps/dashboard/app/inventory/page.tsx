@@ -135,7 +135,7 @@ function ResumenTab({ summary, lowStock, onAdjust }: {
 
       <h2 className="mb-3 text-sm font-semibold text-fg">Se está acabando</h2>
       {lowStock.length === 0 ? (
-        <EmptyState icon={<Boxes size={24} />} title="Todo con stock" desc="Ningún producto está por debajo del mínimo." />
+        <EmptyState icon={<Boxes size={24} />} title="Todo con stock" desc="Ningún producto está por debajo del mínimo." tall />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">
           {lowStock.map((p) => (
@@ -200,7 +200,7 @@ function EntradasTab({ products, onChanged }: { products: PickableProduct[]; onC
         <Button onClick={() => setCreating(true)}><PackagePlus size={15} /> Nueva recepción</Button>
       </div>
       {entries.length === 0 ? (
-        <EmptyState icon={<PackagePlus size={24} />} title="Sin recepciones" desc="Registra la mercadería que te llega para llevar el costo real." />
+        <EmptyState icon={<PackagePlus size={24} />} title="Sin recepciones" desc="Registra la mercadería que te llega para llevar el costo real." tall />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">
           {entries.map((e) => (
@@ -283,9 +283,10 @@ function MovimientosTab({ productFilter, filteredName, onClearProduct }: {
             icon={<Info size={24} />}
             title="Tu Empleado IA aún no mueve stock"
             desc="Las ventas que cierra por WhatsApp se cobran sin detalle de productos. Asígnaselos desde Punto de venta y aparecerán aquí."
+            tall
           />
         ) : (
-          <EmptyState icon={<History size={24} />} title="Sin movimientos" desc="El historial de movimientos empieza hoy: los cambios anteriores no quedaron registrados." />
+          <EmptyState icon={<History size={24} />} title="Sin movimientos" desc="El historial de movimientos empieza hoy: los cambios anteriores no quedaron registrados." tall />
         )
       ) : (
         <Card className="divide-y divide-border overflow-hidden">

@@ -106,7 +106,7 @@ export default function ContactsPage() {
 
         <Card className="mt-4 overflow-hidden">
           {filtered.length === 0 ? (
-            <div className="p-4"><EmptyState icon={<Users size={24} />} title="Sin contactos" desc="Agrega uno arriba o espera a que te escriban." /></div>
+            <div className="p-4"><EmptyState icon={<Users size={24} />} title="Sin contactos" desc="Agrega uno arriba o espera a que te escriban." tall /></div>
           ) : filtered.map((c) => (
             <div
               key={c.id}

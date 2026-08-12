@@ -112,6 +112,7 @@ function ListView({ agents, testing, onNew, onOpen, onDelete, onTest }: {
           title="Sin agentes"
           desc="Crea tu primer agente especializado."
           action={<Button onClick={onNew}><Plus size={15} /> Nuevo agente</Button>}
+          tall
         />
       ) : (
         <Card className="divide-y divide-border overflow-hidden">

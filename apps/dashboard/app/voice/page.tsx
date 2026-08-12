@@ -108,15 +108,16 @@ export default function VoicePage() {
         />
 
         {!enabled ? (
-          <EmptyState icon={<Lock size={24} />} title="Función premium" desc="El análisis de estilo con IA está disponible en el plan Pro. Actualiza para desbloquearlo." />
+          <EmptyState icon={<Lock size={24} />} title="Función premium" desc="El análisis de estilo con IA está disponible en el plan Pro. Actualiza para desbloquearlo." tall />
         ) : !aiAvailable ? (
-          <EmptyState icon={<Sparkles size={24} />} title="IA no configurada" desc="Configura ANTHROPIC_API_KEY en el motor para usar esta función." />
+          <EmptyState icon={<Sparkles size={24} />} title="IA no configurada" desc="Configura ANTHROPIC_API_KEY en el motor para usar esta función." tall />
         ) : !analysis ? (
           <EmptyState
             icon={<Sparkles size={24} />}
             title="Aún no has analizado tu estilo"
             desc="Con un clic, la IA revisa tus conversaciones, aprende tu voz y etiqueta a tus clientes."
             action={<Button onClick={start} disabled={starting}><Wand2 size={15} /> Analizar mi estilo</Button>}
+            tall
           />
         ) : (
           <div className="space-y-5">

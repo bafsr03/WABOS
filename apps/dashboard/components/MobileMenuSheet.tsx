@@ -100,7 +100,8 @@ export default function MobileMenuSheet({ open, onClose, groups, activeHref, waS
                 the map instead of posing as two more pages. Theme cycles in place
                 (the canonical 3-way control lives in Ajustes → Apariencia) and the
                 sheet stays open so the change is visible. */}
-            <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-border px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+            <div className="shrink-0 border-t border-border px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+              <div className="grid grid-cols-2 gap-2">
               <button onClick={cycleTheme}
                 className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface-2/50 py-2.5 text-sm font-medium text-fg transition active:bg-surface-3">
                 {themePref === 'system' ? <Monitor size={16} /> : themeResolved === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
@@ -111,6 +112,16 @@ export default function MobileMenuSheet({ open, onClose, groups, activeHref, waS
                 <LogOut size={16} />
                 Cerrar sesión
               </button>
+              </div>
+              {/* Temporary. Installed to the home screen there is no address
+                  bar, so this link is the only way to open the screen
+                  diagnostics from inside the app — which is the one place the
+                  numbers mean anything, since standalone is where the layout
+                  differs. Goes away with NavDebug. */}
+              <Link href="/diag" onClick={onClose}
+                className="mt-2 block text-center text-[11px] text-subtle">
+                Diagnóstico de pantalla
+              </Link>
             </div>
           </motion.div>
         </div>

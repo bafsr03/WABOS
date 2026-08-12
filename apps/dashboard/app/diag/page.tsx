@@ -50,6 +50,8 @@ export default function Diag() {
     <div className="min-h-full bg-bg p-5 text-fg" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)' }}>
       <h1 className="font-display text-xl font-semibold">Diagnóstico de pantalla</h1>
       <p className="mt-1 text-sm text-muted">Mándale esta captura a quien te ayuda con el desarrollo.</p>
+      {/* Installed to the home screen there's no back button either. */}
+      <a href="/" className="mt-2 inline-block text-sm font-medium text-brand">← Volver a la app</a>
       <div className="mt-4 overflow-hidden rounded-xl border border-border">
         {data.map(([k, v], i) => (
           <div key={k} className={`flex justify-between px-3 py-2 text-sm ${i > 0 ? 'border-t border-border' : ''}`}>

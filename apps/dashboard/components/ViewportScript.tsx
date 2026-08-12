@@ -45,6 +45,16 @@ function fill(){
   if(prev)e.style.setProperty('--app-h',prev);
   return h;
 }
+function standalone(){try{return navigator.standalone===true||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches;}catch(x){return false;}}
+function probe(v){
+  if(!document.body)return 0;
+  var d=document.createElement('div');
+  d.style.cssText='position:fixed;top:0;left:0;width:0;height:'+v+';visibility:hidden;pointer-events:none';
+  document.body.appendChild(d);
+  var h=d.getBoundingClientRect().height;
+  d.remove();
+  return h;
+}
 function set(){
   var ih=window.innerHeight||0;
   if(!ih)return;
@@ -56,6 +66,12 @@ function set(){
   var cap=ih+160;
   var fa=fill();
   if(fa>h&&fa<cap)h=fa;
+  /* Installed to the home screen only. There is no browser chrome there, so
+     100lvh — the viewport with chrome retracted — can only mean the window;
+     measured on a real iPhone in Safari it reads 741 against innerHeight 659,
+     i.e. it sees past what innerHeight admits to. In a browser that gap IS the
+     toolbars, so taking it would hide the nav bar underneath them. */
+  if(standalone()){var lv=probe('100lvh');if(lv>h&&lv<cap)h=lv;}
   /* screen.height is deliberately NOT a candidate. If the web view is smaller
      than the screen, sizing the shell to the screen doesn't reclaim those
      pixels — it just draws the nav bar into the strip the web view can't

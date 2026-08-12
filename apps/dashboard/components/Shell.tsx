@@ -205,7 +205,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-bg text-fg">
+    <div className="flex h-full overflow-hidden bg-bg text-fg">
       {/* Static sidebar (desktop) */}
       <aside className="relative hidden w-60 shrink-0 border-r border-border lg:block">{sidebar()}</aside>
 

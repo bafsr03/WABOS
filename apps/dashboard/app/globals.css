@@ -149,6 +149,11 @@ html, body {
      bottom toolbar. `none` stops the chain so it never appears. */
   overscroll-behavior: none;
   max-width: 100%;
+  /* The app's full-height shells size against this instead of 100dvh. In the
+     installed iOS app dvh resolves short of the real window, which left an
+     unpainted black band under the content on every screen; a percentage of the
+     document always matches the window exactly. */
+  height: 100%;
 }
 body {
   background: var(--bg);

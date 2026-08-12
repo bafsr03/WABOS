@@ -71,7 +71,7 @@ export default function GoogleCallback() {
   }, []);
 
   return (
-    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-bg px-4">
+    <div className="relative flex min-h-full flex-col items-center justify-center overflow-hidden bg-bg px-4 py-8">
       <div className="aurora pointer-events-none absolute inset-0" />
       <div className="glass w-full max-w-sm rounded-2xl p-8 text-center">
         <img src="/logo.png" alt="WABOS" width={40} height={40} className="mx-auto h-10 w-10 rounded-xl object-cover" />

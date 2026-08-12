@@ -36,7 +36,7 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="relative flex min-h-[100dvh] flex-col items-center overflow-hidden bg-bg px-4 py-[10dvh]">
+    <div className="relative flex min-h-full flex-col items-center justify-center overflow-hidden bg-bg px-4 py-8">
       <div className="aurora pointer-events-none absolute inset-0" />
 
       <motion.form

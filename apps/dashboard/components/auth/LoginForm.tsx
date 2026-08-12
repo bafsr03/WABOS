@@ -46,7 +46,10 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="relative flex min-h-[100dvh] flex-col items-center overflow-hidden bg-bg px-4 py-[10dvh]">
+    // Centered on every size: the card used to sit at a fixed 10dvh from the top,
+    // which on a tall phone parked it against the status bar with a dead half
+    // screen underneath.
+    <div className="relative flex min-h-full flex-col items-center justify-center overflow-hidden bg-bg px-4 py-8">
       <div className="aurora pointer-events-none absolute inset-0" />
 
       <motion.form
